@@ -244,7 +244,7 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
               }}
               className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-colors ${
                 currentVisibility === 'private'
-                  ? 'bg-[rgba(99,102,241,0.15)] text-[var(--color-accent-main)]'
+                  ? 'bg-[rgba(16,163,127,0.15)] text-[var(--color-accent-main)]'
                   : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
               }`}
               title={t('conversation.visibilityDesc')}
@@ -260,7 +260,7 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
               }}
               className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-colors ${
                 currentSelfReview
-                  ? 'bg-[rgba(99,102,241,0.15)] text-[var(--color-accent-main)]'
+                  ? 'bg-[rgba(16,163,127,0.15)] text-[var(--color-accent-main)]'
                   : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
               }`}
               title={t('conversation.selfReviewDesc')}
