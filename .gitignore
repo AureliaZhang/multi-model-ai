@@ -1,0 +1,14 @@
+node_modules/
+client/node_modules/
+server/node_modules/
+server/dist/
+client/dist/
+server/data/
+*.db
+*.db-shm
+*.db-wal
+.env
+*.log
+.DS_Store
+.vscode/
+.idea/

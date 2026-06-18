@@ -1,0 +1,122 @@
+import { create } from 'zustand';
+import type { MemoryEntry, MemoryConfig } from '../types';
+import { memoryApi } from '../services/api';
+
+interface MemoryState {
+  entries: MemoryEntry[];
+  total: number;
+  page: number;
+  totalPages: number;
+  loading: boolean;
+  error: string | null;
+  searchQuery: string;
+  searchResults: MemoryEntry[];
+  config: MemoryConfig | null;
+  selectedTag: string | null;
+
+  fetchEntries: (page?: number, tag?: string) => Promise<void>;
+  searchMemories: (query: string) => Promise<void>;
+  clearSearch: () => void;
+  fetchConfig: () => Promise<void>;
+  updateConfig: (config: Partial<MemoryConfig>) => Promise<void>;
+  deleteEntry: (id: string) => Promise<void>;
+  setSelectedTag: (tag: string | null) => void;
+  clearError: () => void;
+}
+
+export const useMemoryStore = create<MemoryState>((set, get) => ({
+  entries: [],
+  total: 0,
+  page: 1,
+  totalPages: 0,
+  loading: false,
+  error: null,
+  searchQuery: '',
+  searchResults: [],
+  config: null,
+  selectedTag: null,
+
+  fetchEntries: async (page = 1, tag?: string) => {
+    set({ loading: true });
+    try {
+      const res = await memoryApi.list({ page, limit: 20, tag: tag || undefined });
+      if (res.success && res.data) {
+        set({
+          entries: res.data.entries,
+          total: res.data.total,
+          page: res.data.page,
+          totalPages: res.data.totalPages,
+          loading: false,
+        });
+      } else {
+        set({ loading: false, error: res.error || 'Failed to fetch memories' });
+      }
+    } catch (err: any) {
+      set({ loading: false, error: err.message });
+    }
+  },
+
+  searchMemories: async (query: string) => {
+    if (!query.trim()) {
+      set({ searchResults: [], searchQuery: '' });
+      return;
+    }
+    set({ loading: true, searchQuery: query });
+    try {
+      const res = await memoryApi.search(query);
+      if (res.success && res.data) {
+        set({ searchResults: res.data, loading: false });
+      } else {
+        set({ loading: false, error: res.error || 'Search failed' });
+      }
+    } catch (err: any) {
+      set({ loading: false, error: err.message });
+    }
+  },
+
+  clearSearch: () => set({ searchQuery: '', searchResults: [] }),
+
+  fetchConfig: async () => {
+    try {
+      const res = await memoryApi.getConfig();
+      if (res.success && res.data) {
+        set({ config: res.data });
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch memory config:', err);
+    }
+  },
+
+  updateConfig: async (config: Partial<MemoryConfig>) => {
+    try {
+      const res = await memoryApi.updateConfig(config);
+      if (res.success && res.data) {
+        set({ config: res.data });
+      }
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
+
+  deleteEntry: async (id: string) => {
+    try {
+      const res = await memoryApi.delete(id);
+      if (res.success) {
+        set(state => ({
+          entries: state.entries.filter(e => e.id !== id),
+          searchResults: state.searchResults.filter(e => e.id !== id),
+          total: state.total - 1,
+        }));
+      }
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
+
+  setSelectedTag: (tag: string | null) => {
+    set({ selectedTag: tag });
+    get().fetchEntries(1, tag || undefined);
+  },
+
+  clearError: () => set({ error: null }),
+}));

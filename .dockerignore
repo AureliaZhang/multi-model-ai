@@ -1,0 +1,15 @@
+node_modules
+client/node_modules
+server/node_modules
+server/dist
+client/dist
+server/data
+.git
+.gitignore
+*.md
+*.png
+*.jpg
+*.svg
+Dockerfile
+.dockerignore
+plans/
