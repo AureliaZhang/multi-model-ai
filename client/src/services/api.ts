@@ -59,9 +59,9 @@ export const modelApi = {
 // --- Conversations ---
 export const conversationApi = {
   list: () => request<Conversation[]>('/conversations'),
-  create: (data: { title?: string; modelNormalizedName: string }) =>
+  create: (data: { title?: string; modelNormalizedName: string; visibility?: 'public' | 'private'; selfReview?: boolean }) =>
     request<Conversation>('/conversations', { method: 'POST', body: JSON.stringify(data) }),
-  update: (id: string, data: { title?: string; modelNormalizedName?: string }) =>
+  update: (id: string, data: { title?: string; modelNormalizedName?: string; visibility?: 'public' | 'private'; selfReview?: boolean }) =>
     request<Conversation>(`/conversations/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id: string) =>
     request(`/conversations/${id}`, { method: 'DELETE' }),
@@ -77,6 +77,7 @@ export interface StreamChatCallbacks {
   onToolCall?: (toolCall: { id: string; name: string; arguments: Record<string, unknown> }) => void;
   onToolResult?: (toolResult: { id: string; name: string; result: string }) => void;
   onAttachments?: (attachments: { id: string; type: string; filename: string; mimeType: string }[]) => void;
+  onReviewedContent?: (content: string) => void;
 }
 
 export function streamChat(
@@ -151,6 +152,9 @@ export function streamChat(
               }
               if (parsed.toolResult) {
                 callbacks.onToolResult?.(parsed.toolResult);
+              }
+              if (parsed.reviewedContent) {
+                callbacks.onReviewedContent?.(parsed.reviewedContent);
               }
             } catch {
               // Skip invalid JSON

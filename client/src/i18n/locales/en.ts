@@ -189,6 +189,17 @@ const en = {
 
   // Layout
   'layout.openSidebar': 'Open sidebar',
+
+  // Conversation Visibility & Self-Review
+  'conversation.public': 'Public',
+  'conversation.private': 'Private',
+  'conversation.visibility': 'Visibility',
+  'conversation.visibilityDesc': 'Public conversations are visible to all users',
+  'conversation.selfReview': 'Self-Review',
+  'conversation.selfReviewDesc': 'AI reviews its response for grammar, typos, and formatting before displaying',
+  'conversation.toggleVisibility': 'Toggle visibility',
+  'conversation.toggleSelfReview': 'Toggle self-review',
+  'conversation.newChatOptions': 'New Conversation Options',
 };
 
 export default en;

@@ -33,10 +33,15 @@ export interface AggregatedModel {
   stations: { stationId: string; stationName: string; modelId: string; healthy: boolean }[];
 }
 
+export type ConversationVisibility = 'public' | 'private';
+
 export interface Conversation {
   id: string;
   title: string;
   modelNormalizedName: string;
+  visibility: ConversationVisibility;
+  selfReview: boolean;
+  userId?: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Conversation, Message, PendingAttachment, ToolCallInfo } from '../types';
+import type { Conversation, ConversationVisibility, Message, PendingAttachment, ToolCallInfo } from '../types';
 import { conversationApi, streamChat } from '../services/api';
 
 interface ChatState {
@@ -11,15 +11,20 @@ interface ChatState {
   error: string | null;
   abortController: AbortController | null;
   pendingToolCalls: ToolCallInfo[];
+  currentVisibility: ConversationVisibility;
+  currentSelfReview: boolean;
 
   fetchConversations: () => Promise<void>;
-  createConversation: (modelNormalizedName: string, title?: string) => Promise<string>;
+  createConversation: (modelNormalizedName: string, title?: string, visibility?: ConversationVisibility, selfReview?: boolean) => Promise<string>;
   deleteConversation: (id: string) => Promise<void>;
   selectConversation: (id: string) => Promise<void>;
+  updateConversation: (id: string, data: { title?: string; visibility?: ConversationVisibility; selfReview?: boolean }) => Promise<void>;
   sendMessage: (message: string, modelNormalizedName: string, attachments?: PendingAttachment[]) => void;
   doSendMessage: (convId: string, message: string, modelNormalizedName: string, attachments?: PendingAttachment[]) => void;
   stopStreaming: () => void;
   clearError: () => void;
+  setVisibility: (v: ConversationVisibility) => void;
+  setSelfReview: (v: boolean) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -31,6 +36,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   error: null,
   abortController: null,
   pendingToolCalls: [],
+  currentVisibility: 'public',
+  currentSelfReview: false,
 
   fetchConversations: async () => {
     try {
@@ -43,13 +50,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  createConversation: async (modelNormalizedName: string, title?: string) => {
-    const res = await conversationApi.create({ modelNormalizedName, title });
+  createConversation: async (modelNormalizedName: string, title?: string, visibility?: ConversationVisibility, selfReview?: boolean) => {
+    const res = await conversationApi.create({
+      modelNormalizedName,
+      title,
+      visibility: visibility || get().currentVisibility,
+      selfReview: selfReview !== undefined ? selfReview : get().currentSelfReview,
+    });
     if (res.success && res.data) {
       set(state => ({
         conversations: [res.data!, ...state.conversations],
         currentConversationId: res.data!.id,
         messages: [],
+        currentVisibility: res.data!.visibility,
+        currentSelfReview: res.data!.selfReview,
       }));
       return res.data.id;
     }
@@ -70,19 +84,43 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (currentConversationId) {
       get().selectConversation(currentConversationId);
     } else {
-      set({ messages: [] });
+      set({ messages: [], currentVisibility: 'public', currentSelfReview: false });
     }
   },
 
   selectConversation: async (id: string) => {
     set({ currentConversationId: id, messages: [], error: null });
     try {
+      // Find conversation in local state to set visibility/selfReview
+      const conv = get().conversations.find(c => c.id === id);
+      if (conv) {
+        set({ currentVisibility: conv.visibility, currentSelfReview: conv.selfReview });
+      }
       const res = await conversationApi.getMessages(id);
       if (res.success && res.data) {
         set({ messages: res.data });
       }
     } catch (err: any) {
       set({ error: err.message });
+    }
+  },
+
+  updateConversation: async (id: string, data: { title?: string; visibility?: ConversationVisibility; selfReview?: boolean }) => {
+    try {
+      const res = await conversationApi.update(id, data);
+      if (res.success && res.data) {
+        set(state => {
+          const conversations = state.conversations.map(c => c.id === id ? res.data! : c);
+          const updates: Partial<ChatState> = { conversations };
+          if (state.currentConversationId === id) {
+            if (data.visibility !== undefined) updates.currentVisibility = data.visibility;
+            if (data.selfReview !== undefined) updates.currentSelfReview = data.selfReview;
+          }
+          return updates;
+        });
+      }
+    } catch (err: any) {
+      console.error('Failed to update conversation:', err);
     }
   },
 
@@ -165,6 +203,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
           // Refresh conversation list to update title
           get().fetchConversations();
         },
+        // onReviewedContent — replaces streaming content with self-reviewed version
+        onReviewedContent: (reviewedContent: string) => {
+          set({ streamingContent: reviewedContent });
+        },
         // onError
         onError: (error) => {
           set({ isStreaming: false, streamingContent: '', error, abortController: null, pendingToolCalls: [] });
@@ -221,4 +263,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
+  setVisibility: (v: ConversationVisibility) => set({ currentVisibility: v }),
+  setSelfReview: (v: boolean) => set({ currentSelfReview: v }),
 }));

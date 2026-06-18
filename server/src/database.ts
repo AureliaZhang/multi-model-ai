@@ -174,8 +174,23 @@ function initTables(db: Database.Database): void {
     // Column already exists
   }
 
-  // Create index on user_id after migration
+  // Migration: add visibility column to conversations if not exists
+  try {
+    db.exec(`ALTER TABLE conversations ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public'`);
+  } catch {
+    // Column already exists
+  }
+
+  // Migration: add self_review column to conversations if not exists
+  try {
+    db.exec(`ALTER TABLE conversations ADD COLUMN self_review INTEGER NOT NULL DEFAULT 0`);
+  } catch {
+    // Column already exists
+  }
+
+  // Create indexes
   db.exec(`CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_conversations_visibility ON conversations(visibility)`);
 }
 
 function seedDefaultAdmin(db: Database.Database): void {

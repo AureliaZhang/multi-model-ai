@@ -436,6 +436,58 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
 
+    // Self-review pass: if enabled, send the response through a review prompt
+    if (conv.self_review) {
+      console.log(`[chat] Self-review enabled for conversation ${conversationId}, starting review pass...`);
+      try {
+        const reviewPrompt = `You are a professional editor and proofreader. Review the following AI response for:
+1. Grammar errors and typos
+2. Table formatting issues (broken markdown tables, misaligned columns)
+3. Formatting inconsistencies
+
+If you find any issues, correct them and return ONLY the corrected version. If there are no issues, return the original text unchanged. Do NOT add any commentary, explanation, or meta-text. Just return the corrected content directly.
+
+---BEGIN AI RESPONSE---
+${assistantContent}
+---END AI RESPONSE---`;
+
+        const reviewRequestBody: any = {
+          model: usedStation.split(' @ ')[0], // Use the same model
+          messages: [{ role: 'user', content: reviewPrompt }],
+          stream: false,
+        };
+
+        // Find the station info for the review call
+        const reviewStation = stations.find((s: any) => `${s.modelId} @ ${s.station.name}` === usedStation);
+        if (reviewStation) {
+          const reviewResponse = await fetch(`${reviewStation.station.baseUrl}/chat/completions`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${reviewStation.station.apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(reviewRequestBody),
+          });
+
+          if (reviewResponse.ok) {
+            const reviewData = await reviewResponse.json() as any;
+            const reviewedContent = reviewData.choices?.[0]?.message?.content;
+            if (reviewedContent && reviewedContent.trim()) {
+              console.log(`[chat] Self-review complete. Original: ${assistantContent.length} chars, Reviewed: ${reviewedContent.length} chars`);
+              assistantContent = reviewedContent;
+              // Send the reviewed content as a replacement event
+              res.write(`data: ${JSON.stringify({ reviewedContent: assistantContent })}\n\n`);
+            }
+          } else {
+            console.error(`[chat] Self-review API call failed with status ${reviewResponse.status}`);
+          }
+        }
+      } catch (reviewErr: any) {
+        console.error('[chat] Self-review error:', reviewErr.message);
+        // Continue with original content if review fails
+      }
+    }
+
     // Save assistant message
     const assistantMsgId = uuidv4();
     const assistantTime = new Date().toISOString();

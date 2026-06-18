@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useChatStore } from '../../stores/chatStore';
 import { useModelStore } from '../../stores/modelStore';
-import { Send, Paperclip, Square, LogIn, X, FileIcon } from 'lucide-react';
+import { Send, Paperclip, Square, LogIn, X, FileIcon, Globe, Lock, Eye, EyeOff } from 'lucide-react';
 import type { PendingAttachment } from '../../types';
 import { useTranslation } from '../../i18n';
 
@@ -41,6 +41,12 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
   const stopStreaming = useChatStore(s => s.stopStreaming);
   const isStreaming = useChatStore(s => s.isStreaming);
   const models = useModelStore(s => s.models);
+  const currentConversationId = useChatStore(s => s.currentConversationId);
+  const currentVisibility = useChatStore(s => s.currentVisibility);
+  const currentSelfReview = useChatStore(s => s.currentSelfReview);
+  const updateConversation = useChatStore(s => s.updateConversation);
+  const setVisibility = useChatStore(s => s.setVisibility);
+  const setSelfReview = useChatStore(s => s.setSelfReview);
   const { t } = useTranslation();
 
   const [selectedModel, _setSelectedModel] = useState('');
@@ -224,6 +230,44 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Visibility & Self-Review toggles */}
+        {currentConversationId && (
+          <div className="flex items-center gap-1.5 mb-2 px-1">
+            <button
+              onClick={() => {
+                const newVis = currentVisibility === 'public' ? 'private' as const : 'public' as const;
+                setVisibility(newVis);
+                updateConversation(currentConversationId, { visibility: newVis });
+              }}
+              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-colors ${
+                currentVisibility === 'private'
+                  ? 'bg-[rgba(99,102,241,0.15)] text-[var(--color-accent-main)]'
+                  : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+              }`}
+              title={t('conversation.visibilityDesc')}
+            >
+              {currentVisibility === 'private' ? <Lock size={11} /> : <Globe size={11} />}
+              <span>{currentVisibility === 'private' ? t('conversation.private') : t('conversation.public')}</span>
+            </button>
+            <button
+              onClick={() => {
+                const newVal = !currentSelfReview;
+                setSelfReview(newVal);
+                updateConversation(currentConversationId, { selfReview: newVal });
+              }}
+              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-colors ${
+                currentSelfReview
+                  ? 'bg-[rgba(99,102,241,0.15)] text-[var(--color-accent-main)]'
+                  : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+              }`}
+              title={t('conversation.selfReviewDesc')}
+            >
+              {currentSelfReview ? <Eye size={11} /> : <EyeOff size={11} />}
+              <span>{t('conversation.selfReview')}</span>
+            </button>
           </div>
         )}
 

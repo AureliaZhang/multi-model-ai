@@ -189,6 +189,17 @@ const zh = {
 
   // 布局
   'layout.openSidebar': '打开侧边栏',
+
+  // 对话可见性与自我审查
+  'conversation.public': '公开',
+  'conversation.private': '私密',
+  'conversation.visibility': '可见性',
+  'conversation.visibilityDesc': '公开对话对所有用户可见',
+  'conversation.selfReview': '自我审查',
+  'conversation.selfReviewDesc': 'AI 在显示前检查回答中的语病、错别字和格式问题',
+  'conversation.toggleVisibility': '切换可见性',
+  'conversation.toggleSelfReview': '切换自我审查',
+  'conversation.newChatOptions': '新对话选项',
 };
 
 export default zh;

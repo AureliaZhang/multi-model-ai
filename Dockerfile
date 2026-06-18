@@ -44,12 +44,13 @@ COPY --from=builder /app/server/dist ./server/dist
 # Copy built client code (served as static files by Express)
 COPY --from=builder /app/client/dist ./client/dist
 
-# Create data directory for SQLite database
-RUN mkdir -p /app/server/data
+# Create persistent data directory (mount a Railway volume at /data)
+RUN mkdir -p /data
 
 WORKDIR /app/server
 
 ENV NODE_ENV=production
+ENV DB_PATH=/data/app.db
 
 EXPOSE 3001
 

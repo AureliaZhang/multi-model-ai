@@ -1,7 +1,8 @@
 import { useChatStore } from '../../stores/chatStore';
 import { useAuthStore } from '../../stores/authStore';
-import { MessageSquarePlus, Settings, Trash2, LogOut, Users, Shield, User, Brain } from 'lucide-react';
+import { MessageSquarePlus, Settings, Trash2, LogOut, Users, Shield, User, Brain, Globe, Lock, Eye, EyeOff } from 'lucide-react';
 import { useTranslation } from '../../i18n';
+import type { ConversationVisibility } from '../../types';
 
 interface SidebarProps {
   isGuest?: boolean;
@@ -17,6 +18,11 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMe
   const currentConversationId = useChatStore(s => s.currentConversationId);
   const selectConversation = useChatStore(s => s.selectConversation);
   const deleteConversation = useChatStore(s => s.deleteConversation);
+  const updateConversation = useChatStore(s => s.updateConversation);
+  const currentVisibility = useChatStore(s => s.currentVisibility);
+  const currentSelfReview = useChatStore(s => s.currentSelfReview);
+  const setVisibility = useChatStore(s => s.setVisibility);
+  const setSelfReview = useChatStore(s => s.setSelfReview);
   const user = useAuthStore(s => s.user);
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
   const logout = useAuthStore(s => s.logout);
@@ -31,6 +37,17 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMe
     if (confirm(t('sidebar.newChat'))) {
       await deleteConversation(id);
     }
+  };
+
+  const handleToggleVisibility = (e: React.MouseEvent, convId: string, currentVis: ConversationVisibility) => {
+    e.stopPropagation();
+    const newVis: ConversationVisibility = currentVis === 'public' ? 'private' : 'public';
+    updateConversation(convId, { visibility: newVis });
+  };
+
+  const handleToggleSelfReview = (e: React.MouseEvent, convId: string, current: boolean) => {
+    e.stopPropagation();
+    updateConversation(convId, { selfReview: !current });
   };
 
   const handleLogout = () => {
@@ -53,6 +70,36 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMe
         </button>
       </div>
 
+      {/* New conversation options (visibility + self-review defaults) */}
+      {!isGuest && isAuthenticated && (
+        <div className="px-2 pb-1.5 flex items-center gap-1.5">
+          <button
+            onClick={() => setVisibility(currentVisibility === 'public' ? 'private' : 'public')}
+            className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-colors ${
+              currentVisibility === 'private'
+                ? 'bg-[var(--color-accent-main)] bg-opacity-15 text-[var(--color-accent-main)]'
+                : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+            }`}
+            title={t('conversation.visibilityDesc')}
+          >
+            {currentVisibility === 'private' ? <Lock size={11} /> : <Globe size={11} />}
+            <span>{currentVisibility === 'private' ? t('conversation.private') : t('conversation.public')}</span>
+          </button>
+          <button
+            onClick={() => setSelfReview(!currentSelfReview)}
+            className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-colors ${
+              currentSelfReview
+                ? 'bg-[var(--color-accent-main)] bg-opacity-15 text-[var(--color-accent-main)]'
+                : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+            }`}
+            title={t('conversation.selfReviewDesc')}
+          >
+            {currentSelfReview ? <Eye size={11} /> : <EyeOff size={11} />}
+            <span>{t('conversation.selfReview')}</span>
+          </button>
+        </div>
+      )}
+
       {/* Conversation list */}
       <div className="flex-1 overflow-y-auto px-2 py-0.5">
         {isGuest ? (
@@ -72,15 +119,49 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMe
                     : 'hover:bg-[var(--color-sidebar-surface-hover)]'
                 }`}
               >
+                {/* Visibility icon */}
+                <span className="mr-1.5 flex-shrink-0" title={conv.visibility === 'private' ? t('conversation.private') : t('conversation.public')}>
+                  {conv.visibility === 'private' ? (
+                    <Lock size={12} className="text-[var(--color-text-tertiary)]" />
+                  ) : (
+                    <Globe size={12} className="text-[var(--color-text-tertiary)] opacity-50" />
+                  )}
+                </span>
+
                 <span className="truncate text-[13px] text-[var(--color-text-secondary)] flex-1 leading-5">
                   {conv.title}
                 </span>
-                <button
-                  onClick={(e) => handleDelete(e, conv.id)}
-                  className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-[rgba(255,255,255,0.08)] text-[var(--color-text-tertiary)] transition-all duration-150 ml-1"
-                >
-                  <Trash2 size={14} />
-                </button>
+
+                {/* Self-review indicator */}
+                {conv.selfReview && (
+                  <span className="mr-1 flex-shrink-0" title={t('conversation.selfReview')}>
+                    <Eye size={11} className="text-[var(--color-accent-main)] opacity-60" />
+                  </span>
+                )}
+
+                {/* Action buttons on hover */}
+                <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-all duration-150 ml-1">
+                  <button
+                    onClick={(e) => handleToggleVisibility(e, conv.id, conv.visibility)}
+                    className="p-1 rounded-md hover:bg-[rgba(255,255,255,0.08)] text-[var(--color-text-tertiary)] transition-all duration-150"
+                    title={conv.visibility === 'private' ? t('conversation.public') : t('conversation.private')}
+                  >
+                    {conv.visibility === 'private' ? <Globe size={13} /> : <Lock size={13} />}
+                  </button>
+                  <button
+                    onClick={(e) => handleToggleSelfReview(e, conv.id, conv.selfReview)}
+                    className="p-1 rounded-md hover:bg-[rgba(255,255,255,0.08)] text-[var(--color-text-tertiary)] transition-all duration-150"
+                    title={t('conversation.toggleSelfReview')}
+                  >
+                    {conv.selfReview ? <Eye size={13} /> : <EyeOff size={13} />}
+                  </button>
+                  <button
+                    onClick={(e) => handleDelete(e, conv.id)}
+                    className="p-1 rounded-md hover:bg-[rgba(255,255,255,0.08)] text-[var(--color-text-tertiary)] transition-all duration-150"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               </div>
             ))}
 

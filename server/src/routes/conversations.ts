@@ -1,22 +1,47 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../database';
-import { Conversation, Message, ApiResponse } from '../types';
+import { Conversation, ConversationVisibility, ApiResponse, AuthRequest } from '../types';
+import { optionalAuth } from '../middleware/auth';
 
 const router = Router();
 
+// Helper to map a DB row to Conversation type
+function rowToConversation(r: any): Conversation {
+  return {
+    id: r.id,
+    title: r.title,
+    modelNormalizedName: r.model_normalized_name,
+    visibility: r.visibility || 'public',
+    selfReview: Boolean(r.self_review),
+    userId: r.user_id || undefined,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
 // GET /api/conversations - List conversations
-router.get('/', (_req: Request, res: Response) => {
+// - Authenticated users see their own conversations (all visibility) + public conversations from others
+// - Unauthenticated users see only public conversations
+router.get('/', optionalAuth, (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const rows = db.prepare('SELECT * FROM conversations ORDER BY updated_at DESC').all() as any[];
-    const conversations: Conversation[] = rows.map(r => ({
-      id: r.id,
-      title: r.title,
-      modelNormalizedName: r.model_normalized_name,
-      createdAt: r.created_at,
-      updatedAt: r.updated_at,
-    }));
+    const userId = req.user?.id;
+    let rows: any[];
+
+    if (userId) {
+      // Authenticated: own conversations (all visibility) + public from others
+      rows = db.prepare(
+        'SELECT * FROM conversations WHERE user_id = ? OR visibility = ? OR user_id IS NULL ORDER BY updated_at DESC'
+      ).all(userId, 'public') as any[];
+    } else {
+      // Guest: only public conversations
+      rows = db.prepare(
+        'SELECT * FROM conversations WHERE visibility = ? ORDER BY updated_at DESC'
+      ).all('public') as any[];
+    }
+
+    const conversations: Conversation[] = rows.map(rowToConversation);
     res.json({ success: true, data: conversations } as ApiResponse<Conversation[]>);
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -24,23 +49,27 @@ router.get('/', (_req: Request, res: Response) => {
 });
 
 // POST /api/conversations - Create conversation
-router.post('/', (req: Request, res: Response) => {
+router.post('/', optionalAuth, (req: AuthRequest, res: Response) => {
   try {
-    const { title, modelNormalizedName } = req.body;
+    const { title, modelNormalizedName, visibility, selfReview } = req.body;
     if (!modelNormalizedName) {
       return res.status(400).json({ success: false, error: 'modelNormalizedName is required' });
     }
     const db = getDb();
     const id = uuidv4();
     const now = new Date().toISOString();
+    const vis: ConversationVisibility = visibility === 'private' ? 'private' : 'public';
+    const review = selfReview ? 1 : 0;
+    const userId = req.user?.id || null;
+
     db.prepare(
-      'INSERT INTO conversations (id, title, model_normalized_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'
-    ).run(id, title || 'New Conversation', modelNormalizedName, now, now);
+      'INSERT INTO conversations (id, title, model_normalized_name, visibility, self_review, user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(id, title || 'New Conversation', modelNormalizedName, vis, review, userId, now, now);
 
     const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(id) as any;
     res.status(201).json({
       success: true,
-      data: { id: conv.id, title: conv.title, modelNormalizedName: conv.model_normalized_name, createdAt: conv.created_at, updatedAt: conv.updated_at },
+      data: rowToConversation(conv),
     } as ApiResponse<Conversation>);
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -48,10 +77,10 @@ router.post('/', (req: Request, res: Response) => {
 });
 
 // PUT /api/conversations/:id - Update conversation
-router.put('/:id', (req: Request, res: Response) => {
+router.put('/:id', optionalAuth, (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { title, modelNormalizedName } = req.body;
+    const { title, modelNormalizedName, visibility, selfReview } = req.body;
     const db = getDb();
 
     const existing = db.prepare('SELECT * FROM conversations WHERE id = ?').get(id) as any;
@@ -61,15 +90,17 @@ router.put('/:id', (req: Request, res: Response) => {
 
     const newTitle = title ?? existing.title;
     const newModel = modelNormalizedName ?? existing.model_normalized_name;
+    const newVisibility = (visibility === 'public' || visibility === 'private') ? visibility : existing.visibility;
+    const newSelfReview = selfReview !== undefined ? (selfReview ? 1 : 0) : existing.self_review;
     const now = new Date().toISOString();
 
-    db.prepare('UPDATE conversations SET title = ?, model_normalized_name = ?, updated_at = ? WHERE id = ?')
-      .run(newTitle, newModel, now, id);
+    db.prepare('UPDATE conversations SET title = ?, model_normalized_name = ?, visibility = ?, self_review = ?, updated_at = ? WHERE id = ?')
+      .run(newTitle, newModel, newVisibility, newSelfReview, now, id);
 
     const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(id) as any;
     res.json({
       success: true,
-      data: { id: conv.id, title: conv.title, modelNormalizedName: conv.model_normalized_name, createdAt: conv.created_at, updatedAt: conv.updated_at },
+      data: rowToConversation(conv),
     } as ApiResponse<Conversation>);
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -103,7 +134,7 @@ router.get('/:id/messages', (req: Request, res: Response) => {
     }
 
     const rows = db.prepare('SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC').all(id) as any[];
-    const messages: Message[] = rows.map(r => ({
+    const messages = rows.map(r => ({
       id: r.id,
       conversationId: r.conversation_id,
       role: r.role,
@@ -112,7 +143,7 @@ router.get('/:id/messages', (req: Request, res: Response) => {
       createdAt: r.created_at,
     }));
 
-    res.json({ success: true, data: messages } as ApiResponse<Message[]>);
+    res.json({ success: true, data: messages } as ApiResponse);
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
