@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useModelStore } from '../../stores/modelStore';
 import { ChevronDown, Eye, ImageIcon, Code, Sparkles } from 'lucide-react';
+import { useTranslation } from '../../i18n';
 import type { ModelCapability } from '../../types';
 
 const capabilityIcons: Record<ModelCapability, React.ReactNode> = {
@@ -8,13 +9,6 @@ const capabilityIcons: Record<ModelCapability, React.ReactNode> = {
   vision: <Eye size={11} />,
   'image-gen': <ImageIcon size={11} />,
   code: <Code size={11} />,
-};
-
-const capabilityLabels: Record<ModelCapability, string> = {
-  text: 'Text',
-  vision: 'Vision',
-  'image-gen': 'Image',
-  code: 'Code',
 };
 
 interface ModelSelectorProps {
@@ -27,6 +21,14 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [selected, setSelected] = useState(value || '');
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { t } = useTranslation();
+
+  const capabilityLabels: Record<ModelCapability, string> = {
+    text: t('model.capability.text'),
+    vision: t('model.capability.vision'),
+    'image-gen': t('model.capability.image-gen'),
+    code: t('model.capability.code'),
+  };
 
   useEffect(() => {
     if (models.length > 0 && !selected) {
@@ -59,7 +61,7 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-primary)] text-base font-medium transition-colors duration-150"
       >
-        <span>{selectedModel?.displayName || 'Select model'}</span>
+        <span>{selectedModel?.displayName || t('model.select')}</span>
         <ChevronDown size={18} className={`text-[var(--color-text-tertiary)] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
@@ -68,8 +70,8 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
           {models.length === 0 ? (
             <div className="px-4 py-8 text-center text-[var(--color-text-tertiary)] text-sm">
               <Sparkles size={24} className="mx-auto mb-2 text-[var(--color-text-tertiary)]" />
-              No models available.<br />
-              <span className="text-xs">Add a station in Settings first.</span>
+              {t('model.noModels')}<br />
+              <span className="text-xs">{t('model.addStationFirst')}</span>
             </div>
           ) : (
             models.map(model => (
@@ -86,7 +88,7 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
                     {model.displayName}
                   </span>
                   <span className="text-xs text-[var(--color-text-tertiary)] mt-0.5">
-                    {model.stations.length} station{model.stations.length > 1 ? 's' : ''} available
+                    {t('model.stations', { count: model.stations.length, s: model.stations.length > 1 ? 's' : '' })}
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -104,7 +106,7 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
                     ))}
                   <span className={`w-1.5 h-1.5 rounded-full ml-1 ${
                     model.stations.some(s => s.healthy) ? 'bg-[var(--color-text-success)]' : 'bg-[var(--color-text-error)]'
-                  }`} title={model.stations.some(s => s.healthy) ? 'Healthy' : 'Unhealthy'} />
+                  }`} title={model.stations.some(s => s.healthy) ? t('model.healthy') : t('model.unhealthy')} />
                 </div>
               </button>
             ))

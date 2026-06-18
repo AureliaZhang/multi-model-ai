@@ -1,6 +1,7 @@
 import { useChatStore } from '../../stores/chatStore';
 import { useAuthStore } from '../../stores/authStore';
 import { MessageSquarePlus, Settings, Trash2, LogOut, Users, Shield, User, Brain } from 'lucide-react';
+import { useTranslation } from '../../i18n';
 
 interface SidebarProps {
   isGuest?: boolean;
@@ -19,6 +20,7 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMe
   const user = useAuthStore(s => s.user);
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
   const logout = useAuthStore(s => s.logout);
+  const { t } = useTranslation();
 
   const handleNewChat = () => {
     useChatStore.setState({ currentConversationId: null, messages: [] });
@@ -26,7 +28,7 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMe
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (confirm('Delete this conversation?')) {
+    if (confirm(t('sidebar.newChat'))) {
       await deleteConversation(id);
     }
   };
@@ -44,10 +46,10 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMe
           onClick={handleNewChat}
           disabled={isGuest}
           className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-[var(--color-border-light)] hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-primary)] text-sm w-full transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
-          title={isGuest ? 'Sign in to start chatting' : 'New chat'}
+          title={isGuest ? t('sidebar.signInToChat') : t('sidebar.newChat')}
         >
           <MessageSquarePlus size={18} strokeWidth={1.5} />
-          <span>New chat</span>
+          <span>{t('sidebar.newChat')}</span>
         </button>
       </div>
 
@@ -55,8 +57,8 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMe
       <div className="flex-1 overflow-y-auto px-2 py-0.5">
         {isGuest ? (
           <div className="text-center text-[var(--color-text-tertiary)] text-[13px] py-8 px-4">
-            <p className="mb-2">Sign in to start chatting</p>
-            <p className="text-xs opacity-70">Guests can browse but cannot create conversations</p>
+            <p className="mb-2">{t('sidebar.signInToChat')}</p>
+            <p className="text-xs opacity-70">{t('sidebar.guestCannotCreate')}</p>
           </div>
         ) : (
           <>
@@ -84,7 +86,7 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMe
 
             {conversations.length === 0 && (
               <div className="text-center text-[var(--color-text-tertiary)] text-[13px] py-8">
-                No conversations yet
+                {t('sidebar.noConversations')}
               </div>
             )}
           </>
@@ -93,38 +95,34 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMe
 
       {/* Footer */}
       <div className="p-2 border-t border-[var(--color-border-light)] space-y-0.5">
-        {/* Memory Store */}
         {!isGuest && (
           <button
             onClick={onOpenMemory}
             className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-secondary)] text-[13px] w-full transition-colors duration-150"
           >
             <Brain size={16} strokeWidth={1.5} />
-            <span>Memory Store</span>
+            <span>{t('sidebar.memoryStore')}</span>
           </button>
         )}
 
-        {/* Admin: User Management */}
         {isAuthenticated && user?.role === 'admin' && (
           <button
             onClick={onOpenUsers}
             className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-secondary)] text-[13px] w-full transition-colors duration-150"
           >
             <Users size={16} strokeWidth={1.5} />
-            <span>User Management</span>
+            <span>{t('sidebar.userManagement')}</span>
           </button>
         )}
 
-        {/* Settings */}
         <button
           onClick={onOpenSettings}
           className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-secondary)] text-[13px] w-full transition-colors duration-150"
         >
           <Settings size={16} strokeWidth={1.5} />
-          <span>Settings & Stations</span>
+          <span>{t('sidebar.settingsStations')}</span>
         </button>
 
-        {/* User info / Auth */}
         {isAuthenticated && user ? (
           <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg">
             <div className="w-7 h-7 rounded-full bg-[var(--color-accent-main)] flex items-center justify-center flex-shrink-0">
@@ -145,7 +143,7 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMe
             <button
               onClick={handleLogout}
               className="p-1.5 rounded-md hover:bg-[var(--button-ghost-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
-              title="Sign out"
+              title={t('sidebar.signOut')}
             >
               <LogOut size={14} />
             </button>
@@ -156,7 +154,7 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMe
             className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-accent-main)] text-[13px] w-full transition-colors duration-150"
           >
             <LogOut size={16} strokeWidth={1.5} />
-            <span>Sign in / Register</span>
+            <span>{t('sidebar.signInRegister')}</span>
           </button>
         )}
       </div>

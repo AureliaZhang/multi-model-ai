@@ -15,10 +15,26 @@ const router = Router();
  */
 async function extractFileText(mimeType: string, base64Data: string, filename: string): Promise<string | null> {
   try {
+    console.log(`[extractFileText] Processing file: ${filename}, mimeType: ${mimeType}, base64 length: ${base64Data.length}`);
+    
     if (mimeType === 'application/pdf') {
+      console.log(`[extractFileText] PDF detected, decoding base64 buffer...`);
       const buffer = Buffer.from(base64Data, 'base64');
-      const data = await pdfParse(buffer);
-      return data.text || null;
+      console.log(`[extractFileText] PDF buffer size: ${buffer.length} bytes`);
+      try {
+        const data = await pdfParse(buffer);
+        const text = data.text || null;
+        console.log(`[extractFileText] PDF extracted: ${text ? text.length : 0} chars, pages: ${data.numpages}`);
+        if (text) {
+          // Truncate to ~15000 chars to stay within token limits
+          const truncated = text.length > 15000 ? text.substring(0, 15000) + '\n\n[...truncated due to length...]' : text;
+          return truncated;
+        }
+        return null;
+      } catch (pdfErr: any) {
+        console.error(`[extractFileText] PDF parse error for ${filename}:`, pdfErr.message || pdfErr);
+        return null;
+      }
     }
     // Plain text, CSV, JSON, markdown, code files, XML, HTML, etc.
     if (
@@ -140,8 +156,11 @@ router.post('/', async (req: Request, res: Response) => {
           } else {
             // Extract text from non-image files (PDF, text, code, etc.)
             const extracted = await extractFileText(att.mimeType, att.base64, att.filename);
+            console.log(`[chat] File "${att.filename}" extraction result: ${extracted ? extracted.length + ' chars' : 'null'}`);
             if (extracted) {
               textContent += `\n\n--- [Attached File: ${att.filename}] ---\n${extracted}\n--- [End of ${att.filename}] ---`;
+            } else {
+              console.warn(`[chat] Failed to extract text from "${att.filename}" (${att.mimeType}). AI will not see file content.`);
             }
           }
         }

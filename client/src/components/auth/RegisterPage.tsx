@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuthStore } from '../../stores/authStore';
 import { UserPlus, Eye, EyeOff } from 'lucide-react';
+import { useTranslation } from '../../i18n';
 
 interface RegisterPageProps {
   onSwitchToLogin: () => void;
@@ -17,6 +18,7 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
   const register = useAuthStore(s => s.register);
   const serverError = useAuthStore(s => s.error);
   const clearError = useAuthStore(s => s.clearError);
+  const { t } = useTranslation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,17 +26,17 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
     clearError();
 
     if (!username.trim() || !password.trim()) {
-      setLocalError('Username and password are required');
+      setLocalError(t('register.username') + ' & ' + t('register.password') + ' ' + t('register.required'));
       return;
     }
 
     if (password.length < 6) {
-      setLocalError('Password must be at least 6 characters');
+      setLocalError(t('register.passwordPlaceholder'));
       return;
     }
 
     if (password !== confirmPassword) {
-      setLocalError('Passwords do not match');
+      setLocalError(t('register.confirmPasswordPlaceholder'));
       return;
     }
 
@@ -49,10 +51,10 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
         {/* Title */}
         <div className="text-center mb-8">
           <h1 className="text-2xl font-semibold text-[var(--color-text-primary)] mb-2">
-            Create Account
+            {t('register.title')}
           </h1>
           <p className="text-[var(--color-text-secondary)] text-sm">
-            Register for a new account
+            {t('register.subtitle')}
           </p>
         </div>
 
@@ -66,47 +68,47 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
 
           <div>
             <label className="block text-sm text-[var(--color-text-secondary)] mb-1.5">
-              Username <span className="text-[var(--color-text-error)]">*</span>
+              {t('register.username')} <span className="text-[var(--color-text-error)]">*</span>
             </label>
             <input
               type="text"
               value={username}
               onChange={e => { setUsername(e.target.value); setLocalError(''); clearError(); }}
               className="w-full px-4 py-2.5 bg-[var(--composer-bg)] border border-[var(--color-border-light)] rounded-xl text-[var(--color-text-primary)] placeholder-[var(--color-text-placeholder)] outline-none focus:border-[var(--color-accent-main)] transition-colors text-sm"
-              placeholder="Choose a username (3-30 characters)"
+              placeholder={t('register.usernamePlaceholder')}
               autoFocus
             />
           </div>
 
           <div>
             <label className="block text-sm text-[var(--color-text-secondary)] mb-1.5">
-              Display Name
+              {t('register.displayName')}
             </label>
             <input
               type="text"
               value={displayName}
               onChange={e => setDisplayName(e.target.value)}
               className="w-full px-4 py-2.5 bg-[var(--composer-bg)] border border-[var(--color-border-light)] rounded-xl text-[var(--color-text-primary)] placeholder-[var(--color-text-placeholder)] outline-none focus:border-[var(--color-accent-main)] transition-colors text-sm"
-              placeholder="Your display name (optional)"
+              placeholder={t('register.displayNamePlaceholder')}
             />
           </div>
 
           <div>
             <label className="block text-sm text-[var(--color-text-secondary)] mb-1.5">
-              Email
+              {t('register.email')}
             </label>
             <input
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
               className="w-full px-4 py-2.5 bg-[var(--composer-bg)] border border-[var(--color-border-light)] rounded-xl text-[var(--color-text-primary)] placeholder-[var(--color-text-placeholder)] outline-none focus:border-[var(--color-accent-main)] transition-colors text-sm"
-              placeholder="your@email.com (optional)"
+              placeholder={t('register.emailPlaceholder')}
             />
           </div>
 
           <div>
             <label className="block text-sm text-[var(--color-text-secondary)] mb-1.5">
-              Password <span className="text-[var(--color-text-error)]">*</span>
+              {t('register.password')} <span className="text-[var(--color-text-error)]">*</span>
             </label>
             <div className="relative">
               <input
@@ -114,7 +116,7 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
                 value={password}
                 onChange={e => { setPassword(e.target.value); setLocalError(''); clearError(); }}
                 className="w-full px-4 py-2.5 pr-10 bg-[var(--composer-bg)] border border-[var(--color-border-light)] rounded-xl text-[var(--color-text-primary)] placeholder-[var(--color-text-placeholder)] outline-none focus:border-[var(--color-accent-main)] transition-colors text-sm"
-                placeholder="At least 6 characters"
+                placeholder={t('register.passwordPlaceholder')}
               />
               <button
                 type="button"
@@ -128,14 +130,14 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
 
           <div>
             <label className="block text-sm text-[var(--color-text-secondary)] mb-1.5">
-              Confirm Password <span className="text-[var(--color-text-error)]">*</span>
+              {t('register.confirmPassword')} <span className="text-[var(--color-text-error)]">*</span>
             </label>
             <input
               type={showPassword ? 'text' : 'password'}
               value={confirmPassword}
               onChange={e => { setConfirmPassword(e.target.value); setLocalError(''); }}
               className="w-full px-4 py-2.5 bg-[var(--composer-bg)] border border-[var(--color-border-light)] rounded-xl text-[var(--color-text-primary)] placeholder-[var(--color-text-placeholder)] outline-none focus:border-[var(--color-accent-main)] transition-colors text-sm"
-              placeholder="Repeat your password"
+              placeholder={t('register.confirmPasswordPlaceholder')}
             />
           </div>
 
@@ -145,19 +147,19 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
             className="w-full py-2.5 bg-[var(--button-primary-bg)] hover:bg-[var(--button-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium text-sm transition-colors flex items-center justify-center gap-2"
           >
             <UserPlus size={16} />
-            Create Account
+            {t('register.createAccount')}
           </button>
         </form>
 
         {/* Footer */}
         <div className="mt-6 text-center">
           <p className="text-[var(--color-text-tertiary)] text-sm">
-            Already have an account?{' '}
+            {t('register.hasAccount')}{' '}
             <button
               onClick={onSwitchToLogin}
               className="text-[var(--color-accent-main)] hover:underline"
             >
-              Sign in
+              {t('register.signIn')}
             </button>
           </p>
         </div>

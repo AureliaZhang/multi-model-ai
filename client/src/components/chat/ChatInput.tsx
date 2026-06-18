@@ -3,6 +3,7 @@ import { useChatStore } from '../../stores/chatStore';
 import { useModelStore } from '../../stores/modelStore';
 import { Send, Paperclip, Square, LogIn, X, FileIcon } from 'lucide-react';
 import type { PendingAttachment } from '../../types';
+import { useTranslation } from '../../i18n';
 
 interface ChatInputProps {
   isGuest?: boolean;
@@ -21,7 +22,6 @@ function fileToBase64(file: File): Promise<string> {
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result as string;
-      // Remove the data:mime;base64, prefix to get just the base64
       const base64 = result.split(',')[1];
       resolve(base64);
     };
@@ -41,10 +41,10 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
   const stopStreaming = useChatStore(s => s.stopStreaming);
   const isStreaming = useChatStore(s => s.isStreaming);
   const models = useModelStore(s => s.models);
+  const { t } = useTranslation();
 
   const [selectedModel, _setSelectedModel] = useState('');
 
-  // Cleanup preview URLs on unmount
   useEffect(() => {
     return () => {
       attachments.forEach(a => {
@@ -58,7 +58,7 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
 
     for (const file of Array.from(files)) {
       if (file.size > MAX_FILE_SIZE) {
-        alert(`File "${file.name}" exceeds 20MB limit.`);
+        alert(`"${file.name}" 超过 20MB 限制。`);
         continue;
       }
 
@@ -92,7 +92,7 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
 
     const model = selectedModel || models[0]?.normalizedName;
     if (!model) {
-      alert('No models available. Please add a station in Settings.');
+      alert(t('model.noModels') + ' ' + t('model.addStationFirst'));
       return;
     }
 
@@ -103,7 +103,7 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  }, [input, isStreaming, selectedModel, models, sendMessage, isGuest, attachments]);
+  }, [input, isStreaming, selectedModel, models, sendMessage, isGuest, attachments, t]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -119,7 +119,6 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
     textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
   };
 
-  // Paste image handler
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
     if (!items) return;
@@ -138,7 +137,6 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
     }
   }, [processFiles]);
 
-  // Drag and drop handlers
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -162,19 +160,16 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
     }
   }, [processFiles]);
 
-  // File input handler
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
       processFiles(files);
     }
-    // Reset input so the same file can be selected again
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   }, [processFiles]);
 
-  // Guest mode - show sign-in prompt
   if (isGuest) {
     return (
       <div className="px-3 sm:px-5 pb-4 pt-2 w-full">
@@ -186,12 +181,12 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
                 onClick={onSignIn}
                 className="text-sm hover:text-[var(--color-text-secondary)] hover:underline transition-colors"
               >
-                Please sign in to start chatting
+                {t('chat.pleaseSignIn')}
               </button>
             </div>
           </div>
           <p className="text-xs text-center mt-2 text-[var(--color-text-tertiary)]">
-            Guests can browse but cannot send messages
+            {t('chat.guestCannotSend')}
           </p>
         </div>
       </div>
@@ -201,7 +196,6 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
   return (
     <div className="px-3 sm:px-5 pb-4 pt-2 w-full">
       <div className="w-full">
-        {/* Attachment preview chips */}
         {attachments.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-2 px-2">
             {attachments.map(att => (
@@ -233,7 +227,6 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
           </div>
         )}
 
-        {/* Composer container - ChatGPT pill shape */}
         <div
           ref={composerRef}
           className={`composer-focus-ring relative flex items-end bg-[var(--composer-bg)] rounded-3xl transition-shadow overflow-hidden ${
@@ -243,16 +236,14 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
-          {/* Attach button */}
           <button
             onClick={() => fileInputRef.current?.click()}
             className="flex-shrink-0 p-3.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
-            title="Attach file"
+            title={t('chat.attachFile')}
           >
             <Paperclip size={18} />
           </button>
 
-          {/* Hidden file input */}
           <input
             ref={fileInputRef}
             type="file"
@@ -262,24 +253,22 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
             className="hidden"
           />
 
-          {/* Textarea */}
           <textarea
             ref={textareaRef}
             value={input}
             onChange={handleInput}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            placeholder={isDragging ? 'Drop files here...' : 'Message...'}
+            placeholder={isDragging ? t('chat.dropFiles') : t('chat.messagePlaceholder')}
             rows={1}
             className="flex-1 bg-transparent text-[var(--color-text-primary)] placeholder-[var(--color-text-placeholder)] py-3.5 px-0 resize-none outline-none text-[15px] max-h-[200px] leading-6"
           />
 
-          {/* Send / Stop button */}
           {isStreaming ? (
             <button
               onClick={stopStreaming}
               className="flex-shrink-0 p-3.5 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
-              title="Stop generating"
+              title={t('chat.stopGenerating')}
             >
               <div className="w-7 h-7 rounded-full bg-white flex items-center justify-center">
                 <Square size={14} fill="#212121" stroke="none" />
@@ -290,7 +279,7 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
               onClick={handleSend}
               disabled={!input.trim() && attachments.length === 0}
               className="flex-shrink-0 p-3.5 transition-colors"
-              title="Send message"
+              title={t('chat.sendMessage')}
             >
               <div className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${
                 input.trim() || attachments.length > 0
@@ -304,7 +293,7 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
         </div>
 
         <p className="text-xs text-center mt-2 text-[var(--color-text-tertiary)]">
-          AI can make mistakes. Verify important information.
+          {t('chat.aiDisclaimer')}
         </p>
       </div>
     </div>

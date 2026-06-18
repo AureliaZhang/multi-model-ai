@@ -6,6 +6,7 @@ import { UserManagement } from '../admin/UserManagement';
 import { MemoryBrowser } from '../memory/MemoryBrowser';
 import { useModelStore } from '../../stores/modelStore';
 import { useChatStore } from '../../stores/chatStore';
+import { useTranslation } from '../../i18n';
 import { PanelLeft } from 'lucide-react';
 
 interface LayoutProps {
@@ -21,6 +22,7 @@ export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const fetchModels = useModelStore(s => s.fetchModels);
   const fetchConversations = useChatStore(s => s.fetchConversations);
+  const { t } = useTranslation();
 
   useEffect(() => {
     fetchModels();
@@ -63,7 +65,7 @@ export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
           <button
             onClick={() => setSidebarOpen(true)}
             className="absolute top-2.5 left-3 z-10 p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-secondary)] transition-colors"
-            title="Open sidebar"
+            title={t('layout.openSidebar')}
           >
             <PanelLeft size={20} strokeWidth={1.5} />
           </button>

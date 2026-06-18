@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { UserPublic, UserRole } from '../../types';
 import { userApi } from '../../services/auth';
 import { useAuthStore } from '../../stores/authStore';
+import { useTranslation } from '../../i18n';
 import { ArrowLeft, Shield, ShieldOff, Trash2, UserCheck, UserX, Users } from 'lucide-react';
 
 interface UserManagementProps {
@@ -13,6 +14,7 @@ export function UserManagement({ onBack }: UserManagementProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const currentUser = useAuthStore(s => s.user);
+  const { t } = useTranslation();
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -62,7 +64,7 @@ export function UserManagement({ onBack }: UserManagementProps) {
 
   const handleDelete = async (user: UserPublic) => {
     if (user.id === currentUser?.id) return;
-    if (!confirm(`Delete user "${user.username}"? This cannot be undone.`)) return;
+    if (!confirm(t('users.deleteConfirm', { username: user.username }))) return;
     try {
       const res = await userApi.delete(user.id);
       if (res.success) {
@@ -87,10 +89,10 @@ export function UserManagement({ onBack }: UserManagementProps) {
         </button>
         <div className="flex items-center gap-2">
           <Users size={20} className="text-[var(--color-accent-main)]" />
-          <h1 className="text-lg font-semibold">User Management</h1>
+          <h1 className="text-lg font-semibold">{t('users.title')}</h1>
         </div>
         <span className="text-[var(--color-text-tertiary)] text-sm ml-auto">
-          {users.length} user{users.length !== 1 ? 's' : ''}
+          {t('users.count', { count: users.length, s: users.length !== 1 ? 's' : '' })}
         </span>
       </div>
 
@@ -104,18 +106,18 @@ export function UserManagement({ onBack }: UserManagementProps) {
         )}
 
         {loading ? (
-          <div className="text-center py-12 text-[var(--color-text-tertiary)]">Loading users...</div>
+          <div className="text-center py-12 text-[var(--color-text-tertiary)]">{t('users.loading')}</div>
         ) : users.length === 0 ? (
-          <div className="text-center py-12 text-[var(--color-text-tertiary)]">No users found</div>
+          <div className="text-center py-12 text-[var(--color-text-tertiary)]">{t('users.noUsers')}</div>
         ) : (
           <div className="space-y-2">
             {/* Table header */}
             <div className="grid grid-cols-[1fr_1fr_100px_100px_120px] gap-4 px-4 py-2 text-xs text-[var(--color-text-tertiary)] uppercase tracking-wider">
-              <span>User</span>
-              <span>Email</span>
-              <span>Role</span>
-              <span>Status</span>
-              <span className="text-right">Actions</span>
+              <span>{t('users.user')}</span>
+              <span>{t('users.email')}</span>
+              <span>{t('users.role')}</span>
+              <span>{t('users.status')}</span>
+              <span className="text-right">{t('users.actions')}</span>
             </div>
 
             {users.map(user => (
@@ -153,7 +155,7 @@ export function UserManagement({ onBack }: UserManagementProps) {
                       ? 'bg-[var(--color-surface-success)] text-[var(--color-text-success)]'
                       : 'bg-[var(--color-surface-error)] text-[var(--color-text-error)]'
                   }`}>
-                    {user.isActive ? 'active' : 'disabled'}
+                    {user.isActive ? t('users.active') : t('users.disabled')}
                   </span>
                 </div>
 
@@ -164,28 +166,28 @@ export function UserManagement({ onBack }: UserManagementProps) {
                       <button
                         onClick={() => handleToggleActive(user)}
                         className="p-1.5 rounded-md hover:bg-[var(--button-ghost-hover)] text-[var(--color-text-tertiary)] transition-colors"
-                        title={user.isActive ? 'Disable user' : 'Enable user'}
+                        title={user.isActive ? t('users.disableUser') : t('users.enableUser')}
                       >
                         {user.isActive ? <UserX size={14} /> : <UserCheck size={14} />}
                       </button>
                       <button
                         onClick={() => handleChangeRole(user, user.role === 'admin' ? 'user' : 'admin')}
                         className="p-1.5 rounded-md hover:bg-[var(--button-ghost-hover)] text-[var(--color-text-tertiary)] transition-colors"
-                        title={user.role === 'admin' ? 'Demote to user' : 'Promote to admin'}
+                        title={user.role === 'admin' ? t('users.demoteToUser') : t('users.promoteToAdmin')}
                       >
                         {user.role === 'admin' ? <ShieldOff size={14} /> : <Shield size={14} />}
                       </button>
                       <button
                         onClick={() => handleDelete(user)}
                         className="p-1.5 rounded-md hover:bg-[var(--color-surface-error)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-error)] transition-colors"
-                        title="Delete user"
+                        title={t('users.deleteUser')}
                       >
                         <Trash2 size={14} />
                       </button>
                     </>
                   )}
                   {user.id === currentUser?.id && (
-                    <span className="text-xs text-[var(--color-text-tertiary)] italic">you</span>
+                    <span className="text-xs text-[var(--color-text-tertiary)] italic">{t('users.you')}</span>
                   )}
                 </div>
               </div>

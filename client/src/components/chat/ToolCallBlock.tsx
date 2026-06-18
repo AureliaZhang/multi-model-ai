@@ -1,5 +1,6 @@
 import { Wrench, ChevronDown, ChevronUp, CheckCircle, Loader2 } from 'lucide-react';
 import { useState } from 'react';
+import { useTranslation } from '../../i18n';
 import type { ToolCallInfo } from '../../types';
 
 interface ToolCallBlockProps {
@@ -8,6 +9,7 @@ interface ToolCallBlockProps {
 
 export function ToolCallBlock({ toolCall }: ToolCallBlockProps) {
   const [expanded, setExpanded] = useState(false);
+  const { t } = useTranslation();
 
   const statusIcon = toolCall.result ? (
     <CheckCircle size={14} className="text-green-400" />
@@ -44,7 +46,7 @@ export function ToolCallBlock({ toolCall }: ToolCallBlockProps) {
           {Object.keys(toolCall.arguments).length > 0 && (
             <div className="mt-2">
               <div className="text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider mb-1">
-                Arguments
+                {t('toolCall.arguments')}
               </div>
               <pre className="text-xs text-[var(--color-text-secondary)] bg-[rgba(0,0,0,0.2)] rounded p-2 overflow-x-auto whitespace-pre-wrap">
                 {JSON.stringify(toolCall.arguments, null, 2)}
@@ -56,7 +58,7 @@ export function ToolCallBlock({ toolCall }: ToolCallBlockProps) {
           {toolCall.result && (
             <div className="mt-2">
               <div className="text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider mb-1">
-                Result
+                {t('toolCall.result')}
               </div>
               <pre className="text-xs text-[var(--color-text-secondary)] bg-[rgba(0,0,0,0.2)] rounded p-2 overflow-x-auto whitespace-pre-wrap max-h-[200px]">
                 {toolCall.result}
@@ -68,7 +70,7 @@ export function ToolCallBlock({ toolCall }: ToolCallBlockProps) {
           {!toolCall.result && (
             <div className="mt-2 flex items-center gap-2 text-xs text-[var(--color-text-tertiary)]">
               <Loader2 size={12} className="animate-spin" />
-              Executing tool...
+              {t('toolCall.executingTool')}
             </div>
           )}
         </div>

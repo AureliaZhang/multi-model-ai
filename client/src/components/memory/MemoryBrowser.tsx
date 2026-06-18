@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useMemoryStore } from '../../stores/memoryStore';
+import { useTranslation } from '../../i18n';
 import {
   ArrowLeft, Search, Trash2, ChevronLeft, ChevronRight,
   Brain, Clock, Tag, X, Settings, ToggleLeft, ToggleRight,
@@ -17,6 +18,7 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
     fetchEntries, searchMemories, clearSearch, fetchConfig,
     updateConfig, deleteEntry, setSelectedTag, clearError,
   } = useMemoryStore();
+  const { t } = useTranslation();
 
   const [input, setInput] = useState('');
   const [showConfig, setShowConfig] = useState(false);
@@ -42,7 +44,7 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
   }, [searchMemories, clearSearch]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this memory entry?')) return;
+    if (!confirm(t('memory.deleteConfirm'))) return;
     await deleteEntry(id);
   };
 
@@ -58,8 +60,8 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
 
   // Collect all unique tags from entries
   const allTags = new Set<string>();
-  entries.forEach(e => e.tags?.forEach(t => allTags.add(t)));
-  searchResults.forEach(e => e.tags?.forEach(t => allTags.add(t)));
+  entries.forEach(e => e.tags?.forEach(tag => allTags.add(tag)));
+  searchResults.forEach(e => e.tags?.forEach(tag => allTags.add(tag)));
 
   return (
     <div className="h-full flex flex-col bg-[var(--color-main-surface-primary)]">
@@ -72,12 +74,12 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
           <ArrowLeft size={20} />
         </button>
         <Brain size={18} className="text-[var(--color-accent-main)]" />
-        <h1 className="text-[15px] font-semibold text-[var(--color-text-primary)]">Memory Store</h1>
-        <span className="text-xs text-[var(--color-text-tertiary)] ml-auto">{total} entries</span>
+        <h1 className="text-[15px] font-semibold text-[var(--color-text-primary)]">{t('memory.title')}</h1>
+        <span className="text-xs text-[var(--color-text-tertiary)] ml-auto">{t('memory.entries', { count: total })}</span>
         <button
           onClick={() => setShowConfig(!showConfig)}
           className="p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-tertiary)] transition-colors"
-          title="Memory Settings"
+          title={t('memory.settings')}
         >
           <Settings size={16} />
         </button>
@@ -86,24 +88,24 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
       {/* Config panel */}
       {showConfig && config && (
         <div className="px-4 py-3 border-b border-[var(--color-border-light)] bg-[var(--color-main-surface-tertiary)]">
-          <h3 className="text-xs font-semibold text-[var(--color-text-secondary)] mb-3">Memory Settings</h3>
+          <h3 className="text-xs font-semibold text-[var(--color-text-secondary)] mb-3">{t('memory.settings')}</h3>
           <div className="space-y-2.5">
             <ConfigToggle
-              label="Auto-save conversations"
-              description="Automatically save every chat turn to memory"
+              label={t('memory.autoSave')}
+              description={t('memory.autoSaveDesc')}
               enabled={config.autoSave}
               onToggle={() => handleToggleConfig('autoSave', !config.autoSave)}
             />
             <ConfigToggle
-              label="Context injection"
-              description="Inject relevant memories into AI context"
+              label={t('memory.contextInjection')}
+              description={t('memory.contextInjectionDesc')}
               enabled={config.contextInjection}
               onToggle={() => handleToggleConfig('contextInjection', !config.contextInjection)}
             />
             <div className="flex items-center justify-between">
               <div>
-                <span className="text-xs text-[var(--color-text-secondary)]">Max context memories</span>
-                <p className="text-[11px] text-[var(--color-text-tertiary)]">How many memories to inject per message</p>
+                <span className="text-xs text-[var(--color-text-secondary)]">{t('memory.maxContext')}</span>
+                <p className="text-[11px] text-[var(--color-text-tertiary)]">{t('memory.maxContextDesc')}</p>
               </div>
               <select
                 value={config.maxContextMemories}
@@ -127,7 +129,7 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
             type="text"
             value={input}
             onChange={e => handleSearch(e.target.value)}
-            placeholder="Search memories by keyword..."
+            placeholder={t('memory.searchPlaceholder')}
             className="w-full pl-9 pr-8 py-2 rounded-xl bg-[var(--color-main-surface-tertiary)] border border-[var(--color-border-light)] text-[var(--color-text-primary)] text-sm outline-none focus:border-[var(--color-border-medium)] transition-colors placeholder-[var(--color-text-tertiary)]"
           />
           {input && (
@@ -149,7 +151,7 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
                 className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-[var(--color-accent-main)] text-white"
               >
                 <X size={10} />
-                Clear filter
+                {t('memory.clearFilter')}
               </button>
             )}
             {Array.from(allTags).slice(0, 10).map(tag => (
@@ -174,7 +176,7 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
       {error && (
         <div className="mx-4 mt-2 px-3 py-2 rounded-lg bg-[var(--color-surface-error)] text-[var(--color-text-error)] text-xs flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={clearError} className="text-[var(--color-text-error)] hover:underline">Dismiss</button>
+          <button onClick={clearError} className="text-[var(--color-text-error)] hover:underline">{t('common.dismiss')}</button>
         </div>
       )}
 
@@ -183,16 +185,16 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
         {loading ? (
           <div className="text-center py-12 text-[var(--color-text-tertiary)] text-sm">
             <div className="animate-spin w-5 h-5 border-2 border-[var(--color-text-tertiary)] border-t-transparent rounded-full mx-auto mb-2" />
-            Loading memories...
+            {t('memory.loading')}
           </div>
         ) : displayEntries.length === 0 ? (
           <div className="text-center py-12">
             <Brain size={32} className="mx-auto mb-3 text-[var(--color-text-tertiary)]" />
             <p className="text-[var(--color-text-secondary)] text-sm mb-1">
-              {searchQuery ? 'No memories found' : 'No memories yet'}
+              {searchQuery ? t('memory.noFound') : t('memory.noYet')}
             </p>
             <p className="text-[var(--color-text-tertiary)] text-xs">
-              {searchQuery ? 'Try different keywords' : 'Start chatting to build your memory store'}
+              {searchQuery ? t('memory.tryDifferent') : t('memory.startChatting')}
             </p>
           </div>
         ) : (
@@ -215,7 +217,7 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
             <ChevronLeft size={16} />
           </button>
           <span className="text-xs text-[var(--color-text-tertiary)]">
-            Page {page} of {totalPages}
+            {t('memory.page', { page, totalPages })}
           </span>
           <button
             onClick={() => handlePageChange(page + 1)}
@@ -255,6 +257,7 @@ function ConfigToggle({ label, description, enabled, onToggle }: {
 
 function MemoryEntryCard({ entry, onDelete }: { entry: MemoryEntry; onDelete: (id: string) => void }) {
   const [expanded, setExpanded] = useState(false);
+  const { t } = useTranslation();
 
   const formatDate = (dateStr: string) => {
     try {
@@ -290,7 +293,7 @@ function MemoryEntryCard({ entry, onDelete }: { entry: MemoryEntry; onDelete: (i
                 ? 'bg-[rgba(59,130,246,0.1)] text-blue-400'
                 : 'bg-[rgba(171,104,255,0.1)] text-purple-400'
             }`}>
-              {entry.role === 'user' ? 'User' : 'AI'}
+              {entry.role === 'user' ? t('message.you') : t('message.assistant')}
             </span>
             {entry.tags && entry.tags.length > 0 && (
               <div className="flex items-center gap-1">
@@ -313,7 +316,7 @@ function MemoryEntryCard({ entry, onDelete }: { entry: MemoryEntry; onDelete: (i
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(entry.id); }}
           className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-[var(--color-surface-error)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-error)] transition-all"
-          title="Delete memory"
+          title={t('memory.deleteMemory')}
         >
           <Trash2 size={14} />
         </button>

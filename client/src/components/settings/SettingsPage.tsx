@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useStationStore } from '../../stores/stationStore';
 import { useModelStore } from '../../stores/modelStore';
 import { McpServerManager } from './McpServerManager';
+import { useTranslation } from '../../i18n';
 import { ArrowLeft, Plus, RefreshCw, Trash2, Activity, Download, ToggleLeft, ToggleRight, Radio, Info } from 'lucide-react';
 
 interface SettingsPageProps {
@@ -18,6 +19,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   const pullModels = useStationStore(s => s.pullModels);
   const healthCheck = useStationStore(s => s.healthCheck);
   const fetchModels = useModelStore(s => s.fetchModels);
+  const { t } = useTranslation();
 
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState('');
@@ -33,7 +35,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
 
   const handleAdd = async () => {
     if (!newName || !newUrl || !newKey) {
-      setError('All fields are required');
+      setError(t('settings.allFieldsRequired'));
       return;
     }
     setError('');
@@ -59,7 +61,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
       await pullModels(id);
       await fetchModels();
       const station = stations.find(s => s.id === id);
-      setSuccess(`Models pulled successfully from ${station?.name || 'station'}!`);
+      setSuccess(t('settings.modelsPulled', { name: station?.name || 'station' }));
       setTimeout(() => setSuccess(''), 5000);
     } catch (err: any) {
       setError(err.message);
@@ -80,7 +82,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this station? This will also remove all its models.')) return;
+    if (!confirm(t('settings.deleteConfirm'))) return;
     try {
       setActionLoading(`delete-${id}`);
       await deleteStation(id);
@@ -111,7 +113,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
         >
           <ArrowLeft size={20} />
         </button>
-        <h1 className="text-[15px] font-semibold text-[var(--color-text-primary)]">Settings</h1>
+        <h1 className="text-[15px] font-semibold text-[var(--color-text-primary)]">{t('settings.title')}</h1>
       </div>
 
       {/* Content */}
@@ -120,15 +122,15 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h2 className="text-[15px] font-semibold text-[var(--color-text-primary)]">Relay Stations</h2>
-              <p className="text-xs text-[var(--color-text-tertiary)] mt-0.5">中转站 — Configure your API relay endpoints</p>
+              <h2 className="text-[15px] font-semibold text-[var(--color-text-primary)]">{t('settings.relayStations')}</h2>
+              <p className="text-xs text-[var(--color-text-tertiary)] mt-0.5">{t('settings.relayStationsDesc')}</p>
             </div>
             <button
               onClick={() => setShowAdd(!showAdd)}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[var(--button-primary-bg)] hover:bg-[var(--button-primary-hover)] text-white text-[13px] font-medium transition-colors duration-150"
             >
               <Plus size={16} strokeWidth={2} />
-              Add Station
+              {t('settings.addStation')}
             </button>
           </div>
 
@@ -137,36 +139,36 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
             <div className="mb-5 p-5 rounded-2xl bg-[var(--color-main-surface-tertiary)] border border-[var(--color-border-light)]">
               <div className="grid gap-3.5">
                 <div>
-                  <label className="block text-xs text-[var(--color-text-tertiary)] mb-1.5 font-medium">Station Name</label>
+                  <label className="block text-xs text-[var(--color-text-tertiary)] mb-1.5 font-medium">{t('settings.stationName')}</label>
                   <input
                     type="text"
-                    placeholder="e.g., My OpenAI Relay"
+                    placeholder={t('settings.stationNamePlaceholder')}
                     value={newName}
                     onChange={e => setNewName(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--color-main-surface-primary)] border border-[var(--color-border-light)] text-[var(--color-text-primary)] text-sm outline-none focus:border-[var(--color-border-medium)] transition-colors placeholder-[var(--color-text-tertiary)]"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-[var(--color-text-tertiary)] mb-1.5 font-medium">Base URL</label>
+                  <label className="block text-xs text-[var(--color-text-tertiary)] mb-1.5 font-medium">{t('settings.baseUrl')}</label>
                   <input
                     type="text"
-                    placeholder="https://api.example.com/v1"
+                    placeholder={t('settings.baseUrlPlaceholder')}
                     value={newUrl}
                     onChange={e => setNewUrl(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--color-main-surface-primary)] border border-[var(--color-border-light)] text-[var(--color-text-primary)] text-sm outline-none focus:border-[var(--color-border-medium)] transition-colors placeholder-[var(--color-text-tertiary)]"
                   />
-                  <p className="text-[11px] text-[var(--color-text-tertiary)] mt-1">OpenAI-compatible base URL, e.g. https://api.openai.com/v1</p>
+                  <p className="text-[11px] text-[var(--color-text-tertiary)] mt-1">{t('settings.baseUrlHint')}</p>
                 </div>
                 <div>
-                  <label className="block text-xs text-[var(--color-text-tertiary)] mb-1.5 font-medium">API Key</label>
+                  <label className="block text-xs text-[var(--color-text-tertiary)] mb-1.5 font-medium">{t('settings.apiKey')}</label>
                   <input
                     type="password"
-                    placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx"
+                    placeholder={t('settings.apiKeyPlaceholder')}
                     value={newKey}
                     onChange={e => setNewKey(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--color-main-surface-primary)] border border-[var(--color-border-light)] text-[var(--color-text-primary)] text-sm outline-none focus:border-[var(--color-border-medium)] transition-colors placeholder-[var(--color-text-tertiary)]"
                   />
-                  <p className="text-[11px] text-[var(--color-text-tertiary)] mt-1">Your secret API key (starts with sk-), NOT a URL</p>
+                  <p className="text-[11px] text-[var(--color-text-tertiary)] mt-1">{t('settings.apiKeyHint')}</p>
                 </div>
               </div>
               {error && (
@@ -177,14 +179,14 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                   onClick={() => { setShowAdd(false); setError(''); }}
                   className="px-4 py-2 rounded-lg text-[13px] text-[var(--color-text-secondary)] hover:bg-[rgba(255,255,255,0.05)] transition-colors font-medium"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   onClick={handleAdd}
                   disabled={actionLoading === 'add'}
                   className="px-4 py-2 rounded-lg bg-[var(--button-primary-bg)] hover:bg-[var(--button-primary-hover)] text-white text-[13px] font-medium disabled:opacity-40 transition-colors"
                 >
-                  {actionLoading === 'add' ? 'Adding...' : 'Add Station'}
+                  {actionLoading === 'add' ? t('settings.adding') : t('settings.addStation')}
                 </button>
               </div>
             </div>
@@ -208,13 +210,13 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
           {loading ? (
             <div className="text-center py-12 text-[var(--color-text-tertiary)] text-sm">
               <RefreshCw size={20} className="mx-auto mb-2 animate-spin" />
-              Loading stations...
+              {t('common.loading')}
             </div>
           ) : stations.length === 0 ? (
             <div className="text-center py-12 rounded-2xl border border-dashed border-[var(--color-border-light)]">
               <Radio size={32} className="mx-auto mb-3 text-[var(--color-text-tertiary)]" />
-              <p className="text-[var(--color-text-secondary)] text-sm mb-1">No stations configured</p>
-              <p className="text-[var(--color-text-tertiary)] text-xs">Add a relay station to get started</p>
+              <p className="text-[var(--color-text-secondary)] text-sm mb-1">{t('settings.noStations')}</p>
+              <p className="text-[var(--color-text-tertiary)] text-xs">{t('settings.addStationHint')}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -244,7 +246,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                     <button
                       onClick={() => handleToggle(station.id, !station.enabled)}
                       className="ml-3 flex-shrink-0"
-                      title={station.enabled ? 'Disable' : 'Enable'}
+                      title={station.enabled ? t('common.disable') : t('common.enable')}
                     >
                       {station.enabled ? (
                         <ToggleRight size={28} className="text-[var(--color-accent-main)]" />
@@ -262,7 +264,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.08)] text-xs text-[var(--color-text-secondary)] transition-colors disabled:opacity-40 font-medium"
                     >
                       <Download size={13} />
-                      {actionLoading === `pull-${station.id}` ? 'Pulling...' : 'Pull Models'}
+                      {actionLoading === `pull-${station.id}` ? t('settings.pulling') : t('settings.pullModels')}
                     </button>
                     <button
                       onClick={() => handleHealthCheck(station.id)}
@@ -270,7 +272,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.08)] text-xs text-[var(--color-text-secondary)] transition-colors disabled:opacity-40 font-medium"
                     >
                       <Activity size={13} />
-                      {actionLoading === `health-${station.id}` ? 'Checking...' : 'Health Check'}
+                      {actionLoading === `health-${station.id}` ? t('settings.checking') : t('settings.healthCheck')}
                     </button>
                     <button
                       onClick={() => handleDelete(station.id)}
@@ -278,7 +280,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-[var(--color-surface-error)] text-xs text-[var(--color-text-error)] transition-colors disabled:opacity-40 font-medium ml-auto"
                     >
                       <Trash2 size={13} />
-                      Delete
+                      {t('common.delete')}
                     </button>
                   </div>
                 </div>
@@ -294,14 +296,12 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
         <div className="p-5 rounded-2xl bg-[var(--color-main-surface-tertiary)] border border-[var(--color-border-light)]">
           <div className="flex items-center gap-2 mb-3">
             <Info size={16} className="text-[var(--color-text-tertiary)]" />
-            <h3 className="font-medium text-sm text-[var(--color-text-primary)]">How it works</h3>
+            <h3 className="font-medium text-sm text-[var(--color-text-primary)]">{t('settings.howItWorks')}</h3>
           </div>
           <ul className="text-xs text-[var(--color-text-tertiary)] space-y-2 leading-5">
-            <li className="flex gap-2"><span className="text-[var(--color-text-secondary)]">1.</span> Add relay stations with their base URL and API key</li>
-            <li className="flex gap-2"><span className="text-[var(--color-text-secondary)]">2.</span> Click "Pull Models" to fetch available models from each station</li>
-            <li className="flex gap-2"><span className="text-[var(--color-text-secondary)]">3.</span> Models are automatically deduplicated across stations</li>
-            <li className="flex gap-2"><span className="text-[var(--color-text-secondary)]">4.</span> The platform automatically load-balances and fails over between stations</li>
-            <li className="flex gap-2"><span className="text-[var(--color-text-secondary)]">5.</span> Go back to chat and select a model to start chatting</li>
+            {[1, 2, 3, 4, 5].map(i => (
+              <li key={i} className="flex gap-2"><span className="text-[var(--color-text-secondary)]">{i}.</span> {t(`settings.howItWorksStep${i}`)}</li>
+            ))}
           </ul>
         </div>
       </div>
