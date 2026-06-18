@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMcpStore } from '../../stores/mcpStore';
 import {
-  Plus, RefreshCw, Trash2, ToggleLeft, ToggleRight, Plug, PlugZap,
+  Plus, RefreshCw, Trash2, ToggleLeft, ToggleRight, PlugZap,
   ChevronDown, ChevronUp, Wrench, Server, AlertCircle, CheckCircle, XCircle,
 } from 'lucide-react';
 

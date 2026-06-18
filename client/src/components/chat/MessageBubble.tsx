@@ -1,4 +1,4 @@
-import { Bot, User, FileIcon, ImageIcon } from 'lucide-react';
+import { Bot, User, FileIcon } from 'lucide-react';
 import type { Message } from '../../types';
 import ReactMarkdown from 'react-markdown';
 import { ToolCallBlock } from './ToolCallBlock';

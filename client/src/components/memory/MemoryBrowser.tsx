@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useMemoryStore } from '../../stores/memoryStore';
 import {
   ArrowLeft, Search, Trash2, ChevronLeft, ChevronRight,
-  Brain, Clock, Tag, Filter, X, Settings, ToggleLeft, ToggleRight,
+  Brain, Clock, Tag, X, Settings, ToggleLeft, ToggleRight,
 } from 'lucide-react';
 import type { MemoryEntry } from '../../types';
 

@@ -11,7 +11,7 @@ interface SidebarProps {
   onLogout?: () => void;
 }
 
-export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMemory, onToggleSidebar, onLogout }: SidebarProps) {
+export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMemory, onToggleSidebar: _onToggleSidebar, onLogout }: SidebarProps) {
   const conversations = useChatStore(s => s.conversations);
   const currentConversationId = useChatStore(s => s.currentConversationId);
   const selectConversation = useChatStore(s => s.selectConversation);

@@ -1,4 +1,4 @@
-import { Wrench, ChevronDown, ChevronUp, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Wrench, ChevronDown, ChevronUp, CheckCircle, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import type { ToolCallInfo } from '../../types';
 

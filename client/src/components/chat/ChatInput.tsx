@@ -42,7 +42,7 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
   const isStreaming = useChatStore(s => s.isStreaming);
   const models = useModelStore(s => s.models);
 
-  const [selectedModel, setSelectedModel] = useState('');
+  const [selectedModel, _setSelectedModel] = useState('');
 
   // Cleanup preview URLs on unmount
   useEffect(() => {
