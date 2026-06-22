@@ -48,7 +48,7 @@ export function ChatArea({ isGuest = false, onSignIn }: ChatAreaProps) {
             </p>
           </div>
         ) : (
-          <div className="max-w-[768px] lg:max-w-[840px] mx-auto">
+          <div className="max-w-[768px] lg:max-w-[960px] xl:max-w-[1200px] mx-auto">
             {messages.map(msg => (
               <MessageBubble key={msg.id} message={msg} />
             ))}
