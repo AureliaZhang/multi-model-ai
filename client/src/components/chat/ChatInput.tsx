@@ -5,6 +5,7 @@ import { Send, Paperclip, Square, LogIn, X, FileIcon, Globe, Lock, Eye, EyeOff }
 import type { PendingAttachment } from '../../types';
 import { useTranslation } from '../../i18n';
 import { FileSelector } from '../files/FileSelector';
+import { fileApi } from '../../services/api';
 
 interface ChatInputProps {
   isGuest?: boolean;
@@ -63,6 +64,7 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
 
   const processFiles = useCallback(async (files: FileList | File[]) => {
     const newAttachments: PendingAttachment[] = [];
+    const filesToBackup: File[] = [];
 
     for (const file of Array.from(files)) {
       if (file.size > MAX_FILE_SIZE) {
@@ -79,9 +81,21 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
         previewUrl,
         base64,
       });
+
+      // Auto-backup non-image files to file library
+      if (!file.type.startsWith('image/')) {
+        filesToBackup.push(file);
+      }
     }
 
     setAttachments(prev => [...prev, ...newAttachments]);
+
+    // Upload non-image files to file library in background
+    if (filesToBackup.length > 0) {
+      fileApi.upload(filesToBackup).catch(() => {
+        // Silently fail - backup is best-effort
+      });
+    }
   }, []);
 
   const removeAttachment = useCallback((id: string) => {
@@ -242,47 +256,49 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
         )}
 
         {/* Visibility, Self-Review toggles & File Selector */}
-        {currentConversationId && (
-          <div className="flex items-center gap-1.5 mb-2 px-1 flex-wrap">
-            <span className="text-[11px] text-[var(--color-text-tertiary)] mr-0.5">{t('conversation.currentStatus')}</span>
-            <button
-              onClick={() => {
-                const newVis = currentVisibility === 'public' ? 'private' as const : 'public' as const;
-                setVisibility(newVis);
-                updateConversation(currentConversationId, { visibility: newVis });
-              }}
-              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-colors ${
-                currentVisibility === 'public'
-                  ? 'bg-[rgba(34,197,94,0.15)] text-[#22c55e]'
-                  : 'bg-[rgba(168,85,247,0.15)] text-[#a855f7]'
-              }`}
-              title={t('conversation.visibilityDesc')}
-            >
-              {currentVisibility === 'private' ? <Lock size={11} /> : <Globe size={11} />}
-              <span>{currentVisibility === 'private' ? t('conversation.private') : t('conversation.public')}</span>
-            </button>
-            <button
-              onClick={() => {
-                const newVal = !currentSelfReview;
-                setSelfReview(newVal);
-                updateConversation(currentConversationId, { selfReview: newVal });
-              }}
-              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-colors ${
-                currentSelfReview
-                  ? 'bg-[rgba(16,163,127,0.15)] text-[var(--color-accent-main)]'
-                  : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
-              }`}
-              title={t('conversation.selfReviewDesc')}
-            >
-              {currentSelfReview ? <Eye size={11} /> : <EyeOff size={11} />}
-              <span>{t('conversation.selfReview')}</span>
-            </button>
-            <FileSelector
-              selectedFileIds={selectedFileIds}
-              onSelectionChange={setSelectedFileIds}
-            />
-          </div>
-        )}
+        <div className="flex items-center gap-1.5 mb-2 px-1 flex-wrap">
+          {currentConversationId && (
+            <>
+              <span className="text-[11px] text-[var(--color-text-tertiary)] mr-0.5">{t('conversation.currentStatus')}</span>
+              <button
+                onClick={() => {
+                  const newVis = currentVisibility === 'public' ? 'private' as const : 'public' as const;
+                  setVisibility(newVis);
+                  updateConversation(currentConversationId, { visibility: newVis });
+                }}
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-colors ${
+                  currentVisibility === 'public'
+                    ? 'bg-[rgba(34,197,94,0.15)] text-[#22c55e]'
+                    : 'bg-[rgba(168,85,247,0.15)] text-[#a855f7]'
+                }`}
+                title={t('conversation.visibilityDesc')}
+              >
+                {currentVisibility === 'private' ? <Lock size={11} /> : <Globe size={11} />}
+                <span>{currentVisibility === 'private' ? t('conversation.private') : t('conversation.public')}</span>
+              </button>
+              <button
+                onClick={() => {
+                  const newVal = !currentSelfReview;
+                  setSelfReview(newVal);
+                  updateConversation(currentConversationId, { selfReview: newVal });
+                }}
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-colors ${
+                  currentSelfReview
+                    ? 'bg-[rgba(16,163,127,0.15)] text-[var(--color-accent-main)]'
+                    : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+                }`}
+                title={t('conversation.selfReviewDesc')}
+              >
+                {currentSelfReview ? <Eye size={11} /> : <EyeOff size={11} />}
+                <span>{t('conversation.selfReview')}</span>
+              </button>
+            </>
+          )}
+          <FileSelector
+            selectedFileIds={selectedFileIds}
+            onSelectionChange={setSelectedFileIds}
+          />
+        </div>
 
         <div
           ref={composerRef}
