@@ -3,6 +3,7 @@ import type {
   AuthResponse,
   LoginRequest,
   RegisterRequest,
+  CreateUserRequest,
   UserPublic,
   UpdateUserRequest,
 } from '../types';
@@ -58,6 +59,11 @@ export const authApi = {
 export const userApi = {
   list: () => authRequest<UserPublic[]>('/users'),
   get: (id: string) => authRequest<UserPublic>(`/users/${id}`),
+  create: (data: CreateUserRequest) =>
+    authRequest<UserPublic>('/users', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   update: (id: string, data: UpdateUserRequest) =>
     authRequest<UserPublic>(`/users/${id}`, {
       method: 'PUT',

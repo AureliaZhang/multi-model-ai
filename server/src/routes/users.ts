@@ -1,8 +1,9 @@
 import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
+import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../database';
 import { requireAuth, requireRole } from '../middleware/auth';
-import type { AuthRequest, UserPublic, UpdateUserRequest } from '../types';
+import type { AuthRequest, UserPublic, CreateUserRequest, UpdateUserRequest } from '../types';
 
 const router = Router();
 
@@ -18,7 +19,7 @@ router.get('/', (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
     const rows = db.prepare(`
-      SELECT id, username, email, display_name as displayName, role,
+      SELECT id, username, email, phone, display_name as displayName, role,
              is_active as isActive, last_login as lastLogin,
              created_at as createdAt, updated_at as updatedAt
       FROM users ORDER BY created_at DESC
@@ -36,6 +37,84 @@ router.get('/', (req: AuthRequest, res: Response) => {
 });
 
 /**
+ * POST /api/users
+ * Create a new user (admin only)
+ */
+router.post('/', (req: AuthRequest, res: Response) => {
+  try {
+    const { username, password, email, phone, displayName, role } = req.body as CreateUserRequest;
+
+    if (!username || !password) {
+      res.status(400).json({ success: false, error: 'Username and password are required' });
+      return;
+    }
+
+    if (username.length < 3 || username.length > 30) {
+      res.status(400).json({ success: false, error: 'Username must be 3-30 characters' });
+      return;
+    }
+
+    if (password.length < 6) {
+      res.status(400).json({ success: false, error: 'Password must be at least 6 characters' });
+      return;
+    }
+
+    const db = getDb();
+
+    // Check if username already exists
+    const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+    if (existing) {
+      res.status(409).json({ success: false, error: 'Username already exists' });
+      return;
+    }
+
+    // Check email uniqueness if provided
+    if (email) {
+      const emailExists = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+      if (emailExists) {
+        res.status(409).json({ success: false, error: 'Email already in use' });
+        return;
+      }
+    }
+
+    // Check phone uniqueness if provided
+    if (phone) {
+      const phoneExists = db.prepare('SELECT id FROM users WHERE phone = ?').get(phone);
+      if (phoneExists) {
+        res.status(409).json({ success: false, error: 'Phone number already in use' });
+        return;
+      }
+    }
+
+    const id = uuidv4();
+    const passwordHash = bcrypt.hashSync(password, 10);
+    const userRole = role === 'admin' ? 'admin' : 'user';
+
+    db.prepare(`
+      INSERT INTO users (id, username, email, phone, password_hash, display_name, role)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(id, username, email || null, phone || null, passwordHash, displayName || username, userRole);
+
+    const user: UserPublic = {
+      id,
+      username,
+      email: email || null,
+      phone: phone || null,
+      displayName: displayName || username,
+      role: userRole,
+      isActive: true,
+      lastLogin: null,
+      createdAt: new Date().toISOString(),
+    };
+
+    res.status(201).json({ success: true, data: user });
+  } catch (err: any) {
+    console.error('Create user error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
  * GET /api/users/:id
  * Get a specific user (admin only)
  */
@@ -43,7 +122,7 @@ router.get('/:id', (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
     const row = db.prepare(`
-      SELECT id, username, email, display_name as displayName, role,
+      SELECT id, username, email, phone, display_name as displayName, role,
              is_active as isActive, last_login as lastLogin,
              created_at as createdAt
       FROM users WHERE id = ?
@@ -66,9 +145,9 @@ router.get('/:id', (req: AuthRequest, res: Response) => {
  */
 router.put('/:id', (req: AuthRequest, res: Response) => {
   try {
-    const { email, displayName, role, isActive, password } = req.body as UpdateUserRequest;
     const db = getDb();
     const userId = req.params.id;
+    const { email, phone, displayName, role, isActive, password } = req.body as UpdateUserRequest;
 
     // Check user exists
     const existing = db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
@@ -93,6 +172,7 @@ router.put('/:id', (req: AuthRequest, res: Response) => {
     const values: any[] = [];
 
     if (email !== undefined) { updates.push('email = ?'); values.push(email); }
+    if (phone !== undefined) { updates.push('phone = ?'); values.push(phone); }
     if (displayName !== undefined) { updates.push('display_name = ?'); values.push(displayName); }
     if (role !== undefined) { updates.push('role = ?'); values.push(role); }
     if (isActive !== undefined) { updates.push('is_active = ?'); values.push(isActive ? 1 : 0); }
@@ -109,7 +189,7 @@ router.put('/:id', (req: AuthRequest, res: Response) => {
     db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...values);
 
     const row = db.prepare(`
-      SELECT id, username, email, display_name as displayName, role,
+      SELECT id, username, email, phone, display_name as displayName, role,
              is_active as isActive, last_login as lastLogin,
              created_at as createdAt
       FROM users WHERE id = ?

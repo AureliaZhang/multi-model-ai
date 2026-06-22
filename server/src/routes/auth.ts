@@ -13,7 +13,7 @@ const router = Router();
  */
 router.post('/register', (req: AuthRequest, res: Response) => {
   try {
-    const { username, password, email, displayName } = req.body as RegisterRequest;
+    const { username, password, email, phone, displayName } = req.body as RegisterRequest;
 
     if (!username || !password) {
       res.status(400).json({ success: false, error: 'Username and password are required' });
@@ -48,13 +48,22 @@ router.post('/register', (req: AuthRequest, res: Response) => {
       }
     }
 
+    // Check phone uniqueness if provided
+    if (phone) {
+      const phoneExists = db.prepare('SELECT id FROM users WHERE phone = ?').get(phone);
+      if (phoneExists) {
+        res.status(409).json({ success: false, error: 'Phone number already in use' });
+        return;
+      }
+    }
+
     const id = uuidv4();
     const passwordHash = bcrypt.hashSync(password, 10);
 
     db.prepare(`
-      INSERT INTO users (id, username, email, password_hash, display_name, role)
-      VALUES (?, ?, ?, ?, ?, 'user')
-    `).run(id, username, email || null, passwordHash, displayName || username);
+      INSERT INTO users (id, username, email, phone, password_hash, display_name, role)
+      VALUES (?, ?, ?, ?, ?, ?, 'user')
+    `).run(id, username, email || null, phone || null, passwordHash, displayName || username);
 
     const token = generateToken(id);
 
@@ -62,6 +71,7 @@ router.post('/register', (req: AuthRequest, res: Response) => {
       id,
       username,
       email: email || null,
+      phone: phone || null,
       displayName: displayName || username,
       role: 'user',
       isActive: true,
@@ -86,22 +96,23 @@ router.post('/login', (req: AuthRequest, res: Response) => {
     const { username, password } = req.body as LoginRequest;
 
     if (!username || !password) {
-      res.status(400).json({ success: false, error: 'Username and password are required' });
+      res.status(400).json({ success: false, error: 'Username/phone and password are required' });
       return;
     }
 
     const db = getDb();
 
+    // Support login with username OR phone number
     const row = db.prepare(`
-      SELECT id, username, email, password_hash as passwordHash,
+      SELECT id, username, email, phone, password_hash as passwordHash,
              display_name as displayName, role,
              is_active as isActive, last_login as lastLogin,
              created_at as createdAt
-      FROM users WHERE username = ?
-    `).get(username) as any;
+      FROM users WHERE username = ? OR phone = ?
+    `).get(username, username) as any;
 
     if (!row) {
-      res.status(401).json({ success: false, error: 'Invalid username or password' });
+      res.status(401).json({ success: false, error: 'Invalid username/phone or password' });
       return;
     }
 
@@ -112,7 +123,7 @@ router.post('/login', (req: AuthRequest, res: Response) => {
 
     const valid = bcrypt.compareSync(password, row.passwordHash);
     if (!valid) {
-      res.status(401).json({ success: false, error: 'Invalid username or password' });
+      res.status(401).json({ success: false, error: 'Invalid username/phone or password' });
       return;
     }
 
@@ -125,6 +136,7 @@ router.post('/login', (req: AuthRequest, res: Response) => {
       id: row.id,
       username: row.username,
       email: row.email,
+      phone: row.phone,
       displayName: row.displayName,
       role: row.role,
       isActive: Boolean(row.isActive),

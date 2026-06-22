@@ -185,6 +185,7 @@ export interface UserPublic {
   id: string;
   username: string;
   email: string | null;
+  phone: string | null;
   displayName: string | null;
   role: UserRole;
   isActive: boolean;
@@ -196,11 +197,21 @@ export interface RegisterRequest {
   username: string;
   password: string;
   email?: string;
+  phone?: string;
   displayName?: string;
 }
 
-export interface LoginRequest {
+export interface CreateUserRequest {
   username: string;
+  password: string;
+  email?: string;
+  phone?: string;
+  displayName?: string;
+  role?: UserRole;
+}
+
+export interface LoginRequest {
+  username: string; // Can be username or phone number
   password: string;
 }
 
@@ -211,6 +222,7 @@ export interface AuthResponse {
 
 export interface UpdateUserRequest {
   email?: string;
+  phone?: string;
   displayName?: string;
   role?: UserRole;
   isActive?: boolean;

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuthStore } from '../../stores/authStore';
-import { LogIn, Eye, EyeOff, Globe } from 'lucide-react';
+import { LogIn, Eye, EyeOff, Globe, User, Phone } from 'lucide-react';
 import { useTranslation } from '../../i18n';
 
 interface LoginPageProps {
@@ -12,6 +12,7 @@ export function LoginPage({ onSwitchToRegister, onGuestBrowse }: LoginPageProps)
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loginMode, setLoginMode] = useState<'username' | 'phone'>('username');
   const login = useAuthStore(s => s.login);
   const error = useAuthStore(s => s.error);
   const clearError = useAuthStore(s => s.clearError);
@@ -54,16 +55,44 @@ export function LoginPage({ onSwitchToRegister, onGuestBrowse }: LoginPageProps)
             </div>
           )}
 
+          {/* Login mode toggle */}
+          <div className="flex gap-2 mb-1">
+            <button
+              type="button"
+              onClick={() => { setLoginMode('username'); clearError(); }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${
+                loginMode === 'username'
+                  ? 'bg-[var(--color-accent-main)] text-white'
+                  : 'bg-[var(--color-main-surface-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+              }`}
+            >
+              <User size={12} />
+              {t('login.usernameMode')}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setLoginMode('phone'); clearError(); }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${
+                loginMode === 'phone'
+                  ? 'bg-[var(--color-accent-main)] text-white'
+                  : 'bg-[var(--color-main-surface-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+              }`}
+            >
+              <Phone size={12} />
+              {t('login.phoneMode')}
+            </button>
+          </div>
+
           <div>
             <label className="block text-sm text-[var(--color-text-secondary)] mb-1.5">
-              {t('login.username')}
+              {loginMode === 'username' ? t('login.username') : t('login.phone')}
             </label>
             <input
-              type="text"
+              type={loginMode === 'phone' ? 'tel' : 'text'}
               value={username}
               onChange={e => { setUsername(e.target.value); clearError(); }}
               className="w-full px-4 py-2.5 bg-[var(--composer-bg)] border border-[var(--color-border-light)] rounded-xl text-[var(--color-text-primary)] placeholder-[var(--color-text-placeholder)] outline-none focus:border-[var(--color-accent-main)] transition-colors text-sm"
-              placeholder={t('login.usernamePlaceholder')}
+              placeholder={loginMode === 'username' ? t('login.usernamePlaceholder') : t('login.phonePlaceholder')}
               autoFocus
             />
           </div>

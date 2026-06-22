@@ -188,9 +188,17 @@ function initTables(db: Database.Database): void {
     // Column already exists
   }
 
+  // Migration: add phone column to users if not exists
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN phone TEXT`);
+  } catch {
+    // Column already exists
+  }
+
   // Create indexes
   db.exec(`CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_conversations_visibility ON conversations(visibility)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone)`);
 }
 
 function seedDefaultAdmin(db: Database.Database): void {
