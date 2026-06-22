@@ -60,6 +60,7 @@ const zh = {
 
   // 侧边栏
   'sidebar.newChat': '新建对话',
+  'sidebar.deleteChat': '删除对话',
   'sidebar.signInToChat': '登录后开始聊天',
   'sidebar.signInRegister': '登录 / 注册',
   'sidebar.memoryStore': '记忆库',

@@ -60,6 +60,7 @@ const en = {
 
   // Sidebar
   'sidebar.newChat': 'New chat',
+  'sidebar.deleteChat': 'Delete conversation',
   'sidebar.signInToChat': 'Sign in to start chatting',
   'sidebar.signInRegister': 'Sign in / Register',
   'sidebar.memoryStore': 'Memory Store',

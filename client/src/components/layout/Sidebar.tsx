@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { useChatStore } from '../../stores/chatStore';
 import { useAuthStore } from '../../stores/authStore';
-import { MessageSquarePlus, Settings, Trash2, LogOut, Users, Shield, User, Brain, Globe, Lock, Eye, EyeOff, FolderOpen } from 'lucide-react';
+import { MessageSquarePlus, Settings, Trash2, LogOut, Users, Shield, User, Brain, Globe, Lock, Eye, EyeOff, FolderOpen, X } from 'lucide-react';
 import { useTranslation } from '../../i18n';
 import type { ConversationVisibility } from '../../types';
 
@@ -28,6 +29,7 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMe
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
   const logout = useAuthStore(s => s.logout);
   const { t } = useTranslation();
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const handleNewChat = () => {
     useChatStore.setState({ currentConversationId: null, messages: [] });
@@ -35,8 +37,11 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMe
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (confirm(t('sidebar.newChat'))) {
+    if (deleteConfirmId === id) {
       await deleteConversation(id);
+      setDeleteConfirmId(null);
+    } else {
+      setDeleteConfirmId(id);
     }
   };
 
@@ -114,6 +119,7 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMe
               <div
                 key={conv.id}
                 onClick={() => selectConversation(conv.id)}
+                onMouseLeave={() => { if (deleteConfirmId === conv.id) setDeleteConfirmId(null); }}
                 className={`group relative flex items-center px-3 py-2.5 rounded-lg cursor-pointer mb-0.5 transition-all duration-150 sidebar-item ${
                   currentConversationId === conv.id
                     ? 'bg-[var(--color-sidebar-surface-active)]'
@@ -158,9 +164,14 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMe
                   </button>
                   <button
                     onClick={(e) => handleDelete(e, conv.id)}
-                    className="p-1 rounded-md hover:bg-[rgba(255,255,255,0.08)] text-[var(--color-text-tertiary)] transition-all duration-150"
+                    className={`p-1 rounded-md transition-all duration-150 ${
+                      deleteConfirmId === conv.id
+                        ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                        : 'hover:bg-[rgba(255,255,255,0.08)] text-[var(--color-text-tertiary)]'
+                    }`}
+                    title={deleteConfirmId === conv.id ? t('common.confirm') : t('sidebar.deleteChat')}
                   >
-                    <Trash2 size={13} />
+                    {deleteConfirmId === conv.id ? <X size={13} /> : <Trash2 size={13} />}
                   </button>
                 </div>
               </div>

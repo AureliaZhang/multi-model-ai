@@ -71,7 +71,7 @@ export function FileSelector({ selectedFileIds, onSelectionChange }: FileSelecto
       </button>
 
       {isOpen && (
-        <div className="absolute bottom-full left-0 mb-1 w-64 max-h-56 overflow-y-auto rounded-lg border border-[var(--color-border-light)] bg-[var(--color-bg-primary)] shadow-lg z-50">
+        <div className="absolute bottom-full left-0 mb-1 w-64 max-h-56 overflow-y-auto rounded-lg border border-[var(--color-border-light)] bg-[var(--color-main-surface-tertiary)] shadow-lg z-50">
           {loading ? (
             <div className="px-3 py-4 text-center text-xs text-[var(--color-text-tertiary)]">
               {t('common.loading')}
