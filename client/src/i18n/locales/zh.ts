@@ -222,6 +222,7 @@ const zh = {
   'conversation.selfReviewDesc': 'AI 在显示前检查回答中的语病、错别字和格式问题',
   'conversation.toggleVisibility': '切换可见性',
   'conversation.toggleSelfReview': '切换自我审查',
+  'conversation.currentStatus': '当前状态：',
   'conversation.newChatOptions': '新对话选项',
 };
 

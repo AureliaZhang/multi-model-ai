@@ -222,6 +222,7 @@ const en = {
   'conversation.selfReviewDesc': 'AI reviews its response for grammar, typos, and formatting before displaying',
   'conversation.toggleVisibility': 'Toggle visibility',
   'conversation.toggleSelfReview': 'Toggle self-review',
+  'conversation.currentStatus': 'Status:',
   'conversation.newChatOptions': 'New Conversation Options',
 };
 

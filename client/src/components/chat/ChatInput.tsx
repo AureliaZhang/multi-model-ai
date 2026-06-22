@@ -236,6 +236,7 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
         {/* Visibility & Self-Review toggles */}
         {currentConversationId && (
           <div className="flex items-center gap-1.5 mb-2 px-1">
+            <span className="text-[11px] text-[var(--color-text-tertiary)] mr-0.5">{t('conversation.currentStatus')}</span>
             <button
               onClick={() => {
                 const newVis = currentVisibility === 'public' ? 'private' as const : 'public' as const;
@@ -243,9 +244,9 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
                 updateConversation(currentConversationId, { visibility: newVis });
               }}
               className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-colors ${
-                currentVisibility === 'private'
-                  ? 'bg-[rgba(16,163,127,0.15)] text-[var(--color-accent-main)]'
-                  : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+                currentVisibility === 'public'
+                  ? 'bg-[rgba(34,197,94,0.15)] text-[#22c55e]'
+                  : 'bg-[rgba(168,85,247,0.15)] text-[#a855f7]'
               }`}
               title={t('conversation.visibilityDesc')}
             >
