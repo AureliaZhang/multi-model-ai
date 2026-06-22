@@ -14,7 +14,7 @@ import type {
   CreateMcpServerRequest,
   UpdateMcpServerRequest,
 } from '../types';
-import { getToken } from './auth';
+import { getToken, removeToken } from './auth';
 
 const BASE_URL = '/api';
 
@@ -31,6 +31,15 @@ async function request<T>(url: string, options?: RequestInit): Promise<ApiRespon
     ...options,
     headers,
   });
+
+  // Global 401 handling: token is invalid (user deleted, DB wiped, etc.)
+  if (res.status === 401 && token) {
+    removeToken();
+    // Reload the page to show login screen
+    window.location.reload();
+    return { success: false, error: 'Session expired. Please log in again.' } as ApiResponse<T>;
+  }
+
   return res.json() as Promise<ApiResponse<T>>;
 }
 
