@@ -119,16 +119,30 @@ body {
 .markdown-content table {
   width: 100%;
   border-collapse: collapse;
-  margin-bottom: 0.625rem;
+  margin: 0.75rem 0;
+  font-size: 13px;
+  display: block;
+  overflow-x: auto;
 }
 .markdown-content th, .markdown-content td {
-  border: 1px solid rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.12);
   padding: 0.5rem 0.75rem;
   text-align: left;
+  white-space: nowrap;
 }
 .markdown-content th {
-  background-color: rgba(255,255,255,0.05);
+  background-color: rgba(255,255,255,0.06);
   font-weight: 600;
+  color: var(--color-text-primary);
+}
+.markdown-content td {
+  color: var(--color-text-secondary);
+}
+.markdown-content tr:nth-child(even) td {
+  background-color: rgba(255,255,255,0.02);
+}
+.markdown-content tr:hover td {
+  background-color: rgba(255,255,255,0.04);
 }
 
 /* Typing animation */

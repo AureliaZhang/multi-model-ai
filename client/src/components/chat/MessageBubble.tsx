@@ -1,6 +1,7 @@
 import { Bot, User, FileIcon } from 'lucide-react';
 import type { Message } from '../../types';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { ToolCallBlock } from './ToolCallBlock';
 import { useTranslation } from '../../i18n';
 
@@ -74,7 +75,7 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
             {isUser ? (
               <p className="whitespace-pre-wrap">{message.content}</p>
             ) : (
-              <ReactMarkdown>{message.content}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
             )}
           </div>
 
