@@ -156,6 +156,33 @@ function initTables(db: Database.Database): void {
       FOREIGN KEY (server_id) REFERENCES mcp_servers(id) ON DELETE CASCADE
     );
 
+    -- File Library table
+    CREATE TABLE IF NOT EXISTS file_library (
+      id TEXT PRIMARY KEY,
+      original_name TEXT NOT NULL,
+      stored_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      file_size INTEGER NOT NULL,
+      chunk_count INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'processing' CHECK(status IN ('processing', 'ready', 'error')),
+      error_message TEXT,
+      uploaded_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- File Chunks table
+    CREATE TABLE IF NOT EXISTS file_chunks (
+      id TEXT PRIMARY KEY,
+      file_id TEXT NOT NULL,
+      chunk_index INTEGER NOT NULL,
+      content TEXT NOT NULL,
+      embedding TEXT,
+      token_count INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (file_id) REFERENCES file_library(id) ON DELETE CASCADE
+    );
+
     -- Indexes
     CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
@@ -165,6 +192,7 @@ function initTables(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_memory_conversation ON memory_entries(conversation_id);
     CREATE INDEX IF NOT EXISTS idx_memory_created ON memory_entries(created_at);
     CREATE INDEX IF NOT EXISTS idx_mcp_tools_server ON mcp_tools(server_id);
+    CREATE INDEX IF NOT EXISTS idx_file_chunks_file ON file_chunks(file_id);
   `);
 
   // Migration: add user_id column to conversations if not exists

@@ -198,6 +198,7 @@ export interface ChatRequest {
   modelNormalizedName: string;
   message: string;
   attachments?: { filename: string; mimeType: string; base64: string }[];
+  fileIds?: string[];
 }
 
 // --- MCP (Model Context Protocol) ---
@@ -241,4 +242,30 @@ export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
+}
+
+// --- File Library ---
+
+export interface FileLibraryEntry {
+  id: string;
+  originalName: string;
+  storedName: string;
+  mimeType: string;
+  fileSize: number;
+  chunkCount: number;
+  status: 'processing' | 'ready' | 'error';
+  errorMessage: string | null;
+  uploadedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FileChunk {
+  id: string;
+  fileId: string;
+  chunkIndex: number;
+  content: string;
+  embedding: string | null;
+  tokenCount: number;
+  createdAt: string;
 }

@@ -13,6 +13,9 @@ import type {
   McpTool,
   CreateMcpServerRequest,
   UpdateMcpServerRequest,
+  FileLibraryEntry,
+  FileLibraryResponse,
+  FileSearchResult,
 } from '../types';
 import { getToken, removeToken } from './auth';
 
@@ -94,7 +97,8 @@ export function streamChat(
   modelNormalizedName: string,
   message: string,
   callbacks: StreamChatCallbacks,
-  attachments?: { filename: string; mimeType: string; base64: string }[]
+  attachments?: { filename: string; mimeType: string; base64: string }[],
+  fileIds?: string[]
 ): AbortController {
   const controller = new AbortController();
 
@@ -105,6 +109,9 @@ export function streamChat(
   const body: Record<string, unknown> = { conversationId, modelNormalizedName, message };
   if (attachments && attachments.length > 0) {
     body.attachments = attachments;
+  }
+  if (fileIds && fileIds.length > 0) {
+    body.fileIds = fileIds;
   }
 
   fetch(`${BASE_URL}/chat`, {
@@ -238,4 +245,46 @@ export const mcpApi = {
     request<McpTool[]>(`/mcp/servers/${serverId}/tools`),
   toggleTool: (toolId: string, enabled: boolean) =>
     request(`/mcp/tools/${toolId}/toggle`, { method: 'PUT', body: JSON.stringify({ enabled }) }),
+};
+
+// --- File Library ---
+export const fileApi = {
+  list: (params?: { page?: number; limit?: number }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.page) searchParams.set('page', String(params.page));
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    return request<FileLibraryResponse>(`/files?${searchParams}`);
+  },
+  getOne: (id: string) => request<FileLibraryEntry>(`/files/${id}`),
+  delete: (id: string) => request(`/files/${id}`, { method: 'DELETE' }),
+  reindex: (id: string) => request<{ status: string }>(`/files/${id}/reindex`, { method: 'POST' }),
+  search: (query: string, fileIds?: string[], limit?: number) =>
+    request<FileSearchResult[]>('/files/search', {
+      method: 'POST',
+      body: JSON.stringify({ query, fileIds, limit }),
+    }),
+  upload: async (files: File[]): Promise<ApiResponse<FileLibraryEntry[]>> => {
+    const token = getToken();
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append('files', file);
+    }
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch(`${BASE_URL}/files/upload`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    // Global 401 handling
+    if (res.status === 401 && token) {
+      removeToken();
+      window.location.reload();
+      return { success: false, error: 'Session expired. Please log in again.' };
+    }
+
+    return res.json() as Promise<ApiResponse<FileLibraryEntry[]>>;
+  },
 };

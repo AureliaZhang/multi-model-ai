@@ -19,8 +19,8 @@ interface ChatState {
   deleteConversation: (id: string) => Promise<void>;
   selectConversation: (id: string) => Promise<void>;
   updateConversation: (id: string, data: { title?: string; visibility?: ConversationVisibility; selfReview?: boolean }) => Promise<void>;
-  sendMessage: (message: string, modelNormalizedName: string, attachments?: PendingAttachment[]) => void;
-  doSendMessage: (convId: string, message: string, modelNormalizedName: string, attachments?: PendingAttachment[]) => void;
+  sendMessage: (message: string, modelNormalizedName: string, attachments?: PendingAttachment[], fileIds?: string[]) => void;
+  doSendMessage: (convId: string, message: string, modelNormalizedName: string, attachments?: PendingAttachment[], fileIds?: string[]) => void;
   stopStreaming: () => void;
   clearError: () => void;
   setVisibility: (v: ConversationVisibility) => void;
@@ -124,7 +124,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  sendMessage: (message: string, modelNormalizedName: string, attachments?: PendingAttachment[]) => {
+  sendMessage: (message: string, modelNormalizedName: string, attachments?: PendingAttachment[], fileIds?: string[]) => {
     const { currentConversationId, isStreaming } = get();
     if (isStreaming) return;
 
@@ -133,15 +133,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // If no conversation, create one first
     if (!convId) {
       get().createConversation(modelNormalizedName, message.substring(0, 50)).then(id => {
-        get().doSendMessage(id, message, modelNormalizedName, attachments);
+        get().doSendMessage(id, message, modelNormalizedName, attachments, fileIds);
       });
       return;
     }
 
-    get().doSendMessage(convId, message, modelNormalizedName, attachments);
+    get().doSendMessage(convId, message, modelNormalizedName, attachments, fileIds);
   },
 
-  doSendMessage: (convId: string, message: string, modelNormalizedName: string, attachments?: PendingAttachment[]) => {
+  doSendMessage: (convId: string, message: string, modelNormalizedName: string, attachments?: PendingAttachment[], fileIds?: string[]) => {
     // Add user message to UI immediately
     const userMsg: Message = {
       id: `temp-${Date.now()}`,
@@ -230,7 +230,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
           }));
         },
       },
-      apiAttachments
+      apiAttachments,
+      fileIds && fileIds.length > 0 ? fileIds : undefined,
     );
 
     set({ abortController: controller });

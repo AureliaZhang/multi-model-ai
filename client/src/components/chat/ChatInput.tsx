@@ -4,6 +4,7 @@ import { useModelStore } from '../../stores/modelStore';
 import { Send, Paperclip, Square, LogIn, X, FileIcon, Globe, Lock, Eye, EyeOff } from 'lucide-react';
 import type { PendingAttachment } from '../../types';
 import { useTranslation } from '../../i18n';
+import { FileSelector } from '../files/FileSelector';
 
 interface ChatInputProps {
   isGuest?: boolean;
@@ -33,6 +34,7 @@ function fileToBase64(file: File): Promise<string> {
 export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -102,9 +104,15 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
       return;
     }
 
-    sendMessage(trimmed || '(File attachment)', model, attachments.length > 0 ? attachments : undefined);
+    sendMessage(
+      trimmed || '(File attachment)',
+      model,
+      attachments.length > 0 ? attachments : undefined,
+      selectedFileIds.length > 0 ? selectedFileIds : undefined,
+    );
     setInput('');
     setAttachments([]);
+    setSelectedFileIds([]);
 
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -233,9 +241,9 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
           </div>
         )}
 
-        {/* Visibility & Self-Review toggles */}
+        {/* Visibility, Self-Review toggles & File Selector */}
         {currentConversationId && (
-          <div className="flex items-center gap-1.5 mb-2 px-1">
+          <div className="flex items-center gap-1.5 mb-2 px-1 flex-wrap">
             <span className="text-[11px] text-[var(--color-text-tertiary)] mr-0.5">{t('conversation.currentStatus')}</span>
             <button
               onClick={() => {
@@ -269,6 +277,10 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
               {currentSelfReview ? <Eye size={11} /> : <EyeOff size={11} />}
               <span>{t('conversation.selfReview')}</span>
             </button>
+            <FileSelector
+              selectedFileIds={selectedFileIds}
+              onSelectionChange={setSelectedFileIds}
+            />
           </div>
         )}
 

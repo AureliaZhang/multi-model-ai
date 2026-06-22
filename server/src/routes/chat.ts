@@ -83,7 +83,7 @@ async function extractFileText(mimeType: string, base64Data: string, filename: s
 // POST /api/chat - Send message & get streaming response (SSE)
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { conversationId, modelNormalizedName, message, attachments } = req.body;
+    const { conversationId, modelNormalizedName, message, attachments, fileIds } = req.body;
     if (!conversationId || !modelNormalizedName || !message) {
       return res.status(400).json({ success: false, error: 'conversationId, modelNormalizedName, and message are required' });
     }
@@ -216,6 +216,26 @@ router.post('/', async (req: Request, res: Response) => {
     // Send attachment info to client
     if (attachmentMeta.length > 0) {
       res.write(`data: ${JSON.stringify({ attachments: attachmentMeta })}\n\n`);
+    }
+
+    // Inject relevant file library chunks as system context (RAG)
+    if (fileIds && Array.isArray(fileIds) && fileIds.length > 0) {
+      try {
+        const { searchFileChunks } = require('../services/fileProcessor');
+        const queryEmbedding = await generateEmbedding(message);
+        const relevantChunks = searchFileChunks(queryEmbedding, fileIds, 5);
+        if (relevantChunks.length > 0) {
+          const fileContext = relevantChunks
+            .map((c: any) => `[${c.fileName}] ${c.content}`)
+            .join('\n\n');
+          apiMessages.unshift({
+            role: 'system',
+            content: `以下是从文件库中检索到的相关内容：\n${fileContext}\n\n请基于这些文件内容回答用户的问题。`,
+          });
+        }
+      } catch (fileErr: any) {
+        console.warn('[chat] File RAG injection failed:', fileErr.message);
+      }
     }
 
     // Inject relevant memories as system context (vector search)

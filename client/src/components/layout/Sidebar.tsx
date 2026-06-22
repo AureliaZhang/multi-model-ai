@@ -1,6 +1,6 @@
 import { useChatStore } from '../../stores/chatStore';
 import { useAuthStore } from '../../stores/authStore';
-import { MessageSquarePlus, Settings, Trash2, LogOut, Users, Shield, User, Brain, Globe, Lock, Eye, EyeOff } from 'lucide-react';
+import { MessageSquarePlus, Settings, Trash2, LogOut, Users, Shield, User, Brain, Globe, Lock, Eye, EyeOff, FolderOpen } from 'lucide-react';
 import { useTranslation } from '../../i18n';
 import type { ConversationVisibility } from '../../types';
 
@@ -9,11 +9,12 @@ interface SidebarProps {
   onOpenSettings: () => void;
   onOpenUsers: () => void;
   onOpenMemory: () => void;
+  onOpenFiles: () => void;
   onToggleSidebar: () => void;
   onLogout?: () => void;
 }
 
-export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMemory, onToggleSidebar: _onToggleSidebar, onLogout }: SidebarProps) {
+export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMemory, onOpenFiles, onToggleSidebar: _onToggleSidebar, onLogout }: SidebarProps) {
   const conversations = useChatStore(s => s.conversations);
   const currentConversationId = useChatStore(s => s.currentConversationId);
   const selectConversation = useChatStore(s => s.selectConversation);
@@ -177,13 +178,22 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMe
       {/* Footer */}
       <div className="p-2 border-t border-[var(--color-border-light)] space-y-0.5">
         {!isGuest && (
-          <button
-            onClick={onOpenMemory}
-            className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-secondary)] text-[13px] w-full transition-colors duration-150"
-          >
-            <Brain size={16} strokeWidth={1.5} />
-            <span>{t('sidebar.memoryStore')}</span>
-          </button>
+          <>
+            <button
+              onClick={onOpenMemory}
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-secondary)] text-[13px] w-full transition-colors duration-150"
+            >
+              <Brain size={16} strokeWidth={1.5} />
+              <span>{t('sidebar.memoryStore')}</span>
+            </button>
+            <button
+              onClick={onOpenFiles}
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-secondary)] text-[13px] w-full transition-colors duration-150"
+            >
+              <FolderOpen size={16} strokeWidth={1.5} />
+              <span>{t('sidebar.fileLibrary')}</span>
+            </button>
+          </>
         )}
 
         {isAuthenticated && user?.role === 'admin' && (

@@ -52,6 +52,7 @@ const en = {
   'sidebar.signInToChat': 'Sign in to start chatting',
   'sidebar.signInRegister': 'Sign in / Register',
   'sidebar.memoryStore': 'Memory Store',
+  'sidebar.fileLibrary': 'File Library',
   'sidebar.userManagement': 'User Management',
   'sidebar.settingsStations': 'Settings & Stations',
   'sidebar.noConversations': 'No conversations yet',
@@ -224,6 +225,27 @@ const en = {
   'conversation.toggleSelfReview': 'Toggle self-review',
   'conversation.currentStatus': 'Status:',
   'conversation.newChatOptions': 'New Conversation Options',
+
+  // File Library
+  'files.title': 'File Library',
+  'files.upload': 'Upload Files',
+  'files.uploading': 'Uploading...',
+  'files.dropHere': 'Drop files here or click to select',
+  'files.dropHereHint': 'Supports text, code, PDF, and more (max 20MB each)',
+  'files.noFiles': 'No files uploaded yet',
+  'files.noFilesHint': 'Upload files to use them for RAG-based chat',
+  'files.processing': 'Processing',
+  'files.ready': 'Ready',
+  'files.error': 'Error',
+  'files.chunks': '{count} chunk{s}',
+  'files.deleteConfirm': 'Delete this file? This will also remove all its chunks.',
+  'files.delete': 'Delete',
+  'files.reindex': 'Reindex',
+  'files.selectFiles': 'Select Files',
+  'files.selectedFiles': '{count} file{s} selected',
+  'files.noFileSelected': 'No files selected',
+  'files.selectFilesForChat': 'Select files for RAG chat',
+  'files.clearSelection': 'Clear',
 };
 
 export default en;

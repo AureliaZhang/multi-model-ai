@@ -115,6 +115,7 @@ export interface ChatRequest {
   modelNormalizedName: string;
   message: string;
   attachments?: { filename: string; mimeType: string; base64: string }[];
+  fileIds?: string[];
 }
 
 export interface PendingAttachment {
@@ -228,4 +229,36 @@ export interface UpdateUserRequest {
   role?: UserRole;
   isActive?: boolean;
   password?: string;
+}
+
+// --- File Library ---
+
+export interface FileLibraryEntry {
+  id: string;
+  originalName: string;
+  storedName: string;
+  mimeType: string;
+  fileSize: number;
+  chunkCount: number;
+  status: 'processing' | 'ready' | 'error';
+  errorMessage: string | null;
+  uploadedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FileLibraryResponse {
+  files: FileLibraryEntry[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface FileSearchResult {
+  chunkId: string;
+  fileId: string;
+  fileName: string;
+  content: string;
+  similarity: number;
 }

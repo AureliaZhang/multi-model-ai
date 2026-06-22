@@ -52,6 +52,7 @@ const zh = {
   'sidebar.signInToChat': '登录后开始聊天',
   'sidebar.signInRegister': '登录 / 注册',
   'sidebar.memoryStore': '记忆库',
+  'sidebar.fileLibrary': '文件库',
   'sidebar.userManagement': '用户管理',
   'sidebar.settingsStations': '设置 & 中转站',
   'sidebar.noConversations': '暂无对话',
@@ -224,6 +225,27 @@ const zh = {
   'conversation.toggleSelfReview': '切换自我审查',
   'conversation.currentStatus': '当前状态：',
   'conversation.newChatOptions': '新对话选项',
+
+  // 文件库
+  'files.title': '文件库',
+  'files.upload': '上传文件',
+  'files.uploading': '上传中...',
+  'files.dropHere': '拖放文件到此处或点击选择',
+  'files.dropHereHint': '支持文本、代码、PDF 等（每个最大 20MB）',
+  'files.noFiles': '暂无上传文件',
+  'files.noFilesHint': '上传文件以用于基于 RAG 的对话',
+  'files.processing': '处理中',
+  'files.ready': '就绪',
+  'files.error': '错误',
+  'files.chunks': '{count} 个分块',
+  'files.deleteConfirm': '删除此文件？将同时移除所有分块。',
+  'files.delete': '删除',
+  'files.reindex': '重新索引',
+  'files.selectFiles': '选择文件',
+  'files.selectedFiles': '已选择 {count} 个文件',
+  'files.noFileSelected': '未选择文件',
+  'files.selectFilesForChat': '选择文件用于 RAG 对话',
+  'files.clearSelection': '清除',
 };
 
 export default zh;
