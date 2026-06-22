@@ -121,8 +121,13 @@ body {
   border-collapse: collapse;
   margin: 0.75rem 0;
   font-size: 13px;
-  display: block;
+}
+.markdown-content .table-wrapper {
   overflow-x: auto;
+  margin: 0.75rem 0;
+}
+.markdown-content .table-wrapper table {
+  margin: 0;
 }
 .markdown-content th, .markdown-content td {
   border: 1px solid rgba(255,255,255,0.12);
