@@ -178,6 +178,9 @@ export interface MemoryConfig {
   semanticSearch: boolean;
   autoSummarize: boolean;
   summarizeThreshold: number;
+  embeddingApiBaseUrl?: string | null;
+  embeddingApiKey?: string | null;
+  embeddingModel?: string | null;
 }
 
 // --- API Request/Response ---

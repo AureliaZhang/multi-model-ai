@@ -187,6 +187,16 @@ const zh = {
   'memory.summary': '摘要',
   'memory.content': '内容',
   'memory.tags': '标签',
+  'memory.embeddingApi': '向量 API',
+  'memory.embeddingApiDesc': '配置专用的向量生成 API（比本地回退更高质量）',
+  'memory.embBaseUrl': '基础 URL',
+  'memory.embApiKey': 'API 密钥',
+  'memory.embModel': '模型',
+  'memory.autoDetect': '自动检测 (text-embedding-3-small)',
+  'memory.fetchModels': '拉取模型',
+  'memory.saveEmbConfig': '保存配置',
+  'memory.noEmbeddingModels': '该端点未找到 embedding 模型',
+  'memory.fetchModelsFailed': '拉取模型失败',
 
   // 用户管理
   'users.title': '用户管理',

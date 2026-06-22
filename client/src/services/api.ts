@@ -226,6 +226,11 @@ export const memoryApi = {
       '/memories/backfill-embeddings',
       { method: 'POST', body: JSON.stringify({ batchSize: batchSize || 10 }) }
     ),
+  fetchEmbeddingModels: (baseUrl: string, apiKey: string) =>
+    request<{ id: string; name: string }[]>('/memories/fetch-embedding-models', {
+      method: 'POST',
+      body: JSON.stringify({ baseUrl, apiKey }),
+    }),
 };
 
 // --- MCP Servers ---

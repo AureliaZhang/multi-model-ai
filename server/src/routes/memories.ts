@@ -217,6 +217,9 @@ router.get('/config', (_req: Request, res: Response) => {
       semanticSearch: row.semantic_search === 1,
       autoSummarize: row.auto_summarize === 1,
       summarizeThreshold: row.summarize_threshold,
+      embeddingApiBaseUrl: row.embedding_api_base_url || null,
+      embeddingApiKey: row.embedding_api_key || null,
+      embeddingModel: row.embedding_model || null,
       embeddingStats: { total: totalEntries, embedded: embeddedEntries },
     };
     res.json({ success: true, data: config } as ApiResponse<any>);
@@ -235,7 +238,8 @@ router.put('/config', (req: Request, res: Response) => {
     db.prepare(`
       UPDATE memory_config SET
         auto_save = ?, context_injection = ?, max_context_memories = ?,
-        retention_days = ?, semantic_search = ?, auto_summarize = ?, summarize_threshold = ?
+        retention_days = ?, semantic_search = ?, auto_summarize = ?, summarize_threshold = ?,
+        embedding_api_base_url = ?, embedding_api_key = ?, embedding_model = ?
       WHERE id = 1
     `).run(
       updates.autoSave !== undefined ? (updates.autoSave ? 1 : 0) : current.auto_save,
@@ -244,7 +248,10 @@ router.put('/config', (req: Request, res: Response) => {
       updates.retentionDays ?? current.retention_days,
       updates.semanticSearch !== undefined ? (updates.semanticSearch ? 1 : 0) : current.semantic_search,
       updates.autoSummarize !== undefined ? (updates.autoSummarize ? 1 : 0) : current.auto_summarize,
-      updates.summarizeThreshold ?? current.summarize_threshold
+      updates.summarizeThreshold ?? current.summarize_threshold,
+      updates.embeddingApiBaseUrl !== undefined ? updates.embeddingApiBaseUrl : current.embedding_api_base_url,
+      updates.embeddingApiKey !== undefined ? updates.embeddingApiKey : current.embedding_api_key,
+      updates.embeddingModel !== undefined ? updates.embeddingModel : current.embedding_model
     );
 
     const updated = db.prepare('SELECT * FROM memory_config WHERE id = 1').get() as any;
@@ -256,8 +263,59 @@ router.put('/config', (req: Request, res: Response) => {
       semanticSearch: updated.semantic_search === 1,
       autoSummarize: updated.auto_summarize === 1,
       summarizeThreshold: updated.summarize_threshold,
+      embeddingApiBaseUrl: updated.embedding_api_base_url || null,
+      embeddingApiKey: updated.embedding_api_key || null,
+      embeddingModel: updated.embedding_model || null,
     };
     res.json({ success: true, data: config } as ApiResponse<MemoryConfig>);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/memories/fetch-embedding-models - Fetch embedding models from a given base URL
+router.post('/fetch-embedding-models', async (req: Request, res: Response) => {
+  try {
+    const { baseUrl, apiKey } = req.body;
+    if (!baseUrl || !apiKey) {
+      return res.status(400).json({ success: false, error: 'baseUrl and apiKey are required' });
+    }
+
+    const cleanUrl = baseUrl.replace(/\/+$/, '');
+    const modelsUrl = `${cleanUrl}/models`;
+
+    let response: any;
+    try {
+      response = await fetch(modelsUrl, {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(15000),
+      });
+    } catch (fetchErr: any) {
+      const hint = fetchErr.name === 'TimeoutError' || fetchErr.name === 'AbortError'
+        ? 'Request timed out. Check that the Base URL is correct and reachable.'
+        : fetchErr.message;
+      return res.status(502).json({ success: false, error: `Failed to connect: ${hint}` });
+    }
+
+    if (!response.ok) {
+      return res.status(response.status).json({ success: false, error: `Server returned HTTP ${response.status}` });
+    }
+
+    const data = await response.json() as any;
+    const allModels = data.data || [];
+
+    // Filter to only embedding-capable models
+    const embeddingModels = allModels
+      .filter((m: any) => {
+        const id = (m.id || m.name || '').toLowerCase();
+        return id.includes('embedding') || id.includes('embed');
+      })
+      .map((m: any) => ({ id: m.id || m.name, name: m.name || m.id }));
+
+    res.json({ success: true, data: embeddingModels });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

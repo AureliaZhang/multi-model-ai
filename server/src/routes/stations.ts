@@ -216,9 +216,12 @@ function rowToStation(row: any): Station {
 }
 
 // Helper: detect model capabilities from model ID
-function detectCapabilities(modelId: string): string[] {
+export function detectCapabilities(modelId: string): string[] {
   const id = modelId.toLowerCase();
   const caps: string[] = ['text'];
+  if (id.includes('embedding') || id.includes('embed')) {
+    caps.push('embedding');
+  }
   if (id.includes('vision') || id.includes('gpt-4o') || id.includes('claude-3')) {
     caps.push('vision');
   }

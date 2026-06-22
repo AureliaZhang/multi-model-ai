@@ -257,6 +257,11 @@ function initTables(db: Database.Database): void {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_file_folders_parent ON file_folders(parent_id)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_file_library_folder ON file_library(folder_id)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_memory_user ON memory_entries(user_id)`);
+
+  // Migration: add embedding API config columns to memory_config
+  try { db.exec(`ALTER TABLE memory_config ADD COLUMN embedding_api_base_url TEXT`); } catch { /* Column already exists */ }
+  try { db.exec(`ALTER TABLE memory_config ADD COLUMN embedding_api_key TEXT`); } catch { /* Column already exists */ }
+  try { db.exec(`ALTER TABLE memory_config ADD COLUMN embedding_model TEXT`); } catch { /* Column already exists */ }
 }
 
 function seedDefaultAdmin(db: Database.Database): void {

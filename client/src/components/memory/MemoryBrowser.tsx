@@ -1,10 +1,11 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useTranslation } from '../../i18n';
 import { useMemoryStore } from '../../stores/memoryStore';
+import { memoryApi } from '../../services/api';
 import {
   ArrowLeft, Search, Trash2, Loader, Clock, User, Tag,
   ChevronLeft, ChevronRight, X, Settings, ChevronDown, ChevronUp,
-  RefreshCw, Layers, AlertCircle, Brain
+  RefreshCw, Layers, AlertCircle, Brain, Key, Globe
 } from 'lucide-react';
 
 interface MemoryBrowserProps {
@@ -25,11 +26,28 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  // Embedding API config state
+  const [embBaseUrl, setEmbBaseUrl] = useState('');
+  const [embApiKey, setEmbApiKey] = useState('');
+  const [embModel, setEmbModel] = useState('');
+  const [embModels, setEmbModels] = useState<{ id: string; name: string }[]>([]);
+  const [embFetching, setEmbFetching] = useState(false);
+  const [embFetchError, setEmbFetchError] = useState<string | null>(null);
+
   useEffect(() => {
     fetchEntries();
     fetchTags();
     fetchConfig();
   }, [fetchEntries, fetchTags, fetchConfig]);
+
+  // Sync embedding config from store to local state
+  useEffect(() => {
+    if (config) {
+      setEmbBaseUrl(config.embeddingApiBaseUrl || '');
+      setEmbApiKey(config.embeddingApiKey || '');
+      setEmbModel(config.embeddingModel || '');
+    }
+  }, [config]);
 
   const handleSearch = useCallback((value: string) => {
     setSearchQuery(value);
@@ -69,6 +87,37 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
 
   const handleBackfill = async () => {
     await backfillEmbeddings();
+  };
+
+  const handleFetchEmbeddingModels = async () => {
+    if (!embBaseUrl.trim() || !embApiKey.trim()) return;
+    setEmbFetching(true);
+    setEmbFetchError(null);
+    try {
+      const res = await memoryApi.fetchEmbeddingModels(embBaseUrl.trim(), embApiKey.trim());
+      if (res.success && res.data) {
+        setEmbModels(res.data);
+        if (res.data.length === 0) {
+          setEmbFetchError(t('memory.noEmbeddingModels'));
+        } else if (res.data.length === 1) {
+          setEmbModel(res.data[0].id);
+        }
+      } else {
+        setEmbFetchError(res.error || t('memory.fetchModelsFailed'));
+      }
+    } catch (err: any) {
+      setEmbFetchError(err.message);
+    } finally {
+      setEmbFetching(false);
+    }
+  };
+
+  const handleSaveEmbeddingConfig = () => {
+    updateConfig({
+      embeddingApiBaseUrl: embBaseUrl.trim() || null,
+      embeddingApiKey: embApiKey.trim() || null,
+      embeddingModel: embModel || null,
+    });
   };
 
   const displayEntries = searchQuery.trim() ? searchResults : entries;
@@ -141,7 +190,8 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
 
       {/* Settings panel */}
       {showSettings && (
-        <div className="px-5 py-3 border-b border-[var(--color-border-light)] bg-[var(--color-bg-secondary)] flex-shrink-0">
+        <div className="px-5 py-4 border-b border-[var(--color-border-light)] bg-[var(--color-bg-secondary)] flex-shrink-0 space-y-4">
+          {/* Toggle configs */}
           <div className="grid grid-cols-2 gap-3">
             <ConfigToggle
               label={t('memory.autoSave')}
@@ -155,6 +205,84 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
               enabled={config?.contextInjection ?? true}
               onToggle={(v) => handleConfigToggle('context_injection', v)}
             />
+          </div>
+
+          {/* Embedding API Config */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Brain size={14} className="text-[var(--color-accent-main)]" />
+              <span className="text-sm font-medium text-[var(--color-text-primary)]">{t('memory.embeddingApi')}</span>
+            </div>
+            <p className="text-[11px] text-[var(--color-text-tertiary)] mb-3">{t('memory.embeddingApiDesc')}</p>
+
+            <div className="space-y-2.5">
+              {/* Base URL */}
+              <div>
+                <label className="text-[11px] font-medium text-[var(--color-text-tertiary)] uppercase mb-1 flex items-center gap-1">
+                  <Globe size={10} /> {t('memory.embBaseUrl')}
+                </label>
+                <input
+                  type="text"
+                  value={embBaseUrl}
+                  onChange={e => setEmbBaseUrl(e.target.value)}
+                  placeholder="https://api.example.com/v1"
+                  className="w-full px-3 py-1.5 rounded-md bg-[var(--color-main-surface-primary)] border border-[var(--color-border-light)] text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent-main)] transition-colors"
+                />
+              </div>
+
+              {/* API Key */}
+              <div>
+                <label className="text-[11px] font-medium text-[var(--color-text-tertiary)] uppercase mb-1 flex items-center gap-1">
+                  <Key size={10} /> {t('memory.embApiKey')}
+                </label>
+                <input
+                  type="password"
+                  value={embApiKey}
+                  onChange={e => setEmbApiKey(e.target.value)}
+                  placeholder="sk-..."
+                  className="w-full px-3 py-1.5 rounded-md bg-[var(--color-main-surface-primary)] border border-[var(--color-border-light)] text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent-main)] transition-colors"
+                />
+              </div>
+
+              {/* Fetch Models + Model Select */}
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <label className="text-[11px] font-medium text-[var(--color-text-tertiary)] uppercase mb-1 block">{t('memory.embModel')}</label>
+                  <select
+                    value={embModel}
+                    onChange={e => setEmbModel(e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-md bg-[var(--color-main-surface-primary)] border border-[var(--color-border-light)] text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent-main)] transition-colors"
+                  >
+                    <option value="">{t('memory.autoDetect')}</option>
+                    {embModels.map(m => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  onClick={handleFetchEmbeddingModels}
+                  disabled={embFetching || !embBaseUrl.trim() || !embApiKey.trim()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-[var(--color-border-light)] hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-secondary)] text-sm font-medium transition-colors disabled:opacity-40"
+                >
+                  {embFetching ? <Loader size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                  {t('memory.fetchModels')}
+                </button>
+              </div>
+
+              {embFetchError && (
+                <p className="text-[11px] text-red-400">{embFetchError}</p>
+              )}
+
+              {/* Save button */}
+              <div className="flex justify-end">
+                <button
+                  onClick={handleSaveEmbeddingConfig}
+                  className="px-4 py-1.5 rounded-md bg-[var(--color-accent-main)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
+                >
+                  {t('memory.saveEmbConfig')}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

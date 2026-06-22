@@ -187,6 +187,16 @@ const en = {
   'memory.summary': 'Summary',
   'memory.content': 'Content',
   'memory.tags': 'Tags',
+  'memory.embeddingApi': 'Embedding API',
+  'memory.embeddingApiDesc': 'Configure a dedicated API for generating vector embeddings (higher quality than local fallback)',
+  'memory.embBaseUrl': 'Base URL',
+  'memory.embApiKey': 'API Key',
+  'memory.embModel': 'Model',
+  'memory.autoDetect': 'Auto-detect (text-embedding-3-small)',
+  'memory.fetchModels': 'Fetch Models',
+  'memory.saveEmbConfig': 'Save Config',
+  'memory.noEmbeddingModels': 'No embedding models found at this endpoint',
+  'memory.fetchModelsFailed': 'Failed to fetch models',
 
   // User Management
   'users.title': 'User Management',

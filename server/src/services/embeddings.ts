@@ -41,6 +41,39 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 async function generateApiEmbedding(text: string): Promise<number[] | null> {
   try {
     const db = getDb();
+
+    // 1. Try dedicated embedding API config from memory_config first
+    const memConfig = db.prepare('SELECT embedding_api_base_url, embedding_api_key, embedding_model FROM memory_config WHERE id = 1').get() as any;
+    if (memConfig?.embedding_api_base_url && memConfig?.embedding_api_key) {
+      const baseUrl = memConfig.embedding_api_base_url.replace(/\/+$/, '');
+      const model = memConfig.embedding_model || 'text-embedding-3-small';
+      const truncatedText = text.length > 8000 ? text.substring(0, 8000) : text;
+      try {
+        const response = await fetch(`${baseUrl}/embeddings`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${memConfig.embedding_api_key}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ model, input: truncatedText }),
+          signal: AbortSignal.timeout(15000),
+        });
+        if (response.ok) {
+          const data = await response.json() as any;
+          const embedding = data.data?.[0]?.embedding;
+          if (Array.isArray(embedding) && embedding.length > 0) {
+            console.log(`[embeddings] API embedding generated via dedicated config (${model}), dim=${embedding.length}`);
+            return embedding;
+          }
+        } else {
+          console.warn(`[embeddings] Dedicated embedding API returned HTTP ${response.status}`);
+        }
+      } catch (err: any) {
+        console.warn(`[embeddings] Dedicated embedding API failed: ${err.message}`);
+      }
+    }
+
+    // 2. Fall back to stations
     const stations = db.prepare(
       'SELECT id, name, base_url, api_key, health_status FROM stations WHERE enabled = 1 AND health_status != ?'
     ).all('unhealthy') as any[];
