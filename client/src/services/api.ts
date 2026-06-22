@@ -204,6 +204,11 @@ export const memoryApi = {
     request('/memories/import', { method: 'POST', body: JSON.stringify(entries) }),
   summarize: (convId: string) =>
     request(`/memories/summarize/${convId}`, { method: 'POST' }),
+  backfillEmbeddings: (batchSize?: number) =>
+    request<{ processed: number; failed: number; remainingWithoutEmbeddings: number; message: string }>(
+      '/memories/backfill-embeddings',
+      { method: 'POST', body: JSON.stringify({ batchSize: batchSize || 10 }) }
+    ),
 };
 
 // --- MCP Servers ---

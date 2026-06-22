@@ -4,6 +4,7 @@ import { useTranslation } from '../../i18n';
 import {
   ArrowLeft, Search, Trash2, ChevronLeft, ChevronRight,
   Brain, Clock, Tag, X, Settings, ToggleLeft, ToggleRight,
+  Database, Zap,
 } from 'lucide-react';
 import type { MemoryEntry } from '../../types';
 
@@ -15,8 +16,10 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
   const {
     entries, total, page, totalPages, loading, error,
     searchQuery, searchResults, config, selectedTag,
+    backfillStatus,
     fetchEntries, searchMemories, clearSearch, fetchConfig,
     updateConfig, deleteEntry, setSelectedTag, clearError,
+    backfillEmbeddings,
   } = useMemoryStore();
   const { t } = useTranslation();
 
@@ -117,6 +120,52 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
                 ))}
               </select>
             </div>
+
+            {/* Embedding stats & backfill */}
+            {config.embeddingStats && (
+              <div className="mt-3 pt-3 border-t border-[var(--color-border-light)]">
+                <div className="flex items-center gap-2 mb-2">
+                  <Database size={14} className="text-[var(--color-accent-main)]" />
+                  <span className="text-xs font-medium text-[var(--color-text-secondary)]">
+                    Vector Embeddings
+                  </span>
+                </div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-[11px] text-[var(--color-text-tertiary)]">
+                    {config.embeddingStats.embedded} / {config.embeddingStats.total} entries have embeddings
+                  </div>
+                  <div className="text-[11px] font-mono text-[var(--color-accent-main)]">
+                    {config.embeddingStats.total > 0
+                      ? Math.round((config.embeddingStats.embedded / config.embeddingStats.total) * 100)
+                      : 0}%
+                  </div>
+                </div>
+                {/* Progress bar */}
+                <div className="w-full h-1.5 rounded-full bg-[var(--color-main-surface-primary)] mb-2">
+                  <div
+                    className="h-full rounded-full bg-[var(--color-accent-main)] transition-all duration-300"
+                    style={{
+                      width: `${config.embeddingStats.total > 0
+                        ? Math.round((config.embeddingStats.embedded / config.embeddingStats.total) * 100)
+                        : 0}%`
+                    }}
+                  />
+                </div>
+                {config.embeddingStats.embedded < config.embeddingStats.total && (
+                  <button
+                    onClick={backfillEmbeddings}
+                    disabled={loading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[rgba(16,163,127,0.15)] text-[var(--color-accent-main)] hover:bg-[rgba(16,163,127,0.25)] transition-colors disabled:opacity-50"
+                  >
+                    <Zap size={12} />
+                    {loading ? 'Generating...' : 'Generate Embeddings'}
+                  </button>
+                )}
+                {backfillStatus && (
+                  <p className="text-[11px] text-[var(--color-text-tertiary)] mt-1.5">{backfillStatus}</p>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -6,6 +6,7 @@ import { getDb } from '../database';
 import { normalizeModelName } from './models';
 import { ApiResponse } from '../types';
 import { loadEnabledMcpTools, resolveToolCall, executeToolCall } from '../services/mcpClient';
+import { generateEmbedding, serializeEmbedding, vectorSearch } from '../services/embeddings';
 
 const router = Router();
 
@@ -217,8 +218,8 @@ router.post('/', async (req: Request, res: Response) => {
       res.write(`data: ${JSON.stringify({ attachments: attachmentMeta })}\n\n`);
     }
 
-    // Inject relevant memories as system context
-    const relevantMemories = retrieveRelevantMemories(db, message, 5);
+    // Inject relevant memories as system context (vector search)
+    const relevantMemories = await retrieveRelevantMemories(db, message, 5);
     if (relevantMemories.length > 0) {
       const memoryContext = relevantMemories
         .filter((m: any) => m.summary)
@@ -495,9 +496,9 @@ ${assistantContent}
       'INSERT INTO messages (id, conversation_id, role, content, model_used, created_at) VALUES (?, ?, ?, ?, ?, ?)'
     ).run(assistantMsgId, conversationId, 'assistant', assistantContent, usedStation, assistantTime);
 
-    // Auto-save to memory store
-    autoSaveMemory(db, conversationId, userMsgId, 'user', message, modelNormalizedName);
-    autoSaveMemory(db, conversationId, assistantMsgId, 'assistant', assistantContent, modelNormalizedName);
+    // Auto-save to memory store (with vector embedding generation)
+    autoSaveMemory(db, conversationId, userMsgId, 'user', message, modelNormalizedName).catch(err => console.error('[memory] User memory save error:', err));
+    autoSaveMemory(db, conversationId, assistantMsgId, 'assistant', assistantContent, modelNormalizedName).catch(err => console.error('[memory] Assistant memory save error:', err));
 
     res.end();
   } catch (err: any) {
@@ -539,15 +540,15 @@ function getStationsForModel(db: any, normalizedName: string): { station: any; m
     }));
 }
 
-// Auto-save conversation turn to memory store with improved summary and keywords
-function autoSaveMemory(
+// Auto-save conversation turn to memory store with vector embedding
+async function autoSaveMemory(
   db: any,
   conversationId: string,
   messageId: string,
   role: 'user' | 'assistant',
   content: string,
   modelUsed: string
-): void {
+): Promise<void> {
   try {
     const config = db.prepare('SELECT * FROM memory_config WHERE id = 1').get() as any;
     if (!config || !config.auto_save) return;
@@ -559,10 +560,20 @@ function autoSaveMemory(
     const id = uuidv4();
     const now = new Date().toISOString();
 
+    // Generate embedding vector for the content
+    let embeddingJson: string | null = null;
+    try {
+      const embedding = await generateEmbedding(content);
+      embeddingJson = serializeEmbedding(embedding);
+      console.log(`[memory] Generated embedding for ${role} message (${embedding.length} dims)`);
+    } catch (embErr: any) {
+      console.warn(`[memory] Embedding generation failed, saving without vector: ${embErr.message}`);
+    }
+
     db.prepare(`
-      INSERT INTO memory_entries (id, conversation_id, message_id, role, content, summary, keywords, tags, model_used, importance, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, conversationId, messageId, role, content, summary, JSON.stringify(keywords), JSON.stringify(tags), modelUsed, importance, now, now);
+      INSERT INTO memory_entries (id, conversation_id, message_id, role, content, summary, keywords, tags, model_used, importance, embedding, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, conversationId, messageId, role, content, summary, JSON.stringify(keywords), JSON.stringify(tags), modelUsed, importance, embeddingJson, now, now);
 
     // Update tag entry counts
     for (const tag of tags) {
@@ -576,17 +587,38 @@ function autoSaveMemory(
   }
 }
 
-// Retrieve relevant memories for context injection
-function retrieveRelevantMemories(db: any, query: string, limit: number = 5): any[] {
+// Retrieve relevant memories for context injection using vector similarity
+async function retrieveRelevantMemories(db: any, query: string, limit: number = 5): Promise<any[]> {
   try {
     const config = db.prepare('SELECT * FROM memory_config WHERE id = 1').get() as any;
     if (!config || !config.context_injection) return [];
 
     const maxMemories = Math.min(limit, config.max_context_memories || 5);
-    const keywords = extractKeywords(query);
 
+    // Check if we have any embeddings stored
+    const embeddingCount = db.prepare(
+      'SELECT COUNT(*) as cnt FROM memory_entries WHERE embedding IS NOT NULL AND embedding != \'\''
+    ).get() as any;
+
+    if (embeddingCount && embeddingCount.cnt > 0) {
+      // Use vector similarity search
+      console.log(`[memory] Using vector search (${embeddingCount.cnt} entries with embeddings)`);
+      try {
+        const queryEmbedding = await generateEmbedding(query);
+        const results = vectorSearch(db, queryEmbedding, maxMemories, 0.2);
+        if (results.length > 0) {
+          console.log(`[memory] Vector search found ${results.length} relevant memories`);
+          return results;
+        }
+        console.log('[memory] Vector search returned 0 results, falling back to keyword search');
+      } catch (vecErr: any) {
+        console.warn(`[memory] Vector search failed, falling back to keyword: ${vecErr.message}`);
+      }
+    }
+
+    // Fallback: keyword-based search
+    const keywords = extractKeywords(query);
     if (keywords.length === 0) {
-      // Fallback: get most recent important memories
       return db.prepare(`
         SELECT summary, content, keywords, created_at, role
         FROM memory_entries
@@ -596,7 +628,6 @@ function retrieveRelevantMemories(db: any, query: string, limit: number = 5): an
       `).all(maxMemories);
     }
 
-    // Build LIKE conditions for each keyword
     const conditions = keywords.map(() => '(content LIKE ? OR keywords LIKE ? OR summary LIKE ?)').join(' OR ');
     const params: any[] = [];
     for (const kw of keywords) {

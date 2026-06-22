@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../database';
 import { MemoryEntry, MemoryConfig, ApiResponse } from '../types';
+import { generateEmbedding, serializeEmbedding, vectorSearch } from '../services/embeddings';
 
 const router = Router();
 
@@ -62,31 +63,62 @@ router.get('/search', (req: Request, res: Response) => {
   }
 });
 
-// POST /api/memories/search/semantic - Semantic search (placeholder - requires vector DB)
-router.post('/search/semantic', (req: Request, res: Response) => {
+// POST /api/memories/search/semantic - Semantic search using vector embeddings
+router.post('/search/semantic', async (req: Request, res: Response) => {
   try {
     const { query, limit: limitParam } = req.body;
     if (!query) {
       return res.status(400).json({ success: false, error: 'query is required' });
     }
-    // Fallback to keyword search for now
     const db = getDb();
     const limit = limitParam || 10;
+
+    // Try vector search first
+    const embeddingCount = (db.prepare(
+      "SELECT COUNT(*) as cnt FROM memory_entries WHERE embedding IS NOT NULL AND embedding != ''"
+    ).get() as any).cnt;
+
+    if (embeddingCount > 0) {
+      try {
+        const queryEmbedding = await generateEmbedding(query);
+        const vectorResults = vectorSearch(db, queryEmbedding, limit, 0.15);
+        if (vectorResults.length > 0) {
+          const entries = vectorResults.map((r: any) => ({
+            id: r.id || '',
+            conversationId: r.conversation_id || '',
+            messageId: r.message_id || '',
+            role: r.role,
+            content: r.content,
+            summary: r.summary,
+            keywords: typeof r.keywords === 'string' ? JSON.parse(r.keywords) : (r.keywords || []),
+            tags: [],
+            importance: r.importance || 0.5,
+            createdAt: r.created_at,
+            updatedAt: r.created_at,
+          }));
+          return res.json({ success: true, data: entries, method: 'vector' } as any);
+        }
+      } catch (vecErr: any) {
+        console.warn(`[memories] Vector search failed, falling back to keyword: ${vecErr.message}`);
+      }
+    }
+
+    // Fallback to keyword search
     const rows = db.prepare(`
-      SELECT * FROM memory_entries 
+      SELECT * FROM memory_entries
       WHERE content LIKE ? OR keywords LIKE ?
       ORDER BY importance DESC, created_at DESC LIMIT ?
     `).all(`%${query}%`, `%${query}%`, limit) as any[];
 
     const entries = rows.map(rowToMemoryEntry);
-    res.json({ success: true, data: entries } as ApiResponse<MemoryEntry[]>);
+    res.json({ success: true, data: entries, method: 'keyword' } as any);
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
 // GET /api/memories/context?q=query&limit=5 - Retrieve relevant memories for context injection
-router.get('/context', (req: Request, res: Response) => {
+router.get('/context', async (req: Request, res: Response) => {
   try {
     const q = req.query.q as string;
     const limitParam = parseInt(req.query.limit as string) || 5;
@@ -96,16 +128,48 @@ router.get('/context', (req: Request, res: Response) => {
     const maxMemories = Math.min(limitParam, config?.max_context_memories || 5);
 
     let entries: MemoryEntry[] = [];
+
     if (q) {
+      // Try vector search first
+      const embeddingCount = (db.prepare(
+        "SELECT COUNT(*) as cnt FROM memory_entries WHERE embedding IS NOT NULL AND embedding != ''"
+      ).get() as any).cnt;
+
+      if (embeddingCount > 0) {
+        try {
+          const queryEmbedding = await generateEmbedding(q);
+          const vectorResults = vectorSearch(db, queryEmbedding, maxMemories, 0.15);
+          if (vectorResults.length > 0) {
+            entries = vectorResults.map((r: any) => ({
+              id: r.id || '',
+              conversationId: r.conversation_id || '',
+              messageId: r.message_id || '',
+              role: r.role,
+              content: r.content,
+              summary: r.summary,
+              keywords: typeof r.keywords === 'string' ? JSON.parse(r.keywords) : (r.keywords || []),
+              tags: [],
+              importance: r.importance || 0.5,
+              createdAt: r.created_at,
+              updatedAt: r.created_at,
+            }));
+            return res.json({ success: true, data: entries, method: 'vector' } as any);
+          }
+        } catch (vecErr: any) {
+          console.warn(`[memories] Vector context search failed: ${vecErr.message}`);
+        }
+      }
+
+      // Fallback to keyword search
       const rows = db.prepare(`
-        SELECT * FROM memory_entries 
+        SELECT * FROM memory_entries
         WHERE content LIKE ? OR keywords LIKE ?
         ORDER BY importance DESC, created_at DESC LIMIT ?
       `).all(`%${q}%`, `%${q}%`, maxMemories) as any[];
       entries = rows.map(rowToMemoryEntry);
     } else {
       const rows = db.prepare(`
-        SELECT * FROM memory_entries 
+        SELECT * FROM memory_entries
         ORDER BY importance DESC, created_at DESC LIMIT ?
       `).all(maxMemories) as any[];
       entries = rows.map(rowToMemoryEntry);
@@ -128,12 +192,19 @@ router.get('/tags', (_req: Request, res: Response) => {
   }
 });
 
-// GET /api/memories/config - Get memory configuration
+// GET /api/memories/config - Get memory configuration (with embedding stats)
 router.get('/config', (_req: Request, res: Response) => {
   try {
     const db = getDb();
     const row = db.prepare('SELECT * FROM memory_config WHERE id = 1').get() as any;
-    const config: MemoryConfig = {
+    
+    // Count entries with and without embeddings
+    const totalEntries = (db.prepare('SELECT COUNT(*) as cnt FROM memory_entries').get() as any).cnt;
+    const embeddedEntries = (db.prepare(
+      "SELECT COUNT(*) as cnt FROM memory_entries WHERE embedding IS NOT NULL AND embedding != ''"
+    ).get() as any).cnt;
+
+    const config: MemoryConfig & { embeddingStats?: { total: number; embedded: number } } = {
       autoSave: row.auto_save === 1,
       contextInjection: row.context_injection === 1,
       maxContextMemories: row.max_context_memories,
@@ -141,8 +212,9 @@ router.get('/config', (_req: Request, res: Response) => {
       semanticSearch: row.semantic_search === 1,
       autoSummarize: row.auto_summarize === 1,
       summarizeThreshold: row.summarize_threshold,
+      embeddingStats: { total: totalEntries, embedded: embeddedEntries },
     };
-    res.json({ success: true, data: config } as ApiResponse<MemoryConfig>);
+    res.json({ success: true, data: config } as ApiResponse<any>);
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -279,6 +351,65 @@ router.post('/import', (req: Request, res: Response) => {
     }
 
     res.json({ success: true, data: { imported, total: entries.length } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/memories/backfill-embeddings - Generate embeddings for entries that don't have them
+router.post('/backfill-embeddings', async (req: Request, res: Response) => {
+  try {
+    const db = getDb();
+    const batchSize = Math.min(req.body.batchSize || 10, 50); // Max 50 at a time
+
+    // Find entries without embeddings
+    const rows = db.prepare(`
+      SELECT id, content FROM memory_entries
+      WHERE embedding IS NULL OR embedding = ''
+      ORDER BY created_at DESC
+      LIMIT ?
+    `).all(batchSize) as any[];
+
+    if (rows.length === 0) {
+      return res.json({
+        success: true,
+        data: { processed: 0, total: 0, message: 'All entries already have embeddings' },
+      });
+    }
+
+    let processed = 0;
+    let failed = 0;
+
+    for (const row of rows) {
+      try {
+        const embedding = await generateEmbedding(row.content);
+        const embeddingJson = serializeEmbedding(embedding);
+        db.prepare('UPDATE memory_entries SET embedding = ? WHERE id = ?')
+          .run(embeddingJson, row.id);
+        processed++;
+      } catch (err: any) {
+        console.warn(`[memories] Backfill embedding failed for ${row.id}: ${err.message}`);
+        failed++;
+      }
+    }
+
+    // Count remaining entries without embeddings
+    const remaining = (db.prepare(
+      "SELECT COUNT(*) as cnt FROM memory_entries WHERE embedding IS NULL OR embedding = ''"
+    ).get() as any).cnt;
+
+    res.json({
+      success: true,
+      data: {
+        processed,
+        failed,
+        batchSize: rows.length,
+        remainingWithoutEmbeddings: remaining,
+        message: remaining > 0
+          ? `Processed ${processed}/${rows.length} entries. ${remaining} remaining.`
+          : `All entries now have embeddings!`,
+      },
+    });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

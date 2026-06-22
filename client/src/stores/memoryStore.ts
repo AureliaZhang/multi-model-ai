@@ -11,8 +11,9 @@ interface MemoryState {
   error: string | null;
   searchQuery: string;
   searchResults: MemoryEntry[];
-  config: MemoryConfig | null;
+  config: (MemoryConfig & { embeddingStats?: { total: number; embedded: number } }) | null;
   selectedTag: string | null;
+  backfillStatus: string | null;
 
   fetchEntries: (page?: number, tag?: string) => Promise<void>;
   searchMemories: (query: string) => Promise<void>;
@@ -22,6 +23,7 @@ interface MemoryState {
   deleteEntry: (id: string) => Promise<void>;
   setSelectedTag: (tag: string | null) => void;
   clearError: () => void;
+  backfillEmbeddings: () => Promise<void>;
 }
 
 export const useMemoryStore = create<MemoryState>((set, get) => ({
@@ -35,6 +37,7 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
   searchResults: [],
   config: null,
   selectedTag: null,
+  backfillStatus: null,
 
   fetchEntries: async (page = 1, tag?: string) => {
     set({ loading: true });
@@ -119,4 +122,38 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  backfillEmbeddings: async () => {
+    set({ loading: true, backfillStatus: 'Starting backfill...' });
+    try {
+      let totalProcessed = 0;
+      let remaining = -1;
+
+      // Process in batches until all done
+      while (remaining !== 0) {
+        const res = await memoryApi.backfillEmbeddings(10);
+        if (res.success && res.data) {
+          totalProcessed += res.data.processed;
+          remaining = res.data.remainingWithoutEmbeddings;
+          set({
+            backfillStatus: `Processed ${totalProcessed} entries. ${remaining} remaining...`,
+          });
+          if (res.data.processed === 0) break; // No more to process
+        } else {
+          set({ error: res.error || 'Backfill failed', loading: false, backfillStatus: null });
+          return;
+        }
+      }
+
+      set({
+        loading: false,
+        backfillStatus: `Done! Generated embeddings for ${totalProcessed} entries.`,
+      });
+
+      // Refresh config to get updated stats
+      get().fetchConfig();
+    } catch (err: any) {
+      set({ loading: false, error: err.message, backfillStatus: null });
+    }
+  },
 }));
