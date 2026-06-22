@@ -249,7 +249,7 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
   const tabsContent = (
     <>
       {/* Tabs */}
-      <div className="flex items-center gap-1 px-4 py-2 border-b border-[var(--color-border-light)]">
+      <div className="flex items-center gap-1 px-4 py-2 border-b border-[var(--color-border-light)] bg-[var(--color-main-surface-tertiary)]">
         {[
           { key: 'scripts' as TabView, icon: List, label: t('regex.scriptsTab') },
           { key: 'presets' as TabView, icon: Package, label: t('regex.presetsTab') },
@@ -271,7 +271,7 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className={embedded ? 'p-4' : 'flex-1 overflow-y-auto p-4'}>
         {error && (
           <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
             {error}
