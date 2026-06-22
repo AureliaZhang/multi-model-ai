@@ -211,8 +211,9 @@ export interface CreateUserRequest {
 }
 
 export interface LoginRequest {
-  username: string; // Can be username or phone number
+  username: string;
   password: string;
+  mode?: 'username' | 'phone';
 }
 
 export interface AuthResponse {

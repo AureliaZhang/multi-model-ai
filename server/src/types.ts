@@ -52,8 +52,9 @@ export interface CreateUserRequest {
 }
 
 export interface LoginRequest {
-  username: string; // Can be username or phone number
+  username: string;
   password: string;
+  mode?: 'username' | 'phone'; // If specified, restrict which field to match
 }
 
 export interface AuthResponse {

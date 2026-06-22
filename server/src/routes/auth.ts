@@ -93,7 +93,7 @@ router.post('/register', (req: AuthRequest, res: Response) => {
  */
 router.post('/login', (req: AuthRequest, res: Response) => {
   try {
-    const { username, password } = req.body as LoginRequest;
+    const { username, password, mode } = req.body as LoginRequest;
 
     if (!username || !password) {
       res.status(400).json({ success: false, error: 'Username/phone and password are required' });
@@ -102,17 +102,26 @@ router.post('/login', (req: AuthRequest, res: Response) => {
 
     const db = getDb();
 
-    // Support login with username OR phone number
-    const row = db.prepare(`
-      SELECT id, username, email, phone, password_hash as passwordHash,
-             display_name as displayName, role,
-             is_active as isActive, last_login as lastLogin,
-             created_at as createdAt
-      FROM users WHERE username = ? OR phone = ?
-    `).get(username, username) as any;
+    // Query by the specific field based on mode
+    const query = mode === 'phone'
+      ? `SELECT id, username, email, phone, password_hash as passwordHash,
+                display_name as displayName, role,
+                is_active as isActive, last_login as lastLogin,
+                created_at as createdAt
+         FROM users WHERE phone = ?`
+      : `SELECT id, username, email, phone, password_hash as passwordHash,
+                display_name as displayName, role,
+                is_active as isActive, last_login as lastLogin,
+                created_at as createdAt
+         FROM users WHERE username = ?`;
+
+    const row = db.prepare(query).get(username) as any;
 
     if (!row) {
-      res.status(401).json({ success: false, error: 'Invalid username/phone or password' });
+      const errorMsg = mode === 'phone'
+        ? 'Invalid phone number or password'
+        : 'Invalid username or password';
+      res.status(401).json({ success: false, error: errorMsg });
       return;
     }
 

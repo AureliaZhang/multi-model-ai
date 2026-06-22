@@ -21,7 +21,7 @@ export function LoginPage({ onSwitchToRegister, onGuestBrowse }: LoginPageProps)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password.trim()) return;
-    await login(username.trim(), password);
+    await login(username.trim(), password, loginMode);
   };
 
   return (
