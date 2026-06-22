@@ -8,14 +8,17 @@ interface MemoryState {
   page: number;
   totalPages: number;
   loading: boolean;
+  searching: boolean;
   error: string | null;
   searchQuery: string;
   searchResults: MemoryEntry[];
   config: (MemoryConfig & { embeddingStats?: { total: number; embedded: number } }) | null;
   selectedTag: string | null;
+  allTags: string[];
   backfillStatus: string | null;
 
   fetchEntries: (page?: number, tag?: string) => Promise<void>;
+  fetchTags: () => Promise<void>;
   searchMemories: (query: string) => Promise<void>;
   clearSearch: () => void;
   fetchConfig: () => Promise<void>;
@@ -32,11 +35,13 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
   page: 1,
   totalPages: 0,
   loading: false,
+  searching: false,
   error: null,
   searchQuery: '',
   searchResults: [],
   config: null,
   selectedTag: null,
+  allTags: [],
   backfillStatus: null,
 
   fetchEntries: async (page = 1, tag?: string) => {
@@ -78,6 +83,17 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
   },
 
   clearSearch: () => set({ searchQuery: '', searchResults: [] }),
+
+  fetchTags: async () => {
+    try {
+      const res = await memoryApi.getTags();
+      if (res.success && res.data) {
+        set({ allTags: res.data.map((t: any) => t.name) });
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch memory tags:', err);
+    }
+  },
 
   fetchConfig: async () => {
     try {

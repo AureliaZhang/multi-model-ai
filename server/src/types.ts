@@ -156,6 +156,8 @@ export interface MemoryEntry {
   embedding?: number[];
   modelUsed?: string;
   importance: number;
+  userId?: string | null;
+  username?: string | null;
   createdAt: string;
   updatedAt: string;
 }

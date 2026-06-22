@@ -177,6 +177,16 @@ const zh = {
   'memory.deleteConfirm': '删除此记忆条目？',
   'memory.deleteMemory': '删除记忆',
   'memory.page': '第 {page} 页，共 {totalPages} 页',
+  'memory.colTime': '时间',
+  'memory.colUser': '用户',
+  'memory.colRole': '角色',
+  'memory.colKeywords': '关键词',
+  'memory.colImportance': '重要度',
+  'memory.colEmbedding': '向量',
+  'memory.colActions': '操作',
+  'memory.summary': '摘要',
+  'memory.content': '内容',
+  'memory.tags': '标签',
 
   // 用户管理
   'users.title': '用户管理',

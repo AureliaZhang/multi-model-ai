@@ -177,6 +177,16 @@ const en = {
   'memory.deleteConfirm': 'Delete this memory entry?',
   'memory.deleteMemory': 'Delete memory',
   'memory.page': 'Page {page} of {totalPages}',
+  'memory.colTime': 'Time',
+  'memory.colUser': 'User',
+  'memory.colRole': 'Role',
+  'memory.colKeywords': 'Keywords',
+  'memory.colImportance': 'Priority',
+  'memory.colEmbedding': 'Embedding',
+  'memory.colActions': 'Actions',
+  'memory.summary': 'Summary',
+  'memory.content': 'Content',
+  'memory.tags': 'Tags',
 
   // User Management
   'users.title': 'User Management',

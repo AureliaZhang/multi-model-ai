@@ -29,8 +29,13 @@ router.get('/', (req: Request, res: Response) => {
     }
 
     const total = (db.prepare(`SELECT COUNT(*) as count FROM memory_entries WHERE ${where}`).get(...params) as any).count;
-    const rows = db.prepare(`SELECT * FROM memory_entries WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
-      .all(...params, limit, offset) as any[];
+    const rows = db.prepare(`
+      SELECT me.*, u.username as user_username
+      FROM memory_entries me
+      LEFT JOIN users u ON me.user_id = u.id
+      WHERE ${where}
+      ORDER BY me.created_at DESC LIMIT ? OFFSET ?
+    `).all(...params, limit, offset) as any[];
 
     const entries = rows.map(rowToMemoryEntry);
     res.json({
@@ -457,6 +462,8 @@ function rowToMemoryEntry(row: any): MemoryEntry {
     embedding: row.embedding ? JSON.parse(row.embedding) : undefined,
     modelUsed: row.model_used,
     importance: row.importance,
+    userId: row.user_id || null,
+    username: row.user_username || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

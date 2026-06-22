@@ -75,8 +75,11 @@ export interface MemoryEntry {
   summary?: string;
   keywords: string[];
   tags: string[];
+  embedding?: number[];
   modelUsed?: string;
   importance: number;
+  userId?: string | null;
+  username?: string | null;
   createdAt: string;
   updatedAt: string;
 }

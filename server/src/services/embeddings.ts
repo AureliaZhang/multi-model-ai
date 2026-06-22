@@ -22,13 +22,14 @@ const stationEmbeddingSupport = new Map<string, boolean>();
  * Returns a number[] (the vector).
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
-  // Try API-based embedding first
+  // Try API-based embedding first (preferred for quality)
   const apiEmbedding = await generateApiEmbedding(text);
   if (apiEmbedding) {
     return apiEmbedding;
   }
 
-  // Fallback to local hash-based embedding
+  // Log that we're falling back to local embedding
+  console.warn('[embeddings] API embedding unavailable, falling back to local hash-based embedding (lower quality). Add a station with an embedding-capable model for better results.');
   return generateLocalEmbedding(text);
 }
 

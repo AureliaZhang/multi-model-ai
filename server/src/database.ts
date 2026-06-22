@@ -243,12 +243,20 @@ function initTables(db: Database.Database): void {
     // Column already exists
   }
 
+  // Migration: add user_id column to memory_entries if not exists
+  try {
+    db.exec(`ALTER TABLE memory_entries ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL`);
+  } catch {
+    // Column already exists
+  }
+
   // Create indexes
   db.exec(`CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_conversations_visibility ON conversations(visibility)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_file_folders_parent ON file_folders(parent_id)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_file_library_folder ON file_library(folder_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_memory_user ON memory_entries(user_id)`);
 }
 
 function seedDefaultAdmin(db: Database.Database): void {

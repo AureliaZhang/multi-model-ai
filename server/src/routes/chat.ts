@@ -517,8 +517,9 @@ ${assistantContent}
     ).run(assistantMsgId, conversationId, 'assistant', assistantContent, usedStation, assistantTime);
 
     // Auto-save to memory store (with vector embedding generation)
-    autoSaveMemory(db, conversationId, userMsgId, 'user', message, modelNormalizedName).catch(err => console.error('[memory] User memory save error:', err));
-    autoSaveMemory(db, conversationId, assistantMsgId, 'assistant', assistantContent, modelNormalizedName).catch(err => console.error('[memory] Assistant memory save error:', err));
+    const userId = conv.user_id || null;
+    autoSaveMemory(db, conversationId, userMsgId, 'user', message, modelNormalizedName, userId).catch(err => console.error('[memory] User memory save error:', err));
+    autoSaveMemory(db, conversationId, assistantMsgId, 'assistant', assistantContent, modelNormalizedName, userId).catch(err => console.error('[memory] Assistant memory save error:', err));
 
     res.end();
   } catch (err: any) {
@@ -567,7 +568,8 @@ async function autoSaveMemory(
   messageId: string,
   role: 'user' | 'assistant',
   content: string,
-  modelUsed: string
+  modelUsed: string,
+  userId?: string | null
 ): Promise<void> {
   try {
     const config = db.prepare('SELECT * FROM memory_config WHERE id = 1').get() as any;
@@ -591,9 +593,9 @@ async function autoSaveMemory(
     }
 
     db.prepare(`
-      INSERT INTO memory_entries (id, conversation_id, message_id, role, content, summary, keywords, tags, model_used, importance, embedding, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, conversationId, messageId, role, content, summary, JSON.stringify(keywords), JSON.stringify(tags), modelUsed, importance, embeddingJson, now, now);
+      INSERT INTO memory_entries (id, conversation_id, message_id, role, content, summary, keywords, tags, model_used, importance, embedding, user_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, conversationId, messageId, role, content, summary, JSON.stringify(keywords), JSON.stringify(tags), modelUsed, importance, embeddingJson, userId || null, now, now);
 
     // Update tag entry counts
     for (const tag of tags) {
