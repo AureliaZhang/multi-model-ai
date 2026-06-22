@@ -46,9 +46,22 @@ app.get('/api/health', (_req, res) => {
 // In production, serve the client's built static files
 if (isProduction) {
   const clientDistPath = path.join(__dirname, '../../client/dist');
-  app.use(express.static(clientDistPath));
-  // SPA fallback: all non-API routes serve index.html
+
+  // Serve hashed assets (JS/CSS) with long-term caching
+  app.use(express.static(clientDistPath, {
+    maxAge: '1y',
+    immutable: true,
+    setHeaders: (res, filePath) => {
+      // index.html should never be cached — always revalidate
+      if (filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-cache');
+      }
+    }
+  }));
+
+  // SPA fallback: all non-API routes serve index.html (no cache)
   app.get('*', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(path.join(clientDistPath, 'index.html'));
   });
 }
