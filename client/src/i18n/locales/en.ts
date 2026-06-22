@@ -257,6 +257,12 @@ const en = {
   'files.noFileSelected': 'No files selected',
   'files.selectFilesForChat': 'Select files for RAG chat',
   'files.clearSelection': 'Clear',
+  'files.newFolder': 'New Folder',
+  'files.uploadFolder': 'Upload Folder',
+  'files.folderNamePlaceholder': 'Enter folder name',
+  'files.folder': 'Folder',
+  'files.renameFolder': 'Rename',
+  'files.deleteFolder': 'Delete folder',
 };
 
 export default en;

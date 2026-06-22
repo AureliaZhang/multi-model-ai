@@ -1,16 +1,23 @@
 import { create } from 'zustand';
-import type { FileLibraryEntry } from '../types';
+import type { FileLibraryEntry, FileFolder } from '../types';
 import { fileApi } from '../services/api';
 
 interface FileState {
   files: FileLibraryEntry[];
+  folders: FileFolder[];
+  currentFolderId: string | null;
+  breadcrumb: { id: string; name: string }[];
   selectedFileIds: string[];
   loading: boolean;
   uploading: boolean;
   error: string | null;
 
-  fetchFiles: () => Promise<void>;
-  uploadFiles: (files: File[]) => Promise<void>;
+  fetchFiles: (folderId?: string | null) => Promise<void>;
+  createFolder: (name: string, parentId?: string | null) => Promise<void>;
+  renameFolder: (id: string, name: string) => Promise<void>;
+  deleteFolder: (id: string) => Promise<void>;
+  navigateToFolder: (folderId: string | null) => Promise<void>;
+  uploadFiles: (files: File[], folderId?: string | null) => Promise<void>;
   deleteFile: (id: string) => Promise<void>;
   reindexFile: (id: string) => Promise<void>;
   setSelectedFiles: (ids: string[]) => void;
@@ -20,17 +27,26 @@ interface FileState {
 
 export const useFileStore = create<FileState>((set, get) => ({
   files: [],
+  folders: [],
+  currentFolderId: null,
+  breadcrumb: [],
   selectedFileIds: [],
   loading: false,
   uploading: false,
   error: null,
 
-  fetchFiles: async () => {
+  fetchFiles: async (folderId?: string | null) => {
+    const targetFolderId = folderId !== undefined ? folderId : get().currentFolderId;
     set({ loading: true, error: null });
     try {
-      const res = await fileApi.list({ limit: 100 });
+      const res = await fileApi.list({ limit: 100, folderId: targetFolderId || undefined });
       if (res.success && res.data) {
-        set({ files: res.data.files, loading: false });
+        set({
+          folders: res.data.folders || [],
+          files: res.data.files,
+          currentFolderId: targetFolderId || null,
+          loading: false,
+        });
       } else {
         set({ error: res.error || 'Failed to load files', loading: false });
       }
@@ -39,12 +55,66 @@ export const useFileStore = create<FileState>((set, get) => ({
     }
   },
 
-  uploadFiles: async (files: File[]) => {
+  createFolder: async (name: string, parentId?: string | null) => {
+    try {
+      const res = await fileApi.folders.create(name, parentId || get().currentFolderId || undefined);
+      if (res.success && res.data) {
+        set(state => ({ folders: [...state.folders, res.data!] }));
+      }
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
+
+  renameFolder: async (id: string, name: string) => {
+    try {
+      const res = await fileApi.folders.rename(id, name);
+      if (res.success && res.data) {
+        set(state => ({
+          folders: state.folders.map(f => f.id === id ? { ...f, name } : f),
+        }));
+      }
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
+
+  deleteFolder: async (id: string) => {
+    try {
+      const res = await fileApi.folders.delete(id);
+      if (res.success) {
+        // Refresh to get files that were moved to root
+        await get().fetchFiles();
+      }
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
+
+  navigateToFolder: async (folderId: string | null) => {
+    set({ currentFolderId: folderId, breadcrumb: folderId ? get().breadcrumb : [] });
+    await get().fetchFiles(folderId);
+    // Fetch breadcrumb if in a folder
+    if (folderId) {
+      try {
+        const pathRes = await fileApi.folders.getPath(folderId);
+        if (pathRes.success && pathRes.data) {
+          set({ breadcrumb: pathRes.data });
+        }
+      } catch {
+        // Ignore breadcrumb errors
+      }
+    } else {
+      set({ breadcrumb: [] });
+    }
+  },
+
+  uploadFiles: async (files: File[], folderId?: string | null) => {
+    const targetFolderId = folderId !== undefined ? folderId : get().currentFolderId;
     set({ uploading: true, error: null });
     try {
-      const res = await fileApi.upload(files);
+      const res = await fileApi.upload(files, targetFolderId || undefined);
       if (res.success && res.data) {
-        // Add new files to the list and refresh to get updated status
         set(state => ({
           files: [...res.data!, ...state.files],
           uploading: false,
@@ -78,13 +148,11 @@ export const useFileStore = create<FileState>((set, get) => ({
     try {
       const res = await fileApi.reindex(id);
       if (res.success) {
-        // Update status to processing
         set(state => ({
           files: state.files.map(f =>
             f.id === id ? { ...f, status: 'processing' as const, errorMessage: null } : f
           ),
         }));
-        // Poll for completion
         setTimeout(() => get().fetchFiles(), 3000);
         setTimeout(() => get().fetchFiles(), 8000);
       }

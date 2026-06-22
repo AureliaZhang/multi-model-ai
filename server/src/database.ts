@@ -156,6 +156,17 @@ function initTables(db: Database.Database): void {
       FOREIGN KEY (server_id) REFERENCES mcp_servers(id) ON DELETE CASCADE
     );
 
+    -- File Folders table
+    CREATE TABLE IF NOT EXISTS file_folders (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      parent_id TEXT,
+      created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (parent_id) REFERENCES file_folders(id) ON DELETE CASCADE
+    );
+
     -- File Library table
     CREATE TABLE IF NOT EXISTS file_library (
       id TEXT PRIMARY KEY,
@@ -166,9 +177,11 @@ function initTables(db: Database.Database): void {
       chunk_count INTEGER NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'processing' CHECK(status IN ('processing', 'ready', 'error')),
       error_message TEXT,
+      folder_id TEXT,
       uploaded_by TEXT REFERENCES users(id) ON DELETE SET NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (folder_id) REFERENCES file_folders(id) ON DELETE SET NULL
     );
 
     -- File Chunks table
@@ -223,10 +236,19 @@ function initTables(db: Database.Database): void {
     // Column already exists
   }
 
+  // Migration: add folder_id column to file_library if not exists
+  try {
+    db.exec(`ALTER TABLE file_library ADD COLUMN folder_id TEXT REFERENCES file_folders(id) ON DELETE SET NULL`);
+  } catch {
+    // Column already exists
+  }
+
   // Create indexes
   db.exec(`CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_conversations_visibility ON conversations(visibility)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_file_folders_parent ON file_folders(parent_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_file_library_folder ON file_library(folder_id)`);
 }
 
 function seedDefaultAdmin(db: Database.Database): void {

@@ -3,10 +3,11 @@ import { useTranslation } from '../../i18n';
 import {
   ArrowLeft, Upload, FileText, File, FileCode, FileImage, FileArchive,
   Trash2, RefreshCw, Loader, CheckCircle2, AlertCircle,
-  HardDrive, Clock, Layers
+  HardDrive, Clock, Layers, FolderPlus, Folder, ChevronRight,
+  FolderOpen, Edit2, X
 } from 'lucide-react';
 import { useFileStore } from '../../stores/fileStore';
-import type { FileLibraryEntry } from '../../types';
+import type { FileLibraryEntry, FileFolder } from '../../types';
 
 interface FileBrowserProps {
   onClose: () => void;
@@ -15,21 +16,39 @@ interface FileBrowserProps {
 export function FileBrowser({ onClose }: FileBrowserProps) {
   const { t } = useTranslation();
   const files = useFileStore(s => s.files);
+  const folders = useFileStore(s => s.folders);
+  const currentFolderId = useFileStore(s => s.currentFolderId);
+  const breadcrumb = useFileStore(s => s.breadcrumb);
   const loading = useFileStore(s => s.loading);
   const uploading = useFileStore(s => s.uploading);
-  const fetchFiles = useFileStore(s => s.fetchFiles);
   const uploadFiles = useFileStore(s => s.uploadFiles);
   const deleteFile = useFileStore(s => s.deleteFile);
   const reindexFile = useFileStore(s => s.reindexFile);
+  const createFolder = useFileStore(s => s.createFolder);
+  const deleteFolder = useFileStore(s => s.deleteFolder);
+  const renameFolder = useFileStore(s => s.renameFolder);
+  const navigateToFolder = useFileStore(s => s.navigateToFolder);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string[]>([]);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleteFolderConfirmId, setDeleteFolderConfirmId] = useState<string | null>(null);
+
+  // Create folder dialog
+  const [showCreateFolder, setShowCreateFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+
+  // Rename folder inline
+  const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
 
   useEffect(() => {
-    fetchFiles();
-  }, [fetchFiles]);
+    navigateToFolder(null);
+  }, []);
 
+  // File upload (individual files)
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
     if (!fileList || fileList.length === 0) return;
@@ -40,14 +59,68 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, [uploadFiles]);
 
+  // Folder upload (webkitdirectory)
+  const handleFolderSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+    const fileArray = Array.from(fileList);
+    setUploadProgress(fileArray.map(f => f.name));
+    await uploadFiles(fileArray);
+    setUploadProgress([]);
+    if (folderInputRef.current) folderInputRef.current.value = '';
+  }, [uploadFiles]);
+
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    if (e.dataTransfer.files.length > 0) {
-      const fileArray = Array.from(e.dataTransfer.files);
-      setUploadProgress(fileArray.map(f => f.name));
-      await uploadFiles(fileArray);
+
+    const droppedFiles: File[] = [];
+
+    // Handle both files and directory drops
+    const items = e.dataTransfer.items;
+    if (items) {
+      const entries: FileSystemEntry[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const entry = items[i].webkitGetAsEntry?.();
+        if (entry) entries.push(entry);
+      }
+
+      if (entries.length > 0) {
+        // Process entries recursively for directories
+        const processEntry = async (entry: FileSystemEntry): Promise<File[]> => {
+          if (entry.isFile) {
+            return new Promise((resolve) => {
+              (entry as FileSystemFileEntry).file((file) => resolve([file]));
+            });
+          } else if (entry.isDirectory) {
+            const dirReader = (entry as FileSystemDirectoryEntry).createReader();
+            return new Promise((resolve) => {
+              dirReader.readEntries(async (entries) => {
+                const files: File[] = [];
+                for (const e of entries) {
+                  files.push(...await processEntry(e));
+                }
+                resolve(files);
+              });
+            });
+          }
+          return [];
+        };
+
+        for (const entry of entries) {
+          droppedFiles.push(...await processEntry(entry));
+        }
+      }
+    }
+
+    if (droppedFiles.length === 0 && e.dataTransfer.files.length > 0) {
+      droppedFiles.push(...Array.from(e.dataTransfer.files));
+    }
+
+    if (droppedFiles.length > 0) {
+      setUploadProgress(droppedFiles.map(f => f.name));
+      await uploadFiles(droppedFiles);
       setUploadProgress([]);
     }
   }, [uploadFiles]);
@@ -70,13 +143,40 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
       setDeleteConfirmId(null);
     } else {
       setDeleteConfirmId(file.id);
-      // Auto-cancel after 3 seconds
       setTimeout(() => setDeleteConfirmId(prev => prev === file.id ? null : prev), 3000);
+    }
+  };
+
+  const handleDeleteFolder = async (folder: FileFolder) => {
+    if (deleteFolderConfirmId === folder.id) {
+      await deleteFolder(folder.id);
+      setDeleteFolderConfirmId(null);
+    } else {
+      setDeleteFolderConfirmId(folder.id);
+      setTimeout(() => setDeleteFolderConfirmId(prev => prev === folder.id ? null : prev), 3000);
     }
   };
 
   const handleReindex = async (id: string) => {
     await reindexFile(id);
+  };
+
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim()) return;
+    await createFolder(newFolderName.trim());
+    setNewFolderName('');
+    setShowCreateFolder(false);
+  };
+
+  const handleRenameFolder = async (folderId: string) => {
+    if (!renameValue.trim()) return;
+    await renameFolder(folderId, renameValue.trim());
+    setRenamingFolderId(null);
+    setRenameValue('');
+  };
+
+  const handleFolderDoubleClick = (folder: FileFolder) => {
+    navigateToFolder(folder.id);
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -135,11 +235,12 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
     }
   };
 
-  // Stats
+  // Stats (current folder files only)
   const readyCount = files.filter(f => f.status === 'ready').length;
   const processingCount = files.filter(f => f.status === 'processing').length;
   const totalSize = files.reduce((sum, f) => sum + f.fileSize, 0);
   const totalChunks = files.reduce((sum, f) => sum + f.chunkCount, 0);
+  const isEmpty = files.length === 0 && folders.length === 0;
 
   return (
     <div className="h-full flex flex-col bg-[var(--color-main-surface-primary)]">
@@ -155,30 +256,53 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
           <div>
             <h2 className="text-base font-semibold text-[var(--color-text-primary)]">{t('files.title')}</h2>
             <p className="text-[11px] text-[var(--color-text-tertiary)]">
-              {files.length > 0
-                ? `${files.length} ${files.length === 1 ? 'file' : 'files'} · ${formatFileSize(totalSize)}`
+              {!isEmpty
+                ? `${folders.length + files.length} ${folders.length + files.length === 1 ? 'item' : 'items'} · ${formatFileSize(totalSize)}`
                 : t('files.noFilesHint')}
             </p>
           </div>
         </div>
 
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--button-primary-bg)] hover:bg-[var(--button-primary-hover)] disabled:opacity-50 text-white text-sm font-medium transition-colors"
-        >
-          {uploading ? (
-            <>
-              <Loader size={15} className="animate-spin" />
-              {t('files.uploading')}
-            </>
-          ) : (
-            <>
-              <Upload size={15} />
-              {t('files.upload')}
-            </>
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          {/* New Folder button */}
+          <button
+            onClick={() => setShowCreateFolder(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--color-border-light)] hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-secondary)] text-sm font-medium transition-colors"
+          >
+            <FolderPlus size={15} />
+            {t('files.newFolder')}
+          </button>
+
+          {/* Upload Folder button */}
+          <button
+            onClick={() => folderInputRef.current?.click()}
+            disabled={uploading}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--color-border-light)] hover:bg-[rgba(255,255,255,0.05)] disabled:opacity-50 text-[var(--color-text-secondary)] text-sm font-medium transition-colors"
+          >
+            <FolderOpen size={15} />
+            {t('files.uploadFolder')}
+          </button>
+
+          {/* Upload Files button */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--button-primary-bg)] hover:bg-[var(--button-primary-hover)] disabled:opacity-50 text-white text-sm font-medium transition-colors"
+          >
+            {uploading ? (
+              <>
+                <Loader size={15} className="animate-spin" />
+                {t('files.uploading')}
+              </>
+            ) : (
+              <>
+                <Upload size={15} />
+                {t('files.upload')}
+              </>
+            )}
+          </button>
+        </div>
+
         <input
           ref={fileInputRef}
           type="file"
@@ -186,6 +310,42 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
           onChange={handleFileSelect}
           className="hidden"
         />
+        <input
+          ref={folderInputRef}
+          type="file"
+          // @ts-expect-error webkitdirectory is not in standard types
+          webkitdirectory=""
+          directory=""
+          multiple
+          onChange={handleFolderSelect}
+          className="hidden"
+        />
+      </div>
+
+      {/* Breadcrumb navigation */}
+      <div className="flex items-center gap-1 px-5 py-2 border-b border-[var(--color-border-light)] bg-[var(--color-bg-secondary)] flex-shrink-0 text-sm">
+        <button
+          onClick={() => navigateToFolder(null)}
+          className={`flex items-center gap-1 px-2 py-1 rounded hover:bg-[rgba(255,255,255,0.05)] transition-colors ${
+            !currentFolderId ? 'text-[var(--color-text-primary)] font-medium' : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+          }`}
+        >
+          <HardDrive size={14} />
+          {t('files.title')}
+        </button>
+        {breadcrumb.map((item, idx) => (
+          <span key={item.id} className="flex items-center gap-1">
+            <ChevronRight size={14} className="text-[var(--color-text-tertiary)]" />
+            <button
+              onClick={() => navigateToFolder(item.id)}
+              className={`px-2 py-1 rounded hover:bg-[rgba(255,255,255,0.05)] transition-colors ${
+                idx === breadcrumb.length - 1 ? 'text-[var(--color-text-primary)] font-medium' : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+              }`}
+            >
+              {item.name}
+            </button>
+          </span>
+        ))}
       </div>
 
       {/* Stats bar */}
@@ -241,13 +401,44 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
           </div>
         )}
 
+        {/* Create folder dialog */}
+        {showCreateFolder && (
+          <div className="mx-5 mt-3 p-3 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border-light)]">
+            <div className="flex items-center gap-2">
+              <Folder size={16} className="text-yellow-400 flex-shrink-0" />
+              <input
+                autoFocus
+                type="text"
+                value={newFolderName}
+                onChange={e => setNewFolderName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleCreateFolder(); if (e.key === 'Escape') { setShowCreateFolder(false); setNewFolderName(''); } }}
+                placeholder={t('files.folderNamePlaceholder')}
+                className="flex-1 px-2 py-1 rounded bg-[var(--color-main-surface-primary)] border border-[var(--color-border-light)] text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent-main)]"
+              />
+              <button
+                onClick={handleCreateFolder}
+                disabled={!newFolderName.trim()}
+                className="px-3 py-1 rounded bg-[var(--color-accent-main)] hover:opacity-90 disabled:opacity-50 text-white text-xs font-medium transition-colors"
+              >
+                {t('common.confirm')}
+              </button>
+              <button
+                onClick={() => { setShowCreateFolder(false); setNewFolderName(''); }}
+                className="p-1 rounded hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-tertiary)]"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <div className="flex flex-col items-center justify-center py-16">
             <Loader size={28} className="animate-spin mb-3 text-[var(--color-text-tertiary)]" />
             <span className="text-sm text-[var(--color-text-tertiary)]">{t('common.loading')}</span>
           </div>
-        ) : files.length === 0 ? (
-          /* Empty state - also acts as initial drop zone */
+        ) : isEmpty ? (
+          /* Empty state */
           <div className="flex flex-col items-center justify-center py-20 px-5">
             <div className="w-20 h-20 rounded-full bg-[var(--color-bg-secondary)] flex items-center justify-center mb-5">
               <HardDrive size={36} className="text-[var(--color-text-tertiary)] opacity-50" />
@@ -256,16 +447,25 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
             <p className="text-sm text-[var(--color-text-tertiary)] mb-6 text-center max-w-xs">
               {t('files.noFilesHint')}
             </p>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[var(--color-accent-main)] hover:opacity-90 text-white text-sm font-medium transition-colors"
-            >
-              <Upload size={16} />
-              {t('files.upload')}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowCreateFolder(true)}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-[var(--color-border-light)] hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-secondary)] text-sm font-medium transition-colors"
+              >
+                <FolderPlus size={16} />
+                {t('files.newFolder')}
+              </button>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[var(--color-accent-main)] hover:opacity-90 text-white text-sm font-medium transition-colors"
+              >
+                <Upload size={16} />
+                {t('files.upload')}
+              </button>
+            </div>
           </div>
         ) : (
-          /* File list - table style like cloud storage */
+          /* Folder + file list */
           <div className="px-3 py-2">
             {/* Table header */}
             <div className="grid grid-cols-[1fr_100px_100px_100px_90px] gap-2 px-3 py-2 text-[11px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-light)] mb-1">
@@ -275,6 +475,85 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
               <span className="flex items-center gap-1"><Clock size={11} /> Date</span>
               <span className="text-right">Actions</span>
             </div>
+
+            {/* Folder rows */}
+            {folders.map(folder => (
+              <div
+                key={folder.id}
+                className="group grid grid-cols-[1fr_100px_100px_100px_90px] gap-2 items-center px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] transition-colors cursor-pointer"
+                onDoubleClick={() => handleFolderDoubleClick(folder)}
+              >
+                {/* Folder name + icon */}
+                <div className="flex items-center gap-3 min-w-0">
+                  <Folder size={18} className="text-yellow-400 flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    {renamingFolderId === folder.id ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          autoFocus
+                          type="text"
+                          value={renameValue}
+                          onChange={e => setRenameValue(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') handleRenameFolder(folder.id); if (e.key === 'Escape') { setRenamingFolderId(null); setRenameValue(''); } }}
+                          onBlur={() => handleRenameFolder(folder.id)}
+                          className="flex-1 px-1.5 py-0.5 rounded bg-[var(--color-main-surface-primary)] border border-[var(--color-accent-main)] text-sm text-[var(--color-text-primary)] outline-none"
+                          onClick={e => e.stopPropagation()}
+                        />
+                      </div>
+                    ) : (
+                      <div className="text-sm text-[var(--color-text-primary)] truncate" title={folder.name}>
+                        {folder.name}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Size (folders don't show size) */}
+                <div className="text-xs text-[var(--color-text-tertiary)] text-right">—</div>
+
+                {/* Status (folders show as folder) */}
+                <div className="text-center">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-yellow-500/10 text-yellow-400">
+                    <Folder size={10} />
+                    {t('files.folder')}
+                  </span>
+                </div>
+
+                {/* Date */}
+                <div className="text-xs text-[var(--color-text-tertiary)] flex items-center gap-1">
+                  {formatDate(folder.createdAt)}
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setRenamingFolderId(folder.id);
+                      setRenameValue(folder.name);
+                    }}
+                    className="p-1.5 rounded-md hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-accent-main)] transition-colors"
+                    title={t('files.renameFolder')}
+                  >
+                    <Edit2 size={14} />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteFolder(folder);
+                    }}
+                    className={`p-1.5 rounded-md transition-colors ${
+                      deleteFolderConfirmId === folder.id
+                        ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                        : 'hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] hover:text-red-400'
+                    }`}
+                    title={deleteFolderConfirmId === folder.id ? t('common.confirm') : t('files.deleteFolder')}
+                  >
+                    {deleteFolderConfirmId === folder.id ? <CheckCircle2 size={14} /> : <Trash2 size={14} />}
+                  </button>
+                </div>
+              </div>
+            ))}
 
             {/* File rows */}
             {files.map(file => (

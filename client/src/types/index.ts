@@ -233,6 +233,15 @@ export interface UpdateUserRequest {
 
 // --- File Library ---
 
+export interface FileFolder {
+  id: string;
+  name: string;
+  parentId: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface FileLibraryEntry {
   id: string;
   originalName: string;
@@ -242,12 +251,14 @@ export interface FileLibraryEntry {
   chunkCount: number;
   status: 'processing' | 'ready' | 'error';
   errorMessage: string | null;
+  folderId: string | null;
   uploadedBy: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface FileLibraryResponse {
+  folders: FileFolder[];
   files: FileLibraryEntry[];
   total: number;
   page: number;

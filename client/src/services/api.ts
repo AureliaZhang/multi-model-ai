@@ -13,6 +13,7 @@ import type {
   McpTool,
   CreateMcpServerRequest,
   UpdateMcpServerRequest,
+  FileFolder,
   FileLibraryEntry,
   FileLibraryResponse,
   FileSearchResult,
@@ -249,26 +250,54 @@ export const mcpApi = {
 
 // --- File Library ---
 export const fileApi = {
-  list: (params?: { page?: number; limit?: number }) => {
+  // Folder operations
+  folders: {
+    list: (parentId?: string) => {
+      const params = new URLSearchParams();
+      if (parentId) params.set('parent_id', parentId);
+      return request<FileFolder[]>(`/files/folders?${params}`);
+    },
+    create: (name: string, parentId?: string) =>
+      request<FileFolder>('/files/folders', {
+        method: 'POST',
+        body: JSON.stringify({ name, parentId }),
+      }),
+    rename: (id: string, name: string) =>
+      request<FileFolder>(`/files/folders/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name }),
+      }),
+    delete: (id: string) => request(`/files/folders/${id}`, { method: 'DELETE' }),
+    getPath: (id: string) => request<{ id: string; name: string }[]>(`/files/folders/${id}/path`),
+  },
+  // File operations
+  list: (params?: { page?: number; limit?: number; folderId?: string }) => {
     const searchParams = new URLSearchParams();
     if (params?.page) searchParams.set('page', String(params.page));
     if (params?.limit) searchParams.set('limit', String(params.limit));
+    if (params?.folderId) searchParams.set('folder_id', params.folderId);
     return request<FileLibraryResponse>(`/files?${searchParams}`);
   },
   getOne: (id: string) => request<FileLibraryEntry>(`/files/${id}`),
   delete: (id: string) => request(`/files/${id}`, { method: 'DELETE' }),
   reindex: (id: string) => request<{ status: string }>(`/files/${id}/reindex`, { method: 'POST' }),
+  moveFile: (id: string, folderId: string | null) =>
+    request<FileLibraryEntry>(`/files/${id}/move`, {
+      method: 'PATCH',
+      body: JSON.stringify({ folderId }),
+    }),
   search: (query: string, fileIds?: string[], limit?: number) =>
     request<FileSearchResult[]>('/files/search', {
       method: 'POST',
       body: JSON.stringify({ query, fileIds, limit }),
     }),
-  upload: async (files: File[]): Promise<ApiResponse<FileLibraryEntry[]>> => {
+  upload: async (files: File[], folderId?: string | null): Promise<ApiResponse<FileLibraryEntry[]>> => {
     const token = getToken();
     const formData = new FormData();
     for (const file of files) {
       formData.append('files', file);
     }
+    if (folderId) formData.append('folder_id', folderId);
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
 

@@ -257,6 +257,12 @@ const zh = {
   'files.noFileSelected': '未选择文件',
   'files.selectFilesForChat': '选择文件用于 RAG 对话',
   'files.clearSelection': '清除',
+  'files.newFolder': '新建文件夹',
+  'files.uploadFolder': '上传文件夹',
+  'files.folderNamePlaceholder': '输入文件夹名称',
+  'files.folder': '文件夹',
+  'files.renameFolder': '重命名',
+  'files.deleteFolder': '删除文件夹',
 };
 
 export default zh;
