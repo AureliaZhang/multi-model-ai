@@ -22,7 +22,7 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
   );
 
   return (
-    <div className="group px-4 py-4 hover:bg-[rgba(255,255,255,0.02)] transition-colors duration-150">
+    <div className="group px-4 py-4 bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.07)] transition-colors duration-150 rounded-xl mb-1">
       <div className="max-w-[768px] lg:max-w-[960px] xl:max-w-[1200px] mx-auto flex gap-4">
         {/* Avatar */}
         <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
