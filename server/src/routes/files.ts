@@ -150,12 +150,14 @@ router.post('/upload', requireAuth, upload.array('files', 20), async (req: AuthR
     for (const file of files) {
       const fileId = uuidv4();
       const mimeType = file.mimetype || 'application/octet-stream';
+      // Fix filename encoding: multer may deliver non-ASCII filenames as latin1
+      const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
 
-      insertStmt.run(fileId, file.originalname, file.filename, mimeType, file.size, req.user?.id || null, now, now);
+      insertStmt.run(fileId, originalName, file.filename, mimeType, file.size, req.user?.id || null, now, now);
 
       results.push({
         id: fileId,
-        originalName: file.originalname,
+        originalName,
         storedName: file.filename,
         mimeType,
         fileSize: file.size,
@@ -169,8 +171,8 @@ router.post('/upload', requireAuth, upload.array('files', 20), async (req: AuthR
 
       // Process file asynchronously (don't await - fire and forget)
       const filePath = path.join(UPLOADS_DIR, file.filename);
-      processFile(fileId, filePath, mimeType, file.originalname).catch(err => {
-        console.error(`[files] Background processing failed for ${file.originalname}:`, err.message);
+      processFile(fileId, filePath, mimeType, originalName).catch(err => {
+        console.error(`[files] Background processing failed for ${originalName}:`, err.message);
       });
     }
 
