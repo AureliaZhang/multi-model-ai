@@ -49,7 +49,7 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
   const setSelfReview = useChatStore(s => s.setSelfReview);
   const { t } = useTranslation();
 
-  const [selectedModel, _setSelectedModel] = useState('');
+  const [selectedModel, _setSelectedModel] = useState(() => localStorage.getItem('selected_model') || '');
 
   useEffect(() => {
     return () => {

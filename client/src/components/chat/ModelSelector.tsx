@@ -16,10 +16,12 @@ interface ModelSelectorProps {
   onChange?: (normalizedName: string) => void;
 }
 
+const STORAGE_KEY = 'selected_model';
+
 export function ModelSelector({ value, onChange }: ModelSelectorProps) {
   const models = useModelStore(s => s.models);
   const [isOpen, setIsOpen] = useState(false);
-  const [selected, setSelected] = useState(value || '');
+  const [selected, setSelected] = useState(() => value || localStorage.getItem(STORAGE_KEY) || '');
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { t } = useTranslation();
 
@@ -51,6 +53,7 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
 
   const handleSelect = (normalizedName: string) => {
     setSelected(normalizedName);
+    localStorage.setItem(STORAGE_KEY, normalizedName);
     onChange?.(normalizedName);
     setIsOpen(false);
   };
