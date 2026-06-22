@@ -27,7 +27,18 @@ const en = {
   'login.signIn': 'Sign In',
   'login.noAccount': "Don't have an account?",
   'login.register': 'Register',
+  'login.registerNow': 'Register now',
   'login.guest': 'Continue as guest (browse only)',
+  'login.selectMode': 'Choose your login method',
+  'login.adminLogin': 'Admin Login',
+  'login.adminLoginDesc': 'Administrator access with admin credentials',
+  'login.userLogin': 'User Login',
+  'login.userLoginDesc': 'Sign in with your user account',
+  'login.guestMode': 'Guest Browse',
+  'login.guestModeDesc': 'Browse without an account (read-only)',
+  'login.backToSelect': 'Back to login selection',
+  'login.passwordRequired': 'Password is required',
+  'login.allFieldsRequired': 'Username and password are required',
 
   // Auth - Register
   'register.title': 'Create Account',

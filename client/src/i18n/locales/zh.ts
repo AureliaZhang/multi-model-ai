@@ -27,7 +27,18 @@ const zh = {
   'login.signIn': '登录',
   'login.noAccount': '还没有账户？',
   'login.register': '注册',
+  'login.registerNow': '立即注册',
   'login.guest': '以访客身份浏览（仅浏览）',
+  'login.selectMode': '选择登录方式',
+  'login.adminLogin': '管理员登录',
+  'login.adminLoginDesc': '使用管理员凭据登录',
+  'login.userLogin': '用户登录',
+  'login.userLoginDesc': '使用您的用户账户登录',
+  'login.guestMode': '访客浏览',
+  'login.guestModeDesc': '无需账户即可浏览（仅查看）',
+  'login.backToSelect': '返回登录选择',
+  'login.passwordRequired': '请输入密码',
+  'login.allFieldsRequired': '请输入用户名和密码',
 
   // 注册
   'register.title': '创建账户',
