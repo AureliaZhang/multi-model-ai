@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from '../../i18n';
 import {
   ArrowLeft, Upload, FileText, File, FileCode, FileImage, FileArchive,
-  Trash2, RefreshCw, Loader, CheckCircle2, AlertCircle, X,
+  Trash2, RefreshCw, Loader, CheckCircle2, AlertCircle,
   HardDrive, Clock, Layers
 } from 'lucide-react';
 import { useFileStore } from '../../stores/fileStore';
