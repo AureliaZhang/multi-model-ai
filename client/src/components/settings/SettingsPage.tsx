@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useStationStore } from '../../stores/stationStore';
 import { useModelStore } from '../../stores/modelStore';
 import { McpServerManager } from './McpServerManager';
+import { RegexManager } from '../regex/RegexManager';
 import { useTranslation } from '../../i18n';
 import { ArrowLeft, Plus, RefreshCw, Trash2, Activity, Download, ToggleLeft, ToggleRight, Radio, Info } from 'lucide-react';
 
@@ -291,6 +292,19 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
 
         {/* MCP Server Management Section */}
         <McpServerManager />
+
+        {/* Regex & Presets Section */}
+        <div className="mb-8">
+          <div className="flex items-center gap-2 mb-5">
+            <div>
+              <h2 className="text-[15px] font-semibold text-[var(--color-text-primary)]">{t('regex.title')}</h2>
+              <p className="text-xs text-[var(--color-text-tertiary)] mt-0.5">SillyTavern-style regex scripts and presets for content transformation</p>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-[var(--color-border-light)] overflow-hidden">
+            <RegexManager embedded />
+          </div>
+        </div>
 
         {/* Info section */}
         <div className="p-5 rounded-2xl bg-[var(--color-main-surface-tertiary)] border border-[var(--color-border-light)]">

@@ -5,7 +5,6 @@ import { SettingsPage } from '../settings/SettingsPage';
 import { UserManagement } from '../admin/UserManagement';
 import { MemoryBrowser } from '../memory/MemoryBrowser';
 import { FileBrowser } from '../files/FileBrowser';
-import { RegexManager } from '../regex/RegexManager';
 import { useModelStore } from '../../stores/modelStore';
 import { useChatStore } from '../../stores/chatStore';
 import { useTranslation } from '../../i18n';
@@ -17,7 +16,7 @@ interface LayoutProps {
   onSignIn?: () => void;
 }
 
-type PageView = 'chat' | 'settings' | 'users' | 'memory' | 'files' | 'regex';
+type PageView = 'chat' | 'settings' | 'users' | 'memory' | 'files';
 
 export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
   const [page, setPage] = useState<PageView>('chat');
@@ -49,10 +48,6 @@ export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
     return <FileBrowser onClose={() => setPage('chat')} />;
   }
 
-  if (page === 'regex') {
-    return <RegexManager onClose={() => setPage('chat')} />;
-  }
-
   return (
     <div className="flex h-full w-full overflow-hidden">
       {/* Sidebar */}
@@ -64,7 +59,6 @@ export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
             onOpenUsers={() => setPage('users')}
             onOpenMemory={() => setPage('memory')}
             onOpenFiles={() => setPage('files')}
-            onOpenRegex={() => setPage('regex')}
             onToggleSidebar={() => setSidebarOpen(false)}
             onLogout={onLogout}
           />

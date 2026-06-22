@@ -9,12 +9,13 @@ import {
 } from 'lucide-react';
 
 interface RegexManagerProps {
-  onClose: () => void;
+  onClose?: () => void;
+  embedded?: boolean;
 }
 
 type TabView = 'scripts' | 'presets' | 'test';
 
-export function RegexManager({ onClose }: RegexManagerProps) {
+export function RegexManager({ onClose, embedded }: RegexManagerProps) {
   const { t } = useTranslation();
   const {
     scripts, presets, loading, error,
@@ -245,21 +246,8 @@ export function RegexManager({ onClose }: RegexManagerProps) {
     </div>
   );
 
-  return (
-    <div className="h-full flex flex-col bg-[var(--color-bg)]">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border-light)]">
-        <div className="flex items-center gap-3">
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-secondary)] transition-colors">
-            <ArrowLeft size={20} />
-          </button>
-          <div className="flex items-center gap-2">
-            <Wand2 size={20} className="text-[var(--color-accent)]" />
-            <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">{t('regex.title')}</h1>
-          </div>
-        </div>
-      </div>
-
+  const tabsContent = (
+    <>
       {/* Tabs */}
       <div className="flex items-center gap-1 px-4 py-2 border-b border-[var(--color-border-light)]">
         {[
@@ -675,6 +663,25 @@ export function RegexManager({ onClose }: RegexManagerProps) {
           </div>
         )}
       </div>
+    </>
+  );
+
+  if (embedded) {
+    return tabsContent;
+  }
+
+  return (
+    <div className="h-full flex flex-col bg-[var(--color-bg)]">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border-light)]">
+        <div className="flex items-center gap-3">
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-secondary)] transition-colors">
+            <ArrowLeft size={20} />
+          </button>
+          <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">{t('regex.title')}</h1>
+        </div>
+      </div>
+      {tabsContent}
     </div>
   );
 }
