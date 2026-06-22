@@ -17,6 +17,10 @@ import type {
   FileLibraryEntry,
   FileLibraryResponse,
   FileSearchResult,
+  RegexScript,
+  RegexPreset,
+  RegexTestResult,
+  RegexExportData,
 } from '../types';
 import { getToken, removeToken } from './auth';
 
@@ -91,6 +95,7 @@ export interface StreamChatCallbacks {
   onToolResult?: (toolResult: { id: string; name: string; result: string }) => void;
   onAttachments?: (attachments: { id: string; type: string; filename: string; mimeType: string }[]) => void;
   onReviewedContent?: (content: string) => void;
+  onRegexContent?: (content: string) => void;
 }
 
 export function streamChat(
@@ -172,6 +177,9 @@ export function streamChat(
               }
               if (parsed.reviewedContent) {
                 callbacks.onReviewedContent?.(parsed.reviewedContent);
+              }
+              if (parsed.regexContent) {
+                callbacks.onRegexContent?.(parsed.regexContent);
               }
             } catch {
               // Skip invalid JSON
@@ -321,4 +329,63 @@ export const fileApi = {
 
     return res.json() as Promise<ApiResponse<FileLibraryEntry[]>>;
   },
+};
+
+// --- Regex Scripts & Presets ---
+export const regexApi = {
+  // Scripts
+  listScripts: () =>
+    request<RegexScript[]>('/regex/scripts'),
+  createScript: (data: Partial<RegexScript>) =>
+    request<RegexScript>('/regex/scripts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateScript: (id: string, data: Partial<RegexScript>) =>
+    request<RegexScript>(`/regex/scripts/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deleteScript: (id: string) =>
+    request<void>(`/regex/scripts/${id}`, { method: 'DELETE' }),
+  reorderScripts: (ids: string[]) =>
+    request<void>('/regex/scripts/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({ ids }),
+    }),
+
+  // Presets
+  listPresets: () =>
+    request<RegexPreset[]>('/regex/presets'),
+  createPreset: (data: { name: string; description?: string; scriptIds?: string[] }) =>
+    request<RegexPreset>('/regex/presets', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updatePreset: (id: string, data: { name?: string; description?: string; isDefault?: boolean }) =>
+    request<RegexPreset>(`/regex/presets/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deletePreset: (id: string) =>
+    request<void>(`/regex/presets/${id}`, { method: 'DELETE' }),
+  setPresetScripts: (presetId: string, scriptIds: string[]) =>
+    request<void>(`/regex/presets/${presetId}/scripts`, {
+      method: 'POST',
+      body: JSON.stringify({ scriptIds }),
+    }),
+  activatePreset: (presetId: string, conversationId: string) =>
+    request<void>(`/regex/presets/${presetId}/activate`, {
+      method: 'POST',
+      body: JSON.stringify({ conversationId }),
+    }),
+  exportPreset: (presetId: string) =>
+    request<RegexExportData>(`/regex/presets/${presetId}/export`),
+  importPreset: (data: RegexExportData) =>
+    request<RegexPreset>('/regex/import', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  testRegex: (pattern: string, flags: string, replacement: string, text: string) =>
+    request<RegexTestResult>(`/regex/test?pattern=${encodeURIComponent(pattern)}&flags=${encodeURIComponent(flags)}&replacement=${encodeURIComponent(replacement)}&text=${encodeURIComponent(text)}`),
 };

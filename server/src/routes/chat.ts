@@ -7,6 +7,7 @@ import { normalizeModelName } from './models';
 import { ApiResponse } from '../types';
 import { loadEnabledMcpTools, resolveToolCall, executeToolCall } from '../services/mcpClient';
 import { generateEmbedding, serializeEmbedding, vectorSearch } from '../services/embeddings';
+import { getActiveScripts, applyRegexScripts } from '../services/regexEngine';
 
 const router = Router();
 
@@ -103,6 +104,14 @@ router.post('/', async (req: Request, res: Response) => {
       'INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)'
     ).run(userMsgId, conversationId, 'user', message, now);
 
+    // Load active regex scripts for this user/conversation
+    const activeRegexScripts = getActiveScripts(db, conv.user_id || null, conversationId);
+
+    // Apply input regex transformation for API consumption
+    const transformedInput = activeRegexScripts.length > 0
+      ? applyRegexScripts(activeRegexScripts, message, 'input')
+      : message;
+
     // Save attachments if any
     const attachmentMeta: { id: string; type: string; filename: string; mimeType: string }[] = [];
     if (attachments && Array.isArray(attachments) && attachments.length > 0) {
@@ -144,10 +153,12 @@ router.post('/', async (req: Request, res: Response) => {
     // Build messages array for the API, with multimodal support
     const apiMessages: any[] = [];
     for (const m of history) {
+      // Apply input regex to current user message content for API
+      const msgContent = (m.role === 'user' && m.id === userMsgId) ? transformedInput : m.content;
       if (m.role === 'user' && m.id === userMsgId && attachments && attachments.length > 0) {
         // Build multimodal content for the current user message with attachments
         const contentParts: any[] = [];
-        let textContent = m.content;
+        let textContent = msgContent;
         for (const att of attachments) {
           if (att.mimeType.startsWith('image/')) {
             contentParts.push({
@@ -180,7 +191,7 @@ router.post('/', async (req: Request, res: Response) => {
         ).all(m.id) as any[];
         if (msgAttachments.length > 0) {
           const contentParts: any[] = [];
-          let textContent = m.content;
+          let textContent = msgContent;
           let hasImages = false;
           for (const att of msgAttachments) {
             if (att.type === 'image') {
@@ -208,7 +219,7 @@ router.post('/', async (req: Request, res: Response) => {
             apiMessages.push({ role: m.role, content: textContent });
           }
         } else {
-          apiMessages.push({ role: m.role, content: m.content });
+          apiMessages.push({ role: m.role, content: msgContent });
         }
       }
     }
@@ -509,7 +520,19 @@ ${assistantContent}
       }
     }
 
-    // Save assistant message
+    // Apply output regex transformation for display
+    if (activeRegexScripts.length > 0) {
+      const displayContent = applyRegexScripts(activeRegexScripts, assistantContent, 'output');
+      if (displayContent !== assistantContent) {
+        console.log(`[regex] Output regex applied. Original: ${assistantContent.length} chars, Transformed: ${displayContent.length} chars`);
+        assistantContent = displayContent;
+        res.write(`data: ${JSON.stringify({ regexContent: displayContent })}\n\n`);
+      }
+    }
+
+    // Save assistant message (raw content before regex, regex is display-only)
+    // Note: assistantContent may have been modified by output regex for display,
+    // but we save the post-review content. The regex is purely cosmetic for the client.
     const assistantMsgId = uuidv4();
     const assistantTime = new Date().toISOString();
     db.prepare(

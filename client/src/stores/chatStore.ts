@@ -207,6 +207,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         onReviewedContent: (reviewedContent: string) => {
           set({ streamingContent: reviewedContent });
         },
+        // onRegexContent — replaces streaming content with regex-transformed version
+        onRegexContent: (regexContent: string) => {
+          set({ streamingContent: regexContent });
+        },
         // onError
         onError: (error) => {
           set({ isStreaming: false, streamingContent: '', error, abortController: null, pendingToolCalls: [] });

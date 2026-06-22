@@ -12,6 +12,7 @@ import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import mcpRoutes from './routes/mcp';
 import fileRoutes from './routes/files';
+import regexRoutes from './routes/regex';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -35,6 +36,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/memories', memoryRoutes);
 app.use('/api/mcp', mcpRoutes);
 app.use('/api/files', fileRoutes);
+app.use('/api/regex', regexRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {

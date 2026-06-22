@@ -279,3 +279,52 @@ export interface FileSearchResult {
   content: string;
   similarity: number;
 }
+
+// --- Regex Scripts & Presets ---
+
+export interface RegexScript {
+  id: string;
+  name: string;
+  findPattern: string;
+  replacement: string;
+  flags: string;
+  placement: 'input' | 'output' | 'both';
+  enabled: boolean;
+  order: number;
+  userId: string;
+  ownerUsername?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RegexPreset {
+  id: string;
+  name: string;
+  description: string | null;
+  userId: string;
+  ownerUsername?: string;
+  isDefault: boolean;
+  scripts?: RegexScript[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RegexTestResult {
+  result: string;
+  matches: number;
+  error?: string;
+}
+
+export interface RegexExportData {
+  version: number;
+  preset: { name: string; description?: string };
+  scripts: {
+    name: string;
+    findPattern: string;
+    replacement: string;
+    flags: string;
+    placement: 'input' | 'output' | 'both';
+    enabled: boolean;
+    order: number;
+  }[];
+}

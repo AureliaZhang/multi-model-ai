@@ -1,6 +1,6 @@
 import { useChatStore } from '../../stores/chatStore';
 import { useAuthStore } from '../../stores/authStore';
-import { MessageSquarePlus, Settings, Trash2, LogOut, Users, Shield, User, Brain, Globe, Lock, Eye, EyeOff, FolderOpen } from 'lucide-react';
+import { MessageSquarePlus, Settings, Trash2, LogOut, Users, Shield, User, Brain, Globe, Lock, Eye, EyeOff, FolderOpen, Wand2 } from 'lucide-react';
 import { useTranslation } from '../../i18n';
 import type { ConversationVisibility } from '../../types';
 
@@ -10,11 +10,12 @@ interface SidebarProps {
   onOpenUsers: () => void;
   onOpenMemory: () => void;
   onOpenFiles: () => void;
+  onOpenRegex: () => void;
   onToggleSidebar: () => void;
   onLogout?: () => void;
 }
 
-export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMemory, onOpenFiles, onToggleSidebar: _onToggleSidebar, onLogout }: SidebarProps) {
+export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMemory, onOpenFiles, onOpenRegex, onToggleSidebar: _onToggleSidebar, onLogout }: SidebarProps) {
   const conversations = useChatStore(s => s.conversations);
   const currentConversationId = useChatStore(s => s.currentConversationId);
   const selectConversation = useChatStore(s => s.selectConversation);
@@ -192,6 +193,13 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMe
             >
               <FolderOpen size={16} strokeWidth={1.5} />
               <span>{t('sidebar.fileLibrary')}</span>
+            </button>
+            <button
+              onClick={onOpenRegex}
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-secondary)] text-[13px] w-full transition-colors duration-150"
+            >
+              <Wand2 size={16} strokeWidth={1.5} />
+              <span>{t('sidebar.regexPresets')}</span>
             </button>
           </>
         )}

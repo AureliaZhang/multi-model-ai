@@ -196,6 +196,46 @@ function initTables(db: Database.Database): void {
       FOREIGN KEY (file_id) REFERENCES file_library(id) ON DELETE CASCADE
     );
 
+    -- Regex Scripts table
+    CREATE TABLE IF NOT EXISTS regex_scripts (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      find_pattern TEXT NOT NULL,
+      replacement TEXT NOT NULL DEFAULT '',
+      flags TEXT NOT NULL DEFAULT 'g',
+      placement TEXT NOT NULL DEFAULT 'both' CHECK(placement IN ('input', 'output', 'both')),
+      enabled INTEGER NOT NULL DEFAULT 1,
+      script_order INTEGER NOT NULL DEFAULT 0,
+      user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Regex Presets table
+    CREATE TABLE IF NOT EXISTS regex_presets (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+      is_default INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Preset-Scripts junction table
+    CREATE TABLE IF NOT EXISTS preset_scripts (
+      preset_id TEXT NOT NULL REFERENCES regex_presets(id) ON DELETE CASCADE,
+      script_id TEXT NOT NULL REFERENCES regex_scripts(id) ON DELETE CASCADE,
+      script_order INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (preset_id, script_id)
+    );
+
+    -- Conversation-Preset active mapping
+    CREATE TABLE IF NOT EXISTS conversation_preset (
+      conversation_id TEXT PRIMARY KEY REFERENCES conversations(id) ON DELETE CASCADE,
+      preset_id TEXT REFERENCES regex_presets(id) ON DELETE SET NULL
+    );
+
     -- Indexes
     CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
@@ -206,6 +246,10 @@ function initTables(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_memory_created ON memory_entries(created_at);
     CREATE INDEX IF NOT EXISTS idx_mcp_tools_server ON mcp_tools(server_id);
     CREATE INDEX IF NOT EXISTS idx_file_chunks_file ON file_chunks(file_id);
+    CREATE INDEX IF NOT EXISTS idx_regex_scripts_user ON regex_scripts(user_id);
+    CREATE INDEX IF NOT EXISTS idx_regex_presets_user ON regex_presets(user_id);
+    CREATE INDEX IF NOT EXISTS idx_preset_scripts_preset ON preset_scripts(preset_id);
+    CREATE INDEX IF NOT EXISTS idx_conversation_preset ON conversation_preset(conversation_id);
   `);
 
   // Migration: add user_id column to conversations if not exists

@@ -284,3 +284,36 @@ export interface FileChunk {
   tokenCount: number;
   createdAt: string;
 }
+
+// --- Regex Scripts & Presets ---
+
+export interface RegexScript {
+  id: string;
+  name: string;
+  findPattern: string;
+  replacement: string;
+  flags: string;
+  placement: 'input' | 'output' | 'both';
+  enabled: boolean;
+  order: number;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RegexPreset {
+  id: string;
+  name: string;
+  description: string | null;
+  userId: string;
+  isDefault: boolean;
+  scripts?: RegexScript[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PresetScript {
+  presetId: string;
+  scriptId: string;
+  order: number;
+}
