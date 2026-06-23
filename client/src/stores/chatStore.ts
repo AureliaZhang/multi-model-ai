@@ -42,10 +42,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   fetchConversations: async () => {
     try {
       const res = await conversationApi.list();
+      console.log('[fetchConversations] API response:', res.success, 'conversations:', res.data?.length);
       if (res.success && res.data) {
         const conversations = res.data;
         const lastConvId = localStorage.getItem('last_conversation_id');
         const hasValidLast = lastConvId && conversations.some(c => c.id === lastConvId);
+        console.log('[fetchConversations] lastConvId:', lastConvId, 'hasValidLast:', hasValidLast, 'currentConvId:', get().currentConversationId);
 
         // Clear stale localStorage if the conversation no longer exists
         if (lastConvId && !hasValidLast) {
@@ -57,14 +59,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // Auto-select last active conversation after refresh
         if (!get().currentConversationId) {
           if (hasValidLast) {
-            get().selectConversation(lastConvId!);
+            console.log('[fetchConversations] Selecting last conversation:', lastConvId);
+            await get().selectConversation(lastConvId!);
           } else if (conversations.length > 0) {
-            get().selectConversation(conversations[0].id);
+            console.log('[fetchConversations] Selecting first conversation:', conversations[0].id);
+            await get().selectConversation(conversations[0].id);
           }
         }
+      } else {
+        console.error('[fetchConversations] API returned failure:', res.error);
       }
     } catch (err: any) {
-      console.error('Failed to fetch conversations:', err);
+      console.error('[fetchConversations] Failed:', err);
     }
   },
 
@@ -119,8 +125,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const res = await conversationApi.getMessages(id);
       if (res.success && res.data) {
         set({ messages: res.data });
+      } else {
+        console.error('[selectConversation] getMessages failed:', res.error || 'Unknown error');
+        set({ error: res.error || 'Failed to load messages' });
       }
     } catch (err: any) {
+      console.error('[selectConversation] Error:', err.message);
       set({ error: err.message });
     }
   },

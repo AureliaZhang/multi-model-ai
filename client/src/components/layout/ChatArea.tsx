@@ -63,7 +63,7 @@ export function ChatArea({ isGuest = false, onSignIn }: ChatAreaProps) {
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto">
-        {messages.length === 0 && !isStreaming ? (
+        {messages.length === 0 && !isStreaming && !error ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
             <div className="w-12 h-12 rounded-full bg-[var(--color-accent-main)] flex items-center justify-center mb-5">
               <Sparkles size={24} className="text-white" />
