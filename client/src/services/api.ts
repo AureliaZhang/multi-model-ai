@@ -56,7 +56,6 @@ async function request<T>(url: string, options?: RequestInit): Promise<ApiRespon
 
   try {
     const data = await res.json();
-    console.log(`[request] ${options?.method || 'GET'} ${url} → ${res.status} success=${data?.success} dataLen=${Array.isArray(data?.data) ? data.data.length : 'N/A'}`);
     return data as ApiResponse<T>;
   } catch (jsonErr: any) {
     console.error(`[request] JSON parse failed for ${fullUrl} (status ${res.status}):`, jsonErr.message);

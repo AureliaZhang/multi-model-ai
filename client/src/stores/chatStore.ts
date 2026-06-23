@@ -2,6 +2,12 @@ import { create } from 'zustand';
 import type { Conversation, ConversationVisibility, Message, PendingAttachment, ToolCallInfo } from '../types';
 import { conversationApi, streamChat } from '../services/api';
 
+// Generation counter to prevent stale selectConversation results from being applied.
+// Each call to selectConversation increments this; only the latest call's result is used.
+let _selectGeneration = 0;
+// Guard to prevent concurrent fetchConversations from double-auto-selecting
+let _fetchConvRunning = false;
+
 interface ChatState {
   conversations: Conversation[];
   currentConversationId: string | null;
@@ -40,10 +46,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
   currentSelfReview: false,
 
   fetchConversations: async () => {
+    // Prevent concurrent fetchConversations from double-auto-selecting (StrictMode double-mount)
+    if (_fetchConvRunning) {
+      console.log('[chatStore] fetchConversations: already running, skipping');
+      return;
+    }
+    _fetchConvRunning = true;
     try {
-      console.log('[chatStore] fetchConversations called, currentConversationId:', get().currentConversationId);
       const res = await conversationApi.list();
-      console.log('[chatStore] conversationApi.list result:', { success: res.success, dataLen: res.data?.length, error: res.error });
       if (res.success && res.data) {
         const conversations = res.data;
         const lastConvId = localStorage.getItem('last_conversation_id');
@@ -61,18 +71,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const currentId = get().currentConversationId;
         if (!currentId) {
           const targetId = hasValidLast ? lastConvId! : (conversations.length > 0 ? conversations[0].id : null);
-          console.log('[chatStore] Auto-selecting conversation:', targetId);
           if (targetId) {
             await get().selectConversation(targetId);
           }
-        } else {
-          console.log('[chatStore] Conversation already selected, skipping auto-select:', currentId);
         }
-      } else {
-        console.warn('[chatStore] fetchConversations: API returned unsuccessful:', res.error);
       }
     } catch (err: any) {
-      console.error('[chatStore] fetchConversations Failed:', err);
+      console.error('[chatStore] fetchConversations failed:', err);
+    } finally {
+      _fetchConvRunning = false;
     }
   },
 
@@ -116,9 +123,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   selectConversation: async (id: string) => {
+    const gen = ++_selectGeneration;
     const prevId = get().currentConversationId;
     const isSwitching = prevId !== id;
-    console.log(`[chatStore] selectConversation(${id}) prevId=${prevId} isSwitching=${isSwitching} messagesLen=${get().messages.length}`);
 
     localStorage.setItem('last_conversation_id', id);
     // Only clear messages if switching to a DIFFERENT conversation
@@ -134,32 +141,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       // Load messages
       let res = await conversationApi.getMessages(id);
-      console.log(`[chatStore] getMessages(${id}) result:`, { success: res.success, dataLen: res.data?.length, error: res.error });
 
       // Retry once on failure
       if (!res.success || !res.data) {
-        console.log(`[chatStore] Retrying getMessages after 300ms...`);
         await new Promise(resolve => setTimeout(resolve, 300));
         res = await conversationApi.getMessages(id);
-        console.log(`[chatStore] Retry getMessages result:`, { success: res.success, dataLen: res.data?.length, error: res.error });
       }
 
-      // Guard: only update state if this conversation is still the active one
-      if (get().currentConversationId !== id) {
-        console.warn(`[chatStore] selectConversation guard triggered: currentConversationId changed from ${id} to ${get().currentConversationId}`);
+      // Generation guard: only apply result if this is still the latest selectConversation call.
+      // This prevents stale results from race conditions (e.g. StrictMode double-mount).
+      if (_selectGeneration !== gen) {
         return;
       }
 
       if (res.success && res.data) {
-        console.log(`[chatStore] Setting messages: ${res.data.length} messages for conversation ${id}`);
         set({ messages: res.data, error: null });
       } else {
-        console.error(`[chatStore] Failed to load messages:`, res.error);
         set({ error: res.error || 'Failed to load messages' });
       }
     } catch (err: any) {
-      if (get().currentConversationId !== id) return;
-      console.error(`[chatStore] selectConversation error:`, err.message);
+      if (_selectGeneration !== gen) return;
       set({ error: err.message || 'Failed to load conversation' });
     }
   },
