@@ -178,6 +178,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
           }
           return updates;
         });
+      } else if (res.error) {
+        console.error('[updateConversation] API error:', res.error);
+        // If conversation not found on server, re-sync the conversation list
+        if (res.error === 'Conversation not found') {
+          console.warn('[updateConversation] Conversation not found on server, re-fetching conversations');
+          get().fetchConversations();
+        }
       }
     } catch (err: any) {
       console.error('Failed to update conversation:', err);
