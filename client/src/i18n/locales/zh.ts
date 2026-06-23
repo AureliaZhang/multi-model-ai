@@ -86,6 +86,7 @@ const zh = {
   'chat.stopGenerating': '停止生成',
   'chat.sendMessage': '发送消息',
   'chat.aiDisclaimer': 'AI 可能会出错，请核实重要信息。',
+  'chat.loadMore': '加载 {count} 条更多消息',
 
   // 消息气泡
   'message.you': '你',

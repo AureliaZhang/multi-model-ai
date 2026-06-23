@@ -1,15 +1,18 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { useChatStore } from '../../stores/chatStore';
 import { ModelSelector } from '../chat/ModelSelector';
 import { ChatInput } from '../chat/ChatInput';
 import { MessageBubble } from '../chat/MessageBubble';
-import { Sparkles } from 'lucide-react';
+import { ErrorBoundary } from '../ErrorBoundary';
+import { Sparkles, ChevronUp } from 'lucide-react';
 import { useTranslation } from '../../i18n';
 
 interface ChatAreaProps {
   isGuest?: boolean;
   onSignIn?: () => void;
 }
+
+const PAGE_SIZE = 50;
 
 export function ChatArea({ isGuest = false, onSignIn }: ChatAreaProps) {
   const messages = useChatStore(s => s.messages);
@@ -19,6 +22,33 @@ export function ChatArea({ isGuest = false, onSignIn }: ChatAreaProps) {
   const clearError = useChatStore(s => s.clearError);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { t } = useTranslation();
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  // Reset visible count when conversation changes
+  const prevConversationId = useRef<string | null>(null);
+  const currentConversationId = useChatStore(s => s.currentConversationId);
+  useEffect(() => {
+    if (currentConversationId !== prevConversationId.current) {
+      prevConversationId.current = currentConversationId;
+      setVisibleCount(PAGE_SIZE);
+    }
+  }, [currentConversationId]);
+
+  // Auto-increase visible count when new messages arrive
+  useEffect(() => {
+    setVisibleCount(prev => Math.max(prev, messages.length));
+  }, [messages.length]);
+
+  const visibleMessages = useMemo(() => {
+    if (messages.length <= visibleCount) return messages;
+    return messages.slice(messages.length - visibleCount);
+  }, [messages, visibleCount]);
+
+  const hasMore = messages.length > visibleCount;
+
+  const handleLoadMore = () => {
+    setVisibleCount(prev => Math.min(prev + PAGE_SIZE, messages.length));
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -49,21 +79,37 @@ export function ChatArea({ isGuest = false, onSignIn }: ChatAreaProps) {
           </div>
         ) : (
           <div className="max-w-[768px] lg:max-w-[960px] xl:max-w-[1200px] mx-auto">
-            {messages.map(msg => (
-              <MessageBubble key={msg.id} message={msg} />
+            {hasMore && (
+              <div className="flex justify-center py-3">
+                <button
+                  onClick={handleLoadMore}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[rgba(255,255,255,0.05)] transition-colors"
+                >
+                  <ChevronUp size={14} />
+                  {t('chat.loadMore', { count: String(Math.min(PAGE_SIZE, messages.length - visibleCount)) })}
+                </button>
+              </div>
+            )}
+
+            {visibleMessages.map(msg => (
+              <ErrorBoundary key={msg.id}>
+                <MessageBubble message={msg} />
+              </ErrorBoundary>
             ))}
 
             {isStreaming && (
-              <MessageBubble
-                message={{
-                  id: 'streaming',
-                  conversationId: '',
-                  role: 'assistant',
-                  content: streamingContent,
-                  createdAt: new Date().toISOString(),
-                }}
-                isStreaming
-              />
+              <ErrorBoundary>
+                <MessageBubble
+                  message={{
+                    id: 'streaming',
+                    conversationId: '',
+                    role: 'assistant',
+                    content: streamingContent,
+                    createdAt: new Date().toISOString(),
+                  }}
+                  isStreaming
+                />
+              </ErrorBoundary>
             )}
 
             {error && (

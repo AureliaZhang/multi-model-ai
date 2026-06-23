@@ -86,6 +86,7 @@ const en = {
   'chat.stopGenerating': 'Stop generating',
   'chat.sendMessage': 'Send message',
   'chat.aiDisclaimer': 'AI can make mistakes. Verify important information.',
+  'chat.loadMore': 'Load {count} more messages',
 
   // Message Bubble
   'message.you': 'You',

@@ -4,7 +4,7 @@
  * - Handles common LLM output quirks
  */
 export function normalizeMarkdown(content: string): string {
-  if (!content) return content;
+  if (!content) return content ?? '';
 
   const lines = content.split('\n');
   const result: string[] = [];
