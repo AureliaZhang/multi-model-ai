@@ -42,12 +42,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   fetchConversations: async () => {
     try {
       const res = await conversationApi.list();
-      console.log('[fetchConversations] API response:', res.success, 'conversations:', res.data?.length);
       if (res.success && res.data) {
         const conversations = res.data;
         const lastConvId = localStorage.getItem('last_conversation_id');
         const hasValidLast = lastConvId && conversations.some(c => c.id === lastConvId);
-        console.log('[fetchConversations] lastConvId:', lastConvId, 'hasValidLast:', hasValidLast, 'currentConvId:', get().currentConversationId);
 
         // Clear stale localStorage if the conversation no longer exists
         if (lastConvId && !hasValidLast) {
@@ -57,17 +55,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set({ conversations });
 
         // Auto-select last active conversation after refresh
+        // Only select if no conversation is currently selected (prevents double-select in StrictMode)
         if (!get().currentConversationId) {
-          if (hasValidLast) {
-            console.log('[fetchConversations] Selecting last conversation:', lastConvId);
-            await get().selectConversation(lastConvId!);
-          } else if (conversations.length > 0) {
-            console.log('[fetchConversations] Selecting first conversation:', conversations[0].id);
-            await get().selectConversation(conversations[0].id);
+          const targetId = hasValidLast ? lastConvId! : (conversations.length > 0 ? conversations[0].id : null);
+          if (targetId) {
+            await get().selectConversation(targetId);
           }
         }
-      } else {
-        console.error('[fetchConversations] API returned failure:', res.error);
       }
     } catch (err: any) {
       console.error('[fetchConversations] Failed:', err);
@@ -107,7 +101,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Reload messages if we switched conversation
     const { currentConversationId } = get();
     if (currentConversationId) {
-      get().selectConversation(currentConversationId);
+      await get().selectConversation(currentConversationId);
     } else {
       set({ messages: [], currentVisibility: 'public', currentSelfReview: false });
     }
@@ -122,16 +116,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (conv) {
         set({ currentVisibility: conv.visibility, currentSelfReview: conv.selfReview });
       }
-      const res = await conversationApi.getMessages(id);
+
+      // Load messages
+      let res = await conversationApi.getMessages(id);
+      console.log('[selectConversation] getMessages result:', { success: res.success, dataLen: res.data?.length, error: res.error });
+
+      // Retry once on failure
+      if (!res.success || !res.data) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+        res = await conversationApi.getMessages(id);
+        console.log('[selectConversation] retry result:', { success: res.success, dataLen: res.data?.length, error: res.error });
+      }
+
+      // Guard: only update state if this conversation is still the active one
+      // (prevents race condition from React StrictMode double-mount)
+      if (get().currentConversationId !== id) {
+        console.log('[selectConversation] Aborted: conversation changed');
+        return;
+      }
+
       if (res.success && res.data) {
-        set({ messages: res.data });
+        set({ messages: res.data, error: null });
       } else {
-        console.error('[selectConversation] getMessages failed:', res.error || 'Unknown error');
         set({ error: res.error || 'Failed to load messages' });
       }
     } catch (err: any) {
-      console.error('[selectConversation] Error:', err.message);
-      set({ error: err.message });
+      if (get().currentConversationId !== id) return;
+      set({ error: err.message || 'Failed to load conversation' });
     }
   },
 

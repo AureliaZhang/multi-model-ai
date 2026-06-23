@@ -130,6 +130,7 @@ router.get('/:id/messages', (req: Request, res: Response) => {
 
     const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(id) as any;
     if (!conv) {
+      console.warn('[getMessages] Conversation not found:', id);
       return res.status(404).json({ success: false, error: 'Conversation not found' });
     }
 
@@ -143,8 +144,10 @@ router.get('/:id/messages', (req: Request, res: Response) => {
       createdAt: r.created_at,
     }));
 
+    console.log(`[getMessages] conv=${id} messages=${messages.length}`);
     res.json({ success: true, data: messages } as ApiResponse);
   } catch (err: any) {
+    console.error('[getMessages] Error:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });

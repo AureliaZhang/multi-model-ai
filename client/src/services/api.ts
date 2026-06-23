@@ -35,10 +35,15 @@ async function request<T>(url: string, options?: RequestInit): Promise<ApiRespon
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  const res = await fetch(`${BASE_URL}${url}`, {
-    ...options,
-    headers,
-  });
+
+  const fullUrl = `${BASE_URL}${url}`;
+  let res: Response;
+  try {
+    res = await fetch(fullUrl, { ...options, headers });
+  } catch (fetchErr: any) {
+    console.error(`[request] Fetch failed for ${fullUrl}:`, fetchErr.message);
+    return { success: false, error: `Network error: ${fetchErr.message}` } as ApiResponse<T>;
+  }
 
   // Global 401 handling: token is invalid (user deleted, DB wiped, etc.)
   if (res.status === 401 && token) {
@@ -48,7 +53,13 @@ async function request<T>(url: string, options?: RequestInit): Promise<ApiRespon
     return { success: false, error: 'Session expired. Please log in again.' } as ApiResponse<T>;
   }
 
-  return res.json() as Promise<ApiResponse<T>>;
+  try {
+    const data = await res.json();
+    return data as ApiResponse<T>;
+  } catch (jsonErr: any) {
+    console.error(`[request] JSON parse failed for ${fullUrl} (status ${res.status}):`, jsonErr.message);
+    return { success: false, error: `Invalid response from server (HTTP ${res.status})` } as ApiResponse<T>;
+  }
 }
 
 // --- Stations ---
