@@ -326,6 +326,24 @@ const en = {
   'regex.testInputPlaceholder': 'Enter text to test the regex against...',
   'regex.testResult': 'Result',
   'regex.matches': 'match(es)',
+
+  // Guide
+  'guide.step1Title': 'Welcome to AI Assistant',
+  'guide.step1Desc': 'This is your personal AI assistant platform.\nYou can chat with multiple AI models, manage files, and let AI remember your preferences.\n\nLet\'s take a quick tour of the main features!',
+  'guide.step2Title': 'Choose Your Model',
+  'guide.step2Desc': 'Use the model selector at the top of the chat to switch between different AI models.\n\nDifferent models have different strengths — try them out to find your favorite!',
+  'guide.step3Title': 'Manage Conversations',
+  'guide.step3Desc': 'Your conversation history is saved in the sidebar on the left.\n\nYou can create new chats, rename them, delete old ones, and toggle visibility settings.',
+  'guide.step4Title': 'Attach Files & Images',
+  'guide.step4Desc': 'Click the attachment button or drag files into the chat input to send images, documents, and more.\n\nThe AI can read and analyze your attachments!',
+  'guide.step5Title': 'Self-Review Mode',
+  'guide.step5Desc': 'Enable self-review to let the AI double-check its own responses before sending.\n\nThis helps catch errors and improve answer quality. Toggle it per conversation in the sidebar.',
+  'guide.step6Title': 'File Library',
+  'guide.step6Desc': 'Upload documents to your personal file library. The AI can search and reference them during conversations.\n\nAccess it from the sidebar menu.',
+  'guide.prev': 'Previous',
+  'guide.next': 'Next',
+  'guide.gotIt': 'Got it!',
+  'guide.helpTooltip': 'User Guide',
 };
 
 export default en;

@@ -5,10 +5,11 @@ import { SettingsPage } from '../settings/SettingsPage';
 import { UserManagement } from '../admin/UserManagement';
 import { MemoryBrowser } from '../memory/MemoryBrowser';
 import { FileBrowser } from '../files/FileBrowser';
+import { GuideOverlay } from '../guide/GuideOverlay';
 import { useModelStore } from '../../stores/modelStore';
 import { useChatStore } from '../../stores/chatStore';
 import { useTranslation } from '../../i18n';
-import { PanelLeft } from 'lucide-react';
+import { PanelLeft, CircleHelp } from 'lucide-react';
 
 interface LayoutProps {
   isGuest?: boolean;
@@ -21,6 +22,7 @@ type PageView = 'chat' | 'settings' | 'users' | 'memory' | 'files';
 export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
   const [page, setPage] = useState<PageView>('chat');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showGuide, setShowGuide] = useState(false);
   const fetchModels = useModelStore(s => s.fetchModels);
   const fetchConversations = useChatStore(s => s.fetchConversations);
   const { t } = useTranslation();
@@ -29,6 +31,11 @@ export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
     fetchModels();
     if (!isGuest) {
       fetchConversations();
+    }
+    // Auto-show guide for newly registered users
+    if (localStorage.getItem('showGuide') === 'true') {
+      localStorage.removeItem('showGuide');
+      setShowGuide(true);
     }
   }, [fetchModels, fetchConversations, isGuest]);
 
@@ -77,7 +84,19 @@ export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
           </button>
         )}
         <ChatArea isGuest={isGuest} onSignIn={onSignIn} />
+
+        {/* Persistent help/guide icon */}
+        <button
+          onClick={() => setShowGuide(true)}
+          className="fixed bottom-4 right-4 z-20 w-9 h-9 rounded-full bg-[var(--color-accent-main)] hover:opacity-90 text-white shadow-lg flex items-center justify-center transition-all hover:scale-105"
+          title={t('guide.helpTooltip')}
+        >
+          <CircleHelp size={18} />
+        </button>
       </div>
+
+      {/* Onboarding Guide Overlay */}
+      {showGuide && <GuideOverlay onClose={() => setShowGuide(false)} />}
     </div>
   );
 }

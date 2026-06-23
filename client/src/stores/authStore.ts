@@ -64,6 +64,8 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
       if (res.success && res.data) {
         setToken(res.data.token);
         set({ user: res.data.user, isAuthenticated: true, error: null });
+        // Flag new user for onboarding guide
+        localStorage.setItem('showGuide', 'true');
       } else {
         set({ error: res.error || 'Registration failed' });
       }

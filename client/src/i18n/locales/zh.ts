@@ -326,6 +326,24 @@ const zh = {
   'regex.testInputPlaceholder': '输入要测试的文本...',
   'regex.testResult': '结果',
   'regex.matches': '个匹配',
+
+  // 新手引导
+  'guide.step1Title': '欢迎使用 AI 助手',
+  'guide.step1Desc': '这是你的个人 AI 助手平台。\n你可以与多种 AI 模型对话、管理文件，还能让 AI 记住你的偏好。\n\n让我们快速了解一下主要功能！',
+  'guide.step2Title': '选择模型',
+  'guide.step2Desc': '在聊天窗口顶部的模型选择器中，可以切换不同的 AI 模型。\n\n不同模型各有所长，试试看找到最适合你的！',
+  'guide.step3Title': '管理对话',
+  'guide.step3Desc': '左侧边栏会保存你的对话历史。\n\n你可以新建对话、重命名、删除旧对话，还可以设置可见性。',
+  'guide.step4Title': '附加文件和图片',
+  'guide.step4Desc': '点击附件按钮或将文件拖入聊天输入框，即可发送图片、文档等。\n\nAI 可以读取和分析你的附件！',
+  'guide.step5Title': '自我审查模式',
+  'guide.step5Desc': '开启自我审查后，AI 会在回复前对自己的回答进行二次检查。\n\n这有助于减少错误、提高回答质量。在侧边栏中可以为每个对话单独开启。',
+  'guide.step6Title': '文件库',
+  'guide.step6Desc': '将文档上传到你的个人文件库，AI 在对话中可以搜索和引用这些文件。\n\n从侧边栏菜单中进入。',
+  'guide.prev': '上一步',
+  'guide.next': '下一步',
+  'guide.gotIt': '知道了！',
+  'guide.helpTooltip': '使用指南',
 };
 
 export default zh;
