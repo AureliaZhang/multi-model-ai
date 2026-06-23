@@ -32,6 +32,7 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMe
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const handleNewChat = () => {
+    localStorage.removeItem('last_conversation_id');
     useChatStore.setState({ currentConversationId: null, messages: [] });
   };
 

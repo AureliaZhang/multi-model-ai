@@ -43,7 +43,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       const res = await conversationApi.list();
       if (res.success && res.data) {
-        set({ conversations: res.data });
+        const conversations = res.data;
+        const lastConvId = localStorage.getItem('last_conversation_id');
+        const hasValidLast = lastConvId && conversations.some(c => c.id === lastConvId);
+
+        set({ conversations });
+
+        // Auto-select last active conversation after refresh
+        if (hasValidLast && !get().currentConversationId) {
+          get().selectConversation(lastConvId);
+        } else if (!lastConvId && conversations.length > 0 && !get().currentConversationId) {
+          get().selectConversation(conversations[0].id);
+        }
       }
     } catch (err: any) {
       console.error('Failed to fetch conversations:', err);
@@ -58,6 +69,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       selfReview: selfReview !== undefined ? selfReview : get().currentSelfReview,
     });
     if (res.success && res.data) {
+      localStorage.setItem('last_conversation_id', res.data!.id);
       set(state => ({
         conversations: [res.data!, ...state.conversations],
         currentConversationId: res.data!.id,
@@ -89,6 +101,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   selectConversation: async (id: string) => {
+    localStorage.setItem('last_conversation_id', id);
     set({ currentConversationId: id, messages: [], error: null });
     try {
       // Find conversation in local state to set visibility/selfReview
