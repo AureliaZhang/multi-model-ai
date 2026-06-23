@@ -47,13 +47,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const lastConvId = localStorage.getItem('last_conversation_id');
         const hasValidLast = lastConvId && conversations.some(c => c.id === lastConvId);
 
+        // Clear stale localStorage if the conversation no longer exists
+        if (lastConvId && !hasValidLast) {
+          localStorage.removeItem('last_conversation_id');
+        }
+
         set({ conversations });
 
         // Auto-select last active conversation after refresh
-        if (hasValidLast && !get().currentConversationId) {
-          get().selectConversation(lastConvId);
-        } else if (!lastConvId && conversations.length > 0 && !get().currentConversationId) {
-          get().selectConversation(conversations[0].id);
+        if (!get().currentConversationId) {
+          if (hasValidLast) {
+            get().selectConversation(lastConvId!);
+          } else if (conversations.length > 0) {
+            get().selectConversation(conversations[0].id);
+          }
         }
       }
     } catch (err: any) {
