@@ -47,6 +47,7 @@ async function request<T>(url: string, options?: RequestInit): Promise<ApiRespon
 
   // Global 401 handling: token is invalid (user deleted, DB wiped, etc.)
   if (res.status === 401 && token) {
+    console.warn(`[request] 401 for ${fullUrl} — removing token and reloading`);
     removeToken();
     // Reload the page to show login screen
     window.location.reload();
@@ -55,6 +56,7 @@ async function request<T>(url: string, options?: RequestInit): Promise<ApiRespon
 
   try {
     const data = await res.json();
+    console.log(`[request] ${options?.method || 'GET'} ${url} → ${res.status} success=${data?.success} dataLen=${Array.isArray(data?.data) ? data.data.length : 'N/A'}`);
     return data as ApiResponse<T>;
   } catch (jsonErr: any) {
     console.error(`[request] JSON parse failed for ${fullUrl} (status ${res.status}):`, jsonErr.message);

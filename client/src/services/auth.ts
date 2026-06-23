@@ -31,11 +31,23 @@ async function authRequest<T>(url: string, options?: RequestInit): Promise<ApiRe
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  const res = await fetch(`${BASE_URL}${url}`, {
-    ...options,
-    headers,
-  });
-  return res.json() as Promise<ApiResponse<T>>;
+
+  const fullUrl = `${BASE_URL}${url}`;
+  let res: Response;
+  try {
+    res = await fetch(fullUrl, { ...options, headers });
+  } catch (fetchErr: any) {
+    console.error(`[authRequest] Fetch failed for ${fullUrl}:`, fetchErr.message);
+    return { success: false, error: `Network error: ${fetchErr.message}` } as ApiResponse<T>;
+  }
+
+  try {
+    const data = await res.json();
+    return data as ApiResponse<T>;
+  } catch (jsonErr: any) {
+    console.error(`[authRequest] JSON parse failed for ${fullUrl} (status ${res.status}):`, jsonErr.message);
+    return { success: false, error: `Invalid response from server (HTTP ${res.status})` } as ApiResponse<T>;
+  }
 }
 
 // --- Auth API ---

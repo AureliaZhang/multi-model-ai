@@ -41,7 +41,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   fetchConversations: async () => {
     try {
+      console.log('[chatStore] fetchConversations called, currentConversationId:', get().currentConversationId);
       const res = await conversationApi.list();
+      console.log('[chatStore] conversationApi.list result:', { success: res.success, dataLen: res.data?.length, error: res.error });
       if (res.success && res.data) {
         const conversations = res.data;
         const lastConvId = localStorage.getItem('last_conversation_id');
@@ -56,15 +58,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         // Auto-select last active conversation after refresh
         // Only select if no conversation is currently selected (prevents double-select in StrictMode)
-        if (!get().currentConversationId) {
+        const currentId = get().currentConversationId;
+        if (!currentId) {
           const targetId = hasValidLast ? lastConvId! : (conversations.length > 0 ? conversations[0].id : null);
+          console.log('[chatStore] Auto-selecting conversation:', targetId);
           if (targetId) {
             await get().selectConversation(targetId);
           }
+        } else {
+          console.log('[chatStore] Conversation already selected, skipping auto-select:', currentId);
         }
+      } else {
+        console.warn('[chatStore] fetchConversations: API returned unsuccessful:', res.error);
       }
     } catch (err: any) {
-      console.error('[fetchConversations] Failed:', err);
+      console.error('[chatStore] fetchConversations Failed:', err);
     }
   },
 
@@ -108,8 +116,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   selectConversation: async (id: string) => {
+    const prevId = get().currentConversationId;
+    const isSwitching = prevId !== id;
+    console.log(`[chatStore] selectConversation(${id}) prevId=${prevId} isSwitching=${isSwitching} messagesLen=${get().messages.length}`);
+
     localStorage.setItem('last_conversation_id', id);
-    set({ currentConversationId: id, messages: [], error: null });
+    // Only clear messages if switching to a DIFFERENT conversation
+    // Don't clear if re-selecting the same one (prevents StrictMode double-mount from blanking the screen)
+    set({ currentConversationId: id, error: null, ...(isSwitching ? { messages: [] } : {}) });
+
     try {
       // Find conversation in local state to set visibility/selfReview
       const conv = get().conversations.find(c => c.id === id);
@@ -119,29 +134,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       // Load messages
       let res = await conversationApi.getMessages(id);
-      console.log('[selectConversation] getMessages result:', { success: res.success, dataLen: res.data?.length, error: res.error });
+      console.log(`[chatStore] getMessages(${id}) result:`, { success: res.success, dataLen: res.data?.length, error: res.error });
 
       // Retry once on failure
       if (!res.success || !res.data) {
+        console.log(`[chatStore] Retrying getMessages after 300ms...`);
         await new Promise(resolve => setTimeout(resolve, 300));
         res = await conversationApi.getMessages(id);
-        console.log('[selectConversation] retry result:', { success: res.success, dataLen: res.data?.length, error: res.error });
+        console.log(`[chatStore] Retry getMessages result:`, { success: res.success, dataLen: res.data?.length, error: res.error });
       }
 
       // Guard: only update state if this conversation is still the active one
-      // (prevents race condition from React StrictMode double-mount)
       if (get().currentConversationId !== id) {
-        console.log('[selectConversation] Aborted: conversation changed');
+        console.warn(`[chatStore] selectConversation guard triggered: currentConversationId changed from ${id} to ${get().currentConversationId}`);
         return;
       }
 
       if (res.success && res.data) {
+        console.log(`[chatStore] Setting messages: ${res.data.length} messages for conversation ${id}`);
         set({ messages: res.data, error: null });
       } else {
+        console.error(`[chatStore] Failed to load messages:`, res.error);
         set({ error: res.error || 'Failed to load messages' });
       }
     } catch (err: any) {
       if (get().currentConversationId !== id) return;
+      console.error(`[chatStore] selectConversation error:`, err.message);
       set({ error: err.message || 'Failed to load conversation' });
     }
   },

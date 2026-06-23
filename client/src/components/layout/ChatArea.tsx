@@ -27,6 +27,7 @@ export function ChatArea({ isGuest = false, onSignIn }: ChatAreaProps) {
   // Reset visible count when conversation changes
   const prevConversationId = useRef<string | null>(null);
   const currentConversationId = useChatStore(s => s.currentConversationId);
+  console.log(`[ChatArea] render: convId=${currentConversationId} messages=${messages.length} isStreaming=${isStreaming} error=${error}`);
   useEffect(() => {
     if (currentConversationId !== prevConversationId.current) {
       prevConversationId.current = currentConversationId;
