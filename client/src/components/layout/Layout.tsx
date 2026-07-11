@@ -1,13 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
 import { ChatArea } from './ChatArea';
 import { SettingsPage } from '../settings/SettingsPage';
 import { UserManagement } from '../admin/UserManagement';
 import { MemoryBrowser } from '../memory/MemoryBrowser';
 import { FileBrowser } from '../files/FileBrowser';
+import { ArenaLayout } from '../arena/ArenaLayout';
 import { GuideOverlay } from '../guide/GuideOverlay';
+import { LanguageToggle } from './LanguageToggle';
+import { DailyModelModal } from '../prefs/DailyModelModal';
+import { ImageConfirmModal } from '../prefs/ImageConfirmModal';
 import { useModelStore } from '../../stores/modelStore';
 import { useChatStore } from '../../stores/chatStore';
+import { usePrefsStore } from '../../stores/prefsStore';
 import { useTranslation } from '../../i18n';
 import { PanelLeft, CircleHelp } from 'lucide-react';
 
@@ -17,7 +22,7 @@ interface LayoutProps {
   onSignIn?: () => void;
 }
 
-type PageView = 'chat' | 'settings' | 'users' | 'memory' | 'files';
+type PageView = 'chat' | 'settings' | 'users' | 'memory' | 'files' | 'arena';
 
 export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
   const [page, setPage] = useState<PageView>('chat');
@@ -25,37 +30,52 @@ export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
   const [showGuide, setShowGuide] = useState(false);
   const fetchModels = useModelStore(s => s.fetchModels);
   const fetchConversations = useChatStore(s => s.fetchConversations);
+  const fetchPrefs = usePrefsStore(s => s.fetchPrefs);
   const { t } = useTranslation();
 
   useEffect(() => {
     fetchModels();
     if (!isGuest) {
       fetchConversations();
+      fetchPrefs();
     }
     // Auto-show guide for newly registered users
     if (localStorage.getItem('showGuide') === 'true') {
       localStorage.removeItem('showGuide');
       setShowGuide(true);
     }
-  }, [fetchModels, fetchConversations, isGuest]);
+  }, [fetchModels, fetchConversations, fetchPrefs, isGuest]);
+
+  const withLang = (node: ReactNode) => (
+    <>
+      <LanguageToggle />
+      {!isGuest && <DailyModelModal />}
+      {!isGuest && <ImageConfirmModal />}
+      {node}
+    </>
+  );
 
   if (page === 'settings') {
-    return <SettingsPage onClose={() => setPage('chat')} />;
+    return withLang(<SettingsPage onClose={() => setPage('chat')} />);
   }
 
   if (page === 'users') {
-    return <UserManagement onBack={() => setPage('chat')} />;
+    return withLang(<UserManagement onBack={() => setPage('chat')} />);
   }
 
   if (page === 'memory') {
-    return <MemoryBrowser onClose={() => setPage('chat')} />;
+    return withLang(<MemoryBrowser onClose={() => setPage('chat')} />);
   }
 
   if (page === 'files') {
-    return <FileBrowser onClose={() => setPage('chat')} />;
+    return withLang(<FileBrowser onClose={() => setPage('chat')} />);
   }
 
-  return (
+  if (page === 'arena') {
+    return withLang(<ArenaLayout onClose={() => setPage('chat')} />);
+  }
+
+  return withLang(
     <div className="flex h-full w-full overflow-hidden">
       {/* Sidebar */}
       {sidebarOpen && (
@@ -66,6 +86,7 @@ export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
             onOpenUsers={() => setPage('users')}
             onOpenMemory={() => setPage('memory')}
             onOpenFiles={() => setPage('files')}
+            onOpenArena={() => setPage('arena')}
             onToggleSidebar={() => setSidebarOpen(false)}
             onLogout={onLogout}
           />

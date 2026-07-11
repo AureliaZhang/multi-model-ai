@@ -328,3 +328,187 @@ export interface RegexExportData {
     order: number;
   }[];
 }
+
+// --- Arena (admin battle / eval) ---
+
+export interface ArenaModelRow {
+  normalizedName: string;
+  displayName: string;
+  capabilities: ModelCapability[];
+  stationCount: number;
+  eligibleBattle: boolean;
+  eligibleBenchmark: boolean;
+  tags: string[];
+  notes: string | null;
+  isActive: boolean;
+  hasProfile: boolean;
+}
+
+export type BattleStatus =
+  | 'pending'
+  | 'running'
+  | 'awaiting_selection'
+  | 'completed'
+  | 'cancelled'
+  | 'failed';
+
+export interface BattleCandidate {
+  id: string;
+  sessionId: string;
+  modelNormalizedName: string;
+  stationId?: string | null;
+  position: number;
+  status: 'pending' | 'streaming' | 'done' | 'error';
+  content?: string | null;
+  errorMessage?: string | null;
+  latencyMs?: number | null;
+  modelUsed?: string | null;
+  finishedAt?: string | null;
+  _hidden?: boolean;
+}
+
+export interface BattleSelection {
+  id: string;
+  sessionId: string;
+  selectedCandidateId: string;
+  selectedModelNormalizedName: string;
+  selectorUserId?: string;
+  createdAt: string;
+}
+
+export interface BattleDetail {
+  id: string;
+  questionText: string;
+  promptId?: string | null;
+  status: BattleStatus;
+  revealMode: 'hidden_until_pick' | 'always_show_names';
+  createdBy?: string;
+  createdAt: string;
+  completedAt?: string | null;
+  candidates: BattleCandidate[];
+  selection: BattleSelection | null;
+}
+
+export interface BattleListItem {
+  id: string;
+  questionText: string;
+  status: BattleStatus;
+  revealMode: string;
+  createdBy?: string;
+  createdAt: string;
+  completedAt?: string | null;
+  selectedModel?: string | null;
+  candidateCount: number;
+}
+
+export interface LeaderboardRow {
+  modelNormalizedName: string;
+  appearances: number;
+  selections: number;
+  selectionRate: number;
+  successCount: number;
+  errorCount: number;
+  avgLatencyMs: number | null;
+}
+
+export interface ArenaStatsSummary {
+  totalBattles: number;
+  completedBattles: number;
+  awaitingSelection: number;
+  totalSelections: number;
+  battlesToday: number;
+  topSelected: { model: string; selections: number }[];
+  promptCount?: number;
+  setCount?: number;
+  experimentCount?: number;
+  benchmarkRunCount?: number;
+}
+
+export interface ArenaPrompt {
+  id: string;
+  title: string;
+  body: string;
+  systemPrompt?: string | null;
+  tags: string[];
+  createdBy?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+  position?: number;
+}
+
+export interface ArenaPromptSet {
+  id: string;
+  name: string;
+  description?: string | null;
+  createdBy?: string;
+  createdAt: string;
+  promptCount?: number;
+  prompts?: ArenaPrompt[];
+}
+
+export interface PromptExperimentCell {
+  id: string;
+  experimentId: string;
+  promptBody: string;
+  systemPrompt?: string | null;
+  modelNormalizedName: string;
+  content?: string | null;
+  status: 'pending' | 'done' | 'error';
+  latencyMs?: number | null;
+  errorMessage?: string | null;
+  modelUsed?: string | null;
+  selected: boolean;
+  finishedAt?: string | null;
+}
+
+export interface PromptExperiment {
+  id: string;
+  mode: 'multi_model' | 'multi_prompt';
+  title?: string | null;
+  status: string;
+  createdBy?: string;
+  createdAt: string;
+  completedAt?: string | null;
+  cells: PromptExperimentCell[];
+  cellCount?: number;
+}
+
+export interface BenchmarkCaseResult {
+  id: string;
+  runId: string;
+  promptId: string;
+  modelNormalizedName: string;
+  status: 'pending' | 'done' | 'error' | 'skipped';
+  content?: string | null;
+  latencyMs?: number | null;
+  errorMessage?: string | null;
+  modelUsed?: string | null;
+  manualVerdict: 'unset' | 'pass' | 'fail' | 'skip';
+  finishedAt?: string | null;
+  promptTitle?: string;
+  promptBody?: string;
+}
+
+export interface BenchmarkRun {
+  id: string;
+  setId: string;
+  setName?: string;
+  name?: string | null;
+  status: string;
+  models: string[];
+  createdBy?: string;
+  createdAt: string;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  caseCount?: number;
+  doneCount?: number;
+  results?: BenchmarkCaseResult[];
+  summary?: {
+    total: number;
+    done: number;
+    error: number;
+    pending: number;
+    pass: number;
+    fail: number;
+  };
+}

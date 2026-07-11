@@ -13,6 +13,9 @@ import userRoutes from './routes/users';
 import mcpRoutes from './routes/mcp';
 import fileRoutes from './routes/files';
 import regexRoutes from './routes/regex';
+import arenaRoutes from './routes/arena';
+import prefsRoutes from './routes/prefs';
+import mediaRoutes from './routes/media';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -37,6 +40,9 @@ app.use('/api/memories', memoryRoutes);
 app.use('/api/mcp', mcpRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/regex', regexRoutes);
+app.use('/api/arena', arenaRoutes);
+app.use('/api/prefs', prefsRoutes);
+app.use('/api/media', mediaRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {

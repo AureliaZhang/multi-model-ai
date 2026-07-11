@@ -21,6 +21,15 @@ import type {
   RegexPreset,
   RegexTestResult,
   RegexExportData,
+  ArenaModelRow,
+  BattleDetail,
+  BattleListItem,
+  LeaderboardRow,
+  ArenaStatsSummary,
+  ArenaPrompt,
+  ArenaPromptSet,
+  PromptExperiment,
+  BenchmarkRun,
 } from '../types';
 import { getToken, removeToken } from './auth';
 
@@ -400,4 +409,126 @@ export const regexApi = {
     }),
   testRegex: (pattern: string, flags: string, replacement: string, text: string) =>
     request<RegexTestResult>(`/regex/test?pattern=${encodeURIComponent(pattern)}&flags=${encodeURIComponent(flags)}&replacement=${encodeURIComponent(replacement)}&text=${encodeURIComponent(text)}`),
+};
+
+// --- Arena (admin) ---
+export const arenaApi = {
+  listModels: () => request<ArenaModelRow[]>('/arena/models'),
+  updateModel: (
+    normalizedName: string,
+    data: Partial<{
+      displayLabel: string;
+      eligibleBattle: boolean;
+      eligibleBenchmark: boolean;
+      tags: string[];
+      notes: string | null;
+      isActive: boolean;
+      sortOrder: number;
+    }>
+  ) =>
+    request(`/arena/models/${encodeURIComponent(normalizedName)}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  createBattle: (data: {
+    question: string;
+    models: string[];
+    revealMode?: 'hidden_until_pick' | 'always_show_names';
+    runImmediately?: boolean;
+  }) =>
+    request<BattleDetail>('/arena/battles', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getBattle: (id: string) => request<BattleDetail>(`/arena/battles/${id}`),
+  listBattles: (limit = 50, offset = 0) =>
+    request<{ items: BattleListItem[]; total: number; limit: number; offset: number }>(
+      `/arena/battles?limit=${limit}&offset=${offset}`
+    ),
+  selectCandidate: (battleId: string, candidateId: string) =>
+    request<BattleDetail>(`/arena/battles/${battleId}/select`, {
+      method: 'POST',
+      body: JSON.stringify({ candidateId }),
+    }),
+  leaderboard: (from?: string, to?: string) => {
+    const q = new URLSearchParams();
+    if (from) q.set('from', from);
+    if (to) q.set('to', to);
+    const qs = q.toString();
+    return request<LeaderboardRow[]>(`/arena/leaderboard${qs ? `?${qs}` : ''}`);
+  },
+  statsSummary: () => request<ArenaStatsSummary>('/arena/stats/summary'),
+
+  // prompts
+  listPrompts: () => request<ArenaPrompt[]>('/arena/prompts'),
+  createPrompt: (data: { title: string; body: string; systemPrompt?: string; tags?: string[] }) =>
+    request<ArenaPrompt>('/arena/prompts', { method: 'POST', body: JSON.stringify(data) }),
+  updatePrompt: (id: string, data: Partial<{ title: string; body: string; systemPrompt: string | null; tags: string[] }>) =>
+    request<ArenaPrompt>(`/arena/prompts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deletePrompt: (id: string) => request(`/arena/prompts/${id}`, { method: 'DELETE' }),
+
+  // prompt sets
+  listPromptSets: () => request<ArenaPromptSet[]>('/arena/prompt-sets'),
+  getPromptSet: (id: string) => request<ArenaPromptSet>(`/arena/prompt-sets/${id}`),
+  createPromptSet: (data: { name: string; description?: string; promptIds?: string[] }) =>
+    request<ArenaPromptSet>('/arena/prompt-sets', { method: 'POST', body: JSON.stringify(data) }),
+  updatePromptSet: (id: string, data: { name?: string; description?: string | null; promptIds?: string[] }) =>
+    request<ArenaPromptSet>(`/arena/prompt-sets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deletePromptSet: (id: string) => request(`/arena/prompt-sets/${id}`, { method: 'DELETE' }),
+
+  // prompt lab
+  createExperiment: (data: Record<string, unknown>) =>
+    request<PromptExperiment>('/arena/prompt-experiments', { method: 'POST', body: JSON.stringify(data) }),
+  listExperiments: (limit = 50) =>
+    request<PromptExperiment[]>(`/arena/prompt-experiments?limit=${limit}`),
+  getExperiment: (id: string) => request<PromptExperiment>(`/arena/prompt-experiments/${id}`),
+  selectExperimentCell: (experimentId: string, cellId: string) =>
+    request<PromptExperiment>(`/arena/prompt-experiments/${experimentId}/select-cell`, {
+      method: 'POST',
+      body: JSON.stringify({ cellId }),
+    }),
+
+  // benchmarks
+  createBenchmarkRun: (data: {
+    setId: string;
+    models: string[];
+    name?: string;
+    runImmediately?: boolean;
+    async?: boolean;
+  }) =>
+    request<BenchmarkRun>('/arena/benchmarks/runs', { method: 'POST', body: JSON.stringify(data) }),
+  listBenchmarkRuns: (limit = 50) =>
+    request<BenchmarkRun[]>(`/arena/benchmarks/runs?limit=${limit}`),
+  getBenchmarkRun: (id: string) => request<BenchmarkRun>(`/arena/benchmarks/runs/${id}`),
+  setBenchmarkVerdict: (resultId: string, manualVerdict: 'unset' | 'pass' | 'fail' | 'skip') =>
+    request<BenchmarkRun>(`/arena/benchmarks/results/${resultId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ manualVerdict }),
+    }),
+
+  /** Download CSV with auth header (returns blob URL helper) */
+  downloadExport: async (path: string, filename: string) => {
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${BASE_URL}${path}`, { headers });
+    if (res.status === 401 && token) {
+      removeToken();
+      window.location.reload();
+      return;
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error((err as any).error || 'Export failed');
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
 };

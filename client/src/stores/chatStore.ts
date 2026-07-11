@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Conversation, ConversationVisibility, Message, PendingAttachment, ToolCallInfo } from '../types';
 import { conversationApi, streamChat } from '../services/api';
+import { synthesizeSpeech, usePrefsStore } from './prefsStore';
 
 // Generation counter to prevent stale selectConversation results from being applied.
 // Each call to selectConversation increments this; only the latest call's result is used.
@@ -269,6 +270,42 @@ export const useChatStore = create<ChatState>((set, get) => ({
           }));
           // Refresh conversation list to update title
           get().fetchConversations();
+
+          // Auto TTS: speak assistant text with user-selected TTS model (OpenAI-compatible)
+          try {
+            const prefs = usePrefsStore.getState().prefs;
+            if (prefs?.autoTts && prefs.ttsModel && streamingContent.trim()) {
+              const speakText = streamingContent.replace(/```[\s\S]*?```/g, ' ').slice(0, 3000);
+              synthesizeSpeech(prefs.ttsModel, speakText).then((ttsRes) => {
+                if (ttsRes.success && ttsRes.data?.dataUrl) {
+                  const audioMsg: Message = {
+                    id: `tts-${Date.now()}`,
+                    conversationId: convId,
+                    role: 'assistant',
+                    content: '',
+                    attachments: [{
+                      id: `tts-att-${Date.now()}`,
+                      type: 'file',
+                      filename: 'speech.mp3',
+                      mimeType: ttsRes.data.mimeType || 'audio/mpeg',
+                      url: ttsRes.data.dataUrl,
+                    }],
+                    modelUsed: ttsRes.data.modelUsed,
+                    createdAt: new Date().toISOString(),
+                  };
+                  set((state) => ({ messages: [...state.messages, audioMsg] }));
+                  try {
+                    const a = new Audio(ttsRes.data.dataUrl);
+                    a.play().catch(() => undefined);
+                  } catch {
+                    /* ignore */
+                  }
+                }
+              }).catch(() => undefined);
+            }
+          } catch {
+            /* prefs optional */
+          }
         },
         // onReviewedContent — replaces streaming content with self-reviewed version
         onReviewedContent: (reviewedContent: string) => {

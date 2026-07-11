@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useChatStore } from '../../stores/chatStore';
 import { useModelStore } from '../../stores/modelStore';
+import { usePrefsStore, detectImageIntent } from '../../stores/prefsStore';
 import { Send, Paperclip, Square, LogIn, X, FileIcon, Globe, Lock, Eye, EyeOff } from 'lucide-react';
 import type { PendingAttachment } from '../../types';
 import { useTranslation } from '../../i18n';
@@ -112,7 +113,20 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
     if (!trimmed && attachments.length === 0) return;
     if (isStreaming) return;
 
-    const model = selectedModel || models[0]?.normalizedName;
+    // Image intent → confirm modal (do not call chat)
+    if (trimmed && detectImageIntent(trimmed) && attachments.length === 0) {
+      const prefs = usePrefsStore.getState().prefs;
+      if (prefs?.imageModel) {
+        usePrefsStore.getState().openImageConfirm(trimmed);
+        setInput('');
+        if (textareaRef.current) textareaRef.current.style.height = 'auto';
+        return;
+      }
+    }
+
+    // Prefer user default chat model from prefs
+    const prefsChat = usePrefsStore.getState().prefs?.chatModel;
+    const model = prefsChat || selectedModel || models[0]?.normalizedName;
     if (!model) {
       alert(t('model.noModels') + ' ' + t('model.addStationFirst'));
       return;
@@ -131,7 +145,7 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  }, [input, isStreaming, selectedModel, models, sendMessage, isGuest, attachments, t]);
+  }, [input, isStreaming, selectedModel, models, sendMessage, isGuest, attachments, selectedFileIds, t]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

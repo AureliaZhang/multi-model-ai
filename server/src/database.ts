@@ -306,6 +306,195 @@ function initTables(db: Database.Database): void {
   try { db.exec(`ALTER TABLE memory_config ADD COLUMN embedding_api_base_url TEXT`); } catch { /* Column already exists */ }
   try { db.exec(`ALTER TABLE memory_config ADD COLUMN embedding_api_key TEXT`); } catch { /* Column already exists */ }
   try { db.exec(`ALTER TABLE memory_config ADD COLUMN embedding_model TEXT`); } catch { /* Column already exists */ }
+
+  // --- Arena (model battle / eval) tables ---
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS arena_model_profiles (
+      id TEXT PRIMARY KEY,
+      model_normalized_name TEXT NOT NULL UNIQUE,
+      display_label TEXT,
+      eligible_battle INTEGER NOT NULL DEFAULT 1,
+      eligible_benchmark INTEGER NOT NULL DEFAULT 1,
+      tags_json TEXT NOT NULL DEFAULT '[]',
+      notes TEXT,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS arena_battle_sessions (
+      id TEXT PRIMARY KEY,
+      question_text TEXT NOT NULL,
+      prompt_id TEXT,
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending','running','awaiting_selection','completed','cancelled','failed')),
+      reveal_mode TEXT NOT NULL DEFAULT 'always_show_names'
+        CHECK(reveal_mode IN ('hidden_until_pick','always_show_names')),
+      created_by TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      completed_at TEXT,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS arena_battle_candidates (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      model_normalized_name TEXT NOT NULL,
+      station_id TEXT,
+      position INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending','streaming','done','error')),
+      content TEXT,
+      error_message TEXT,
+      latency_ms INTEGER,
+      model_used TEXT,
+      finished_at TEXT,
+      FOREIGN KEY (session_id) REFERENCES arena_battle_sessions(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS arena_battle_selections (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL UNIQUE,
+      selected_candidate_id TEXT NOT NULL,
+      selected_model_normalized_name TEXT NOT NULL,
+      selector_user_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (session_id) REFERENCES arena_battle_sessions(id) ON DELETE CASCADE,
+      FOREIGN KEY (selected_candidate_id) REFERENCES arena_battle_candidates(id) ON DELETE CASCADE,
+      FOREIGN KEY (selector_user_id) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_arena_candidates_session ON arena_battle_candidates(session_id);
+    CREATE INDEX IF NOT EXISTS idx_arena_selections_model ON arena_battle_selections(selected_model_normalized_name);
+    CREATE INDEX IF NOT EXISTS idx_arena_sessions_status ON arena_battle_sessions(status);
+    CREATE INDEX IF NOT EXISTS idx_arena_sessions_created ON arena_battle_sessions(created_at);
+
+    -- Prompt library
+    CREATE TABLE IF NOT EXISTS arena_prompts (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      system_prompt TEXT,
+      tags_json TEXT NOT NULL DEFAULT '[]',
+      created_by TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS arena_prompt_sets (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      created_by TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS arena_prompt_set_items (
+      set_id TEXT NOT NULL,
+      prompt_id TEXT NOT NULL,
+      position INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (set_id, prompt_id),
+      FOREIGN KEY (set_id) REFERENCES arena_prompt_sets(id) ON DELETE CASCADE,
+      FOREIGN KEY (prompt_id) REFERENCES arena_prompts(id) ON DELETE CASCADE
+    );
+
+    -- Prompt Lab experiments
+    CREATE TABLE IF NOT EXISTS arena_prompt_experiments (
+      id TEXT PRIMARY KEY,
+      mode TEXT NOT NULL CHECK(mode IN ('multi_model','multi_prompt')),
+      title TEXT,
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending','running','completed','failed','cancelled')),
+      created_by TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      completed_at TEXT,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS arena_prompt_experiment_cells (
+      id TEXT PRIMARY KEY,
+      experiment_id TEXT NOT NULL,
+      prompt_body TEXT NOT NULL,
+      system_prompt TEXT,
+      model_normalized_name TEXT NOT NULL,
+      content TEXT,
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending','done','error')),
+      latency_ms INTEGER,
+      error_message TEXT,
+      model_used TEXT,
+      selected INTEGER NOT NULL DEFAULT 0,
+      finished_at TEXT,
+      FOREIGN KEY (experiment_id) REFERENCES arena_prompt_experiments(id) ON DELETE CASCADE
+    );
+
+    -- Benchmark runs
+    CREATE TABLE IF NOT EXISTS arena_benchmark_runs (
+      id TEXT PRIMARY KEY,
+      set_id TEXT NOT NULL,
+      name TEXT,
+      status TEXT NOT NULL DEFAULT 'queued'
+        CHECK(status IN ('queued','running','completed','failed','cancelled')),
+      model_list_json TEXT NOT NULL DEFAULT '[]',
+      created_by TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      started_at TEXT,
+      finished_at TEXT,
+      FOREIGN KEY (set_id) REFERENCES arena_prompt_sets(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS arena_benchmark_case_results (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL,
+      prompt_id TEXT NOT NULL,
+      model_normalized_name TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending','done','error','skipped')),
+      content TEXT,
+      latency_ms INTEGER,
+      error_message TEXT,
+      model_used TEXT,
+      manual_verdict TEXT NOT NULL DEFAULT 'unset'
+        CHECK(manual_verdict IN ('unset','pass','fail','skip')),
+      finished_at TEXT,
+      FOREIGN KEY (run_id) REFERENCES arena_benchmark_runs(id) ON DELETE CASCADE,
+      FOREIGN KEY (prompt_id) REFERENCES arena_prompts(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_arena_exp_cells ON arena_prompt_experiment_cells(experiment_id);
+    CREATE INDEX IF NOT EXISTS idx_arena_bench_results_run ON arena_benchmark_case_results(run_id);
+    CREATE INDEX IF NOT EXISTS idx_arena_bench_runs_status ON arena_benchmark_runs(status);
+
+    -- Per-user default models (chat / image / tts) + daily modal prefs
+    CREATE TABLE IF NOT EXISTS user_model_prefs (
+      user_id TEXT PRIMARY KEY,
+      chat_model TEXT,
+      image_model TEXT,
+      tts_model TEXT,
+      skip_daily_modal INTEGER NOT NULL DEFAULT 0,
+      last_modal_date TEXT,
+      auto_tts INTEGER NOT NULL DEFAULT 1,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Refresh capabilities for known specialty model names (seeded rows may only say ["text"])
+  try {
+    const { detectCapabilities } = require('./routes/stations');
+    const rows = db.prepare('SELECT id, model_id FROM station_models').all() as { id: string; model_id: string }[];
+    const upd = db.prepare('UPDATE station_models SET capabilities = ? WHERE id = ?');
+    for (const r of rows) {
+      const caps = detectCapabilities(r.model_id);
+      upd.run(JSON.stringify(caps), r.id);
+    }
+  } catch {
+    /* ignore if circular during first load */
+  }
 }
 
 function seedDefaultAdmin(db: Database.Database): void {

@@ -218,15 +218,37 @@ function rowToStation(row: any): Station {
 // Helper: detect model capabilities from model ID
 export function detectCapabilities(modelId: string): string[] {
   const id = modelId.toLowerCase();
-  const caps: string[] = ['text'];
+  // Pure embedding models
   if (id.includes('embedding') || id.includes('embed')) {
-    caps.push('embedding');
+    return ['embedding'];
   }
-  if (id.includes('vision') || id.includes('gpt-4o') || id.includes('claude-3')) {
+  // TTS / speech synthesis (OpenAI-compatible audio)
+  if (
+    id.includes('tts') ||
+    id.includes('speech') ||
+    id.includes('voiceclone') ||
+    id.includes('voicedesign') ||
+    id.includes('audio-speech')
+  ) {
+    return ['tts'];
+  }
+  // Image generation
+  if (
+    id.includes('dall-e') ||
+    id.includes('dalle') ||
+    id.includes('stable-diffusion') ||
+    id.includes('midjourney') ||
+    id.includes('image-gen') ||
+    id.includes('imagen') ||
+    id.includes('flux') ||
+    (id.includes('image') && !id.includes('vision'))
+  ) {
+    return ['image-gen'];
+  }
+
+  const caps: string[] = ['text'];
+  if (id.includes('vision') || id.includes('gpt-4o') || id.includes('claude-3') || id.includes('omni')) {
     caps.push('vision');
-  }
-  if (id.includes('dall-e') || id.includes('stable-diffusion') || id.includes('midjourney') || id.includes('image')) {
-    caps.push('image-gen');
   }
   if (id.includes('code') || id.includes('codex') || id.includes('coder')) {
     caps.push('code');

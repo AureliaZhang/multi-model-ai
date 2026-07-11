@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useAuthStore } from '../../stores/authStore';
-import { LogIn, Eye, EyeOff, Globe, User, Phone, Shield, UserCircle, Compass } from 'lucide-react';
+import { LogIn, Eye, EyeOff, User, Phone, Shield, UserCircle, Compass } from 'lucide-react';
 import { useTranslation } from '../../i18n';
+import { LanguageToggle } from '../layout/LanguageToggle';
 
 interface LoginPageProps {
   onSwitchToRegister: () => void;
@@ -20,7 +21,7 @@ export function LoginPage({ onSwitchToRegister, onGuestBrowse }: LoginPageProps)
   const login = useAuthStore(s => s.login);
   const serverError = useAuthStore(s => s.error);
   const clearError = useAuthStore(s => s.clearError);
-  const { t, locale, setLocale } = useTranslation();
+  const { t } = useTranslation();
 
   const error = localError || serverError;
 
@@ -63,15 +64,7 @@ export function LoginPage({ onSwitchToRegister, onGuestBrowse }: LoginPageProps)
   if (mode === 'select') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-main-surface-primary)] relative">
-        {/* Language toggle */}
-        <button
-          onClick={() => setLocale(locale === 'en' ? 'zh' : 'en')}
-          className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors text-sm"
-          title={locale === 'en' ? '切换到中文' : 'Switch to English'}
-        >
-          <Globe size={16} />
-          <span>{locale === 'en' ? '中文' : 'EN'}</span>
-        </button>
+        <LanguageToggle />
 
         <div className="w-full max-w-md px-6">
           <div className="text-center mb-10">
@@ -147,15 +140,7 @@ export function LoginPage({ onSwitchToRegister, onGuestBrowse }: LoginPageProps)
   if (mode === 'admin') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-main-surface-primary)] relative">
-        {/* Language toggle */}
-        <button
-          onClick={() => setLocale(locale === 'en' ? 'zh' : 'en')}
-          className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors text-sm"
-          title={locale === 'en' ? '切换到中文' : 'Switch to English'}
-        >
-          <Globe size={16} />
-          <span>{locale === 'en' ? '中文' : 'EN'}</span>
-        </button>
+        <LanguageToggle />
 
         <div className="w-full max-w-md px-6">
           <div className="text-center mb-8">
@@ -239,15 +224,7 @@ export function LoginPage({ onSwitchToRegister, onGuestBrowse }: LoginPageProps)
   // User login screen
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--color-main-surface-primary)] relative">
-      {/* Language toggle */}
-      <button
-        onClick={() => setLocale(locale === 'en' ? 'zh' : 'en')}
-        className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors text-sm"
-        title={locale === 'en' ? '切换到中文' : 'Switch to English'}
-      >
-        <Globe size={16} />
-        <span>{locale === 'en' ? '中文' : 'EN'}</span>
-      </button>
+        <LanguageToggle />
 
       <div className="w-full max-w-md px-6">
         <div className="text-center mb-8">

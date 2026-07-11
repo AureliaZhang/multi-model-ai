@@ -47,13 +47,17 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
           {message.attachments && message.attachments.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-2">
               {message.attachments.map(att => (
-                att.type === 'image' ? (
+                att.type === 'image' || att.mimeType?.startsWith('image/') ? (
                   <div key={att.id} className="max-w-sm rounded-lg overflow-hidden border border-[var(--color-border-light)]">
                     <img
                       src={att.url}
                       alt={att.filename}
                       className="w-full h-auto max-h-[300px] object-contain"
                     />
+                  </div>
+                ) : att.mimeType?.startsWith('audio/') || att.filename?.endsWith('.mp3') || att.filename?.endsWith('.wav') ? (
+                  <div key={att.id} className="w-full max-w-md">
+                    <audio controls src={att.url} className="w-full h-10" />
                   </div>
                 ) : (
                   <div

@@ -568,6 +568,34 @@ Steps:
 - [ ] Documentation
 - [ ] Testing (unit + integration)
 
+### Phase 7: Arena — Model Battle & Eval (管理员)
+- [x] Shared `ModelInvocation` service (non-stream completion + station failover) — `server/src/services/modelInvocation.ts`
+- [x] Admin gate (`requireAuth` + `requireRole('admin')`) on `/api/arena/*`
+- [x] Schema: `arena_model_profiles`, `arena_battle_sessions`, `arena_battle_candidates`, `arena_battle_selections`
+- [x] Battle API: create + parallel run + select-one + history
+- [x] Leaderboard (selection counts & rate) + stats summary
+- [x] Admin UI: Arena shell (Battle / History / Leaderboard / Models / Stats)
+- [x] Prompt Lab (multi_model / multi_prompt experiments + soft prefer)
+- [x] Benchmark suites / runs / manual verdict
+- [x] CSV export (leaderboard / battles / benchmark / experiment)
+- [x] Async benchmark queue (`async:true` + client poll)
+- [x] Shared concurrency limiter (`ARENA_CONCURRENCY`, mapPool)
+
+---
+
+## 10.5 Arena Product Rules (2026-07-11)
+
+| Rule | Detail |
+|------|--------|
+| Audience | **Admin only** for V1 (user/guest: no nav entry, API 403) |
+| Battle | One question → N models answer in parallel → admin **picks exactly one** answer |
+| Scoring | **None**. Metrics = selection **count** and **rate** (selections / appearances) only |
+| No | ELO, 1–10 scores, LLM-as-judge, public crowd voting (V1) |
+| Chat | Unchanged; battles do not write to memory by default |
+| Clean invoke | Arena calls skip MCP / memory / regex for comparability |
+
+API base: `/api/arena/*` (see `server/src/routes/arena.ts`).
+
 ---
 
 ## 11. Configuration File Format
@@ -601,6 +629,9 @@ settings:
 | 2026-06-15 | 0.1.0 | Initial framework document created | Roo |
 | 2026-06-15 | 0.2.0 | Added memory store (记忆库) feature: new data models (MemoryEntry, MemoryTag), API endpoints, UI components, frontend structure, and development roadmap phase | Roo |
 | 2026-06-15 | 0.3.0 | Phase 1+2+5 implementation: Full project scaffolding (Vite+React+TS, Express+SQLite), station CRUD, model pull/dedup, ChatGPT-style chat UI with streaming SSE, conversation management, model selector, memory store backend (schema, auto-save, search, context, export/import, summarize) | Roo |
+| 2026-07-11 | 0.4.0 | Arena MVP (admin): ModelInvocation service, arena tables, battle one-question-multi-answer + single pick, leaderboard by selection count/rate, admin-only UI shell | Claude |
+| 2026-07-11 | 0.5.0 | Arena Prompt Lab + Benchmark: prompt library/sets, multi-model & multi-prompt experiments, benchmark runs with manual pass/fail/skip | Claude |
+| 2026-07-11 | 0.6.0 | Arena P5: CSV exports, async benchmark runs with polling, concurrency-limited invocation pool | Claude |
 
 ---
 
