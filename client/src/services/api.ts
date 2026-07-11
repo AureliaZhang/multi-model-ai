@@ -3,6 +3,8 @@ import type {
   Station,
   CreateStationRequest,
   UpdateStationRequest,
+  StationModelRow,
+  UsageLogItem,
   AggregatedModel,
   Conversation,
   Message,
@@ -82,10 +84,41 @@ export const stationApi = {
   delete: (id: string) =>
     request(`/stations/${id}`, { method: 'DELETE' }),
   pullModels: (id: string) =>
-    request(`/stations/${id}/pull-models`, { method: 'POST' }),
+    request<StationModelRow[]>(`/stations/${id}/pull-models`, { method: 'POST' }),
   healthCheck: (id: string) =>
     request(`/stations/${id}/health-check`, { method: 'POST' }),
+  listModels: (stationId: string) =>
+    request<StationModelRow[]>(`/stations/${stationId}/models`),
+  setModelEnabled: (stationId: string, modelRowId: string, enabled: boolean) =>
+    request<StationModelRow>(`/stations/${stationId}/models/${modelRowId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ enabled }),
+    }),
+  setModelFlags: (
+    stationId: string,
+    modelRowId: string,
+    flags: { enabled?: boolean; adminEnabled?: boolean; displayName?: string }
+  ) =>
+    request<StationModelRow>(`/stations/${stationId}/models/${modelRowId}`, {
+      method: 'PUT',
+      body: JSON.stringify(flags),
+    }),
+  setModelDisplayName: (stationId: string, modelRowId: string, displayName: string) =>
+    request<StationModelRow>(`/stations/${stationId}/models/${modelRowId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ displayName }),
+    }),
+  bulkSetModelsEnabled: (
+    stationId: string,
+    flags: { enabled?: boolean; adminEnabled?: boolean },
+    modelRowIds?: string[]
+  ) =>
+    request<StationModelRow[]>(`/stations/${stationId}/models-bulk`, {
+      method: 'PUT',
+      body: JSON.stringify({ ...flags, modelRowIds }),
+    }),
 };
+
 
 // --- Models ---
 export const modelApi = {
@@ -530,5 +563,35 @@ export const arenaApi = {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+  },
+};
+
+
+// --- Usage logs (admin) ---
+export const usageApi = {
+  list: (params?: {
+    limit?: number;
+    offset?: number;
+    status?: string;
+    kind?: string;
+    username?: string;
+    from?: string;
+    to?: string;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.limit) q.set('limit', String(params.limit));
+    if (params?.offset) q.set('offset', String(params.offset));
+    if (params?.status) q.set('status', params.status);
+    if (params?.kind) q.set('kind', params.kind);
+    if (params?.username) q.set('username', params.username);
+    if (params?.from) q.set('from', params.from);
+    if (params?.to) q.set('to', params.to);
+    return request<{
+      items: UsageLogItem[];
+      total: number;
+      limit: number;
+      offset: number;
+      summary: { errors: number; totalTokens: number };
+    }>(`/usage?${q}`);
   },
 };

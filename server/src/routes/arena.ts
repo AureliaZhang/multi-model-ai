@@ -926,7 +926,7 @@ async function runExperimentCells(experimentId: string): Promise<void> {
 router.post('/prompt-experiments', async (req: AuthRequest, res: Response) => {
   try {
     const { mode, title, promptBody, systemPrompt, models, model, prompts, runImmediately = true } = req.body || {};
-    if (mode !== 'multi_model' && mode !== 'multi_prompt') {
+    if (mode !== 'multi_model' && mode !== 'multi_prompt' /* multi_prompt: API kept for history; UI removed */) {
       res.status(400).json({ success: false, error: 'mode must be multi_model or multi_prompt' });
       return;
     }

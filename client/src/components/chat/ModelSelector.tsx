@@ -1,14 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { useModelStore } from '../../stores/modelStore';
-import { ChevronDown, Eye, ImageIcon, Code, Sparkles } from 'lucide-react';
+import { ChevronDown, Eye, ImageIcon, Code, Volume2, Sparkles } from 'lucide-react';
 import { useTranslation } from '../../i18n';
 import type { ModelCapability } from '../../types';
 
-const capabilityIcons: Record<ModelCapability, React.ReactNode> = {
+const capabilityIcons: Partial<Record<ModelCapability, React.ReactNode>> = {
   text: null,
   vision: <Eye size={11} />,
   'image-gen': <ImageIcon size={11} />,
   code: <Code size={11} />,
+  tts: <Volume2 size={11} />,
 };
 
 interface ModelSelectorProps {
@@ -25,11 +26,13 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { t } = useTranslation();
 
-  const capabilityLabels: Record<ModelCapability, string> = {
+  const capabilityLabels: Partial<Record<ModelCapability, string>> = {
     text: t('model.capability.text'),
     vision: t('model.capability.vision'),
     'image-gen': t('model.capability.image-gen'),
     code: t('model.capability.code'),
+    tts: t('model.capability.tts'),
+    embedding: t('model.capability.embedding'),
   };
 
   useEffect(() => {

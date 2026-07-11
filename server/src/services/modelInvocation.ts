@@ -17,6 +17,8 @@ export interface InvokeModelOptions {
   /** Request timeout in ms (default 120_000) */
   timeoutMs?: number;
   temperature?: number;
+  /** Use admin model pool (admin_enabled) instead of public only */
+  adminPool?: boolean;
 }
 
 export interface InvokeModelSuccess {
@@ -49,13 +51,21 @@ interface StationPick {
   modelId: string;
 }
 
-export function getStationsForModel(normalizedName: string): StationPick[] {
+export function getStationsForModel(
+  normalizedName: string,
+  opts?: { adminPool?: boolean }
+): StationPick[] {
   const db = getDb();
+  // adminPool: allow admin-selected models; otherwise only public (enabled)
+  const poolFilter = opts?.adminPool
+    ? 'COALESCE(sm.admin_enabled, 1) = 1'
+    : 'sm.enabled = 1';
+
   const rows = db.prepare(`
     SELECT sm.model_id, s.id, s.name, s.base_url, s.api_key, s.health_status, s.enabled
     FROM station_models sm
     JOIN stations s ON sm.station_id = s.id
-    WHERE sm.enabled = 1 AND s.enabled = 1
+    WHERE ${poolFilter} AND s.enabled = 1
   `).all() as any[];
 
   const healthy: StationPick[] = [];
@@ -90,7 +100,7 @@ export function getStationsForModel(normalizedName: string): StationPick[] {
 export async function invokeModel(options: InvokeModelOptions): Promise<InvokeModelResult> {
   const started = Date.now();
   const normalized = normalizeModelName(options.modelNormalizedName);
-  const stations = getStationsForModel(normalized);
+  const stations = getStationsForModel(normalized, { adminPool: options.adminPool });
   const timeoutMs = options.timeoutMs ?? 120_000;
 
   if (stations.length === 0) {

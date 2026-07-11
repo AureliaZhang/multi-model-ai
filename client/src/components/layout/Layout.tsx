@@ -3,6 +3,7 @@ import { Sidebar } from './Sidebar';
 import { ChatArea } from './ChatArea';
 import { SettingsPage } from '../settings/SettingsPage';
 import { UserManagement } from '../admin/UserManagement';
+import { UsageLogsPage } from '../admin/UsageLogsPage';
 import { MemoryBrowser } from '../memory/MemoryBrowser';
 import { FileBrowser } from '../files/FileBrowser';
 import { ArenaLayout } from '../arena/ArenaLayout';
@@ -14,7 +15,7 @@ import { useModelStore } from '../../stores/modelStore';
 import { useChatStore } from '../../stores/chatStore';
 import { usePrefsStore } from '../../stores/prefsStore';
 import { useTranslation } from '../../i18n';
-import { PanelLeft, CircleHelp } from 'lucide-react';
+import { CircleHelp } from 'lucide-react';
 
 interface LayoutProps {
   isGuest?: boolean;
@@ -22,7 +23,7 @@ interface LayoutProps {
   onSignIn?: () => void;
 }
 
-type PageView = 'chat' | 'settings' | 'users' | 'memory' | 'files' | 'arena';
+type PageView = 'chat' | 'settings' | 'users' | 'memory' | 'files' | 'arena' | 'usage';
 
 export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
   const [page, setPage] = useState<PageView>('chat');
@@ -63,6 +64,10 @@ export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
     return withLang(<UserManagement onBack={() => setPage('chat')} />);
   }
 
+  if (page === 'usage') {
+    return withLang(<UsageLogsPage onBack={() => setPage('chat')} />);
+  }
+
   if (page === 'memory') {
     return withLang(<MemoryBrowser onClose={() => setPage('chat')} />);
   }
@@ -84,6 +89,7 @@ export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
             isGuest={isGuest}
             onOpenSettings={() => setPage('settings')}
             onOpenUsers={() => setPage('users')}
+            onOpenUsage={() => setPage('usage')}
             onOpenMemory={() => setPage('memory')}
             onOpenFiles={() => setPage('files')}
             onOpenArena={() => setPage('arena')}
@@ -95,16 +101,12 @@ export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
 
       {/* Main chat area */}
       <div className="flex-1 flex flex-col min-w-0 relative">
-        {!sidebarOpen && (
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="absolute top-2.5 left-3 z-10 p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-secondary)] transition-colors"
-            title={t('layout.openSidebar')}
-          >
-            <PanelLeft size={20} strokeWidth={1.5} />
-          </button>
-        )}
-        <ChatArea isGuest={isGuest} onSignIn={onSignIn} />
+        <ChatArea
+          isGuest={isGuest}
+          onSignIn={onSignIn}
+          sidebarCollapsed={!sidebarOpen}
+          onOpenSidebar={() => setSidebarOpen(true)}
+        />
 
         {/* Persistent help/guide icon */}
         <button

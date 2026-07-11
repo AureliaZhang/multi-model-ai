@@ -6,16 +6,14 @@ import { Router, Response } from 'express';
 import { requireAuth } from '../middleware/auth';
 import { getStationsForModel } from '../services/modelInvocation';
 import { normalizeModelName } from './models';
+import { logApiUsage } from '../services/usageLog';
 import type { AuthRequest } from '../types';
 
 const router = Router();
 router.use(requireAuth);
 
-/**
- * POST /api/media/images
- * { model, prompt, size?, n? }
- */
 router.post('/images', async (req: AuthRequest, res: Response) => {
+  const started = Date.now();
   try {
     const { model, prompt, size = '1024x1024', n = 1 } = req.body || {};
     if (!model || !prompt?.trim()) {
@@ -23,7 +21,8 @@ router.post('/images', async (req: AuthRequest, res: Response) => {
       return;
     }
     const normalized = normalizeModelName(model);
-    const stations = getStationsForModel(normalized);
+    const isAdmin = req.user?.role === 'admin';
+    const stations = getStationsForModel(normalized, { adminPool: isAdmin });
     if (!stations.length) {
       res.status(400).json({ success: false, error: `No station for model ${normalized}` });
       return;
@@ -48,6 +47,19 @@ router.post('/images', async (req: AuthRequest, res: Response) => {
         if (!response.ok) {
           const t = await response.text().catch(() => '');
           errors.push(`${s.station.name}: ${response.status} ${t.slice(0, 200)}`);
+          logApiUsage({
+            userId: req.user?.id,
+            username: req.user?.username,
+            role: req.user?.role,
+            kind: 'image',
+            modelNormalized: normalized,
+            stationId: s.station.id,
+            stationName: s.station.name,
+            status: 'http_error',
+            httpStatus: response.status,
+            errorMessage: t.slice(0, 500),
+            latencyMs: Date.now() - started,
+          });
           continue;
         }
         const data = (await response.json()) as any;
@@ -62,6 +74,19 @@ router.post('/images', async (req: AuthRequest, res: Response) => {
           continue;
         }
 
+        logApiUsage({
+          userId: req.user?.id,
+          username: req.user?.username,
+          role: req.user?.role,
+          kind: 'image',
+          modelNormalized: normalized,
+          modelUsed: `${s.modelId} @ ${s.station.name}`,
+          stationId: s.station.id,
+          stationName: s.station.name,
+          status: 'ok',
+          latencyMs: Date.now() - started,
+        });
+
         res.json({
           success: true,
           data: {
@@ -75,18 +100,24 @@ router.post('/images', async (req: AuthRequest, res: Response) => {
       }
     }
 
+    logApiUsage({
+      userId: req.user?.id,
+      username: req.user?.username,
+      role: req.user?.role,
+      kind: 'image',
+      modelNormalized: normalized,
+      status: 'error',
+      errorMessage: errors.join(' | ') || 'Image generation failed',
+      latencyMs: Date.now() - started,
+    });
     res.status(502).json({ success: false, error: errors.join(' | ') || 'Image generation failed' });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-/**
- * POST /api/media/tts  (OpenAI-compatible /audio/speech)
- * { model, input, voice? }
- * returns base64 audio
- */
 router.post('/tts', async (req: AuthRequest, res: Response) => {
+  const started = Date.now();
   try {
     const { model, input, voice = 'alloy', responseFormat = 'mp3' } = req.body || {};
     if (!model || !input?.trim()) {
@@ -95,7 +126,8 @@ router.post('/tts', async (req: AuthRequest, res: Response) => {
     }
     const text = String(input).slice(0, 4096);
     const normalized = normalizeModelName(model);
-    const stations = getStationsForModel(normalized);
+    const isAdmin = req.user?.role === 'admin';
+    const stations = getStationsForModel(normalized, { adminPool: isAdmin });
     if (!stations.length) {
       res.status(400).json({ success: false, error: `No station for model ${normalized}` });
       return;
@@ -120,6 +152,19 @@ router.post('/tts', async (req: AuthRequest, res: Response) => {
         if (!response.ok) {
           const t = await response.text().catch(() => '');
           errors.push(`${s.station.name}: ${response.status} ${t.slice(0, 200)}`);
+          logApiUsage({
+            userId: req.user?.id,
+            username: req.user?.username,
+            role: req.user?.role,
+            kind: 'tts',
+            modelNormalized: normalized,
+            stationId: s.station.id,
+            stationName: s.station.name,
+            status: 'http_error',
+            httpStatus: response.status,
+            errorMessage: t.slice(0, 500),
+            latencyMs: Date.now() - started,
+          });
           continue;
         }
         const buf = Buffer.from(await response.arrayBuffer());
@@ -130,6 +175,20 @@ router.post('/tts', async (req: AuthRequest, res: Response) => {
             : responseFormat === 'opus'
               ? 'audio/opus'
               : 'audio/mpeg';
+
+        logApiUsage({
+          userId: req.user?.id,
+          username: req.user?.username,
+          role: req.user?.role,
+          kind: 'tts',
+          modelNormalized: normalized,
+          modelUsed: `${s.modelId} @ ${s.station.name}`,
+          stationId: s.station.id,
+          stationName: s.station.name,
+          status: 'ok',
+          promptTokens: Math.ceil(text.length / 4),
+          latencyMs: Date.now() - started,
+        });
 
         res.json({
           success: true,
@@ -146,18 +205,27 @@ router.post('/tts', async (req: AuthRequest, res: Response) => {
       }
     }
 
+    logApiUsage({
+      userId: req.user?.id,
+      username: req.user?.username,
+      role: req.user?.role,
+      kind: 'tts',
+      modelNormalized: normalized,
+      status: 'error',
+      errorMessage: errors.join(' | ') || 'TTS failed',
+      latencyMs: Date.now() - started,
+    });
     res.status(502).json({ success: false, error: errors.join(' | ') || 'TTS failed' });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-/** Lightweight intent hint for client (rules only) */
 router.post('/intent', (req: AuthRequest, res: Response) => {
   const text = String(req.body?.text || '').trim();
   const lower = text.toLowerCase();
   const imageHints =
-    /画一|画个|画张|生成.*图|出一张图|做一张|插画|封面图|海报|draw\s|generate\s+(an?\s+)?image|picture of|illustration|文生图|ai\s*绘画/i;
+    /画一|画个|画张|生成.*图|出一张图|做一张|插画|封面图|海报|draw\s|generate\s+(an?\s+)?image|picture of|illustration|文生图|ai\s*绘画|帮我画/i;
   const ttsHints =
     /读出来|朗读|念给我|语音播报|转成语音|text to speech|\btts\b|speak this|read aloud/i;
 

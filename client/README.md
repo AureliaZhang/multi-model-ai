@@ -1,3 +1,9 @@
+<!--
+SUPERSEDED / LOW VALUE for this product:
+This is the default Vite + React template README. Product SSOT is ../framework.md.
+Template sections below are kept for reference only (framework rule: do not delete).
+-->
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

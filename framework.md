@@ -1,8 +1,8 @@
 # Multi-Model AI Integration Platform — Framework Document
 
-> **Version**: 0.2.0
+> **Version**: 0.7.1
 > **Created**: 2026-06-15
-> **Last Updated**: 2026-06-15 (v0.2.0 — added memory store feature)
+> **Last Updated**: 2026-07-11 (v0.7.1 — cleanup: trash/ archive + comment deprecated multi_prompt strings; §10.6 still not implemented)
 > **Rule**: This file must be kept in sync with every development step. Content is NEVER deleted, only commented out with `<!-- ... -->` when superseded. Other files may be freely modified.
 
 ---
@@ -541,16 +541,19 @@ Steps:
 - [x] Conversation management (CRUD) — Create, list, delete, select conversations
 
 ### Phase 3: Reliability
-- [ ] Round-robin load balancer
-- [ ] Automatic failover
-- [ ] Health check background job
+<!-- partial: station failover exists in chat/modelInvocation; not full RR counter yet -->
+- [ ] Round-robin load balancer — still random pick among stations in places
+- [x] Automatic failover — try next station on failure (chat + modelInvocation)
+- [ ] Health check background job — manual health-check only
 - [ ] Error handling & retry UI
 
 ### Phase 4: Advanced Features
-- [ ] File upload & vision model support
-- [ ] Image generation model support
+<!-- superseded 2026-07-11: file upload/vision largely implemented via chat attachments + files module -->
+- [x] File upload & vision model support — chat attachments + file library RAG (partial vision path)
+<!-- superseded 2026-07-11: image generation MVP via /api/media/images + prefs image model -->
+- [x] Image generation model support — `/api/media/images` + confirm modal (MVP)
 - [ ] Dark/Light theme toggle
-- [ ] Responsive mobile design
+- [ ] Responsive mobile design — desktop-first; group-chat mobile slide planned in §10.6
 - [ ] Export/import conversations
 
 ### Phase 5: Memory Store (记忆库)
@@ -558,7 +561,8 @@ Steps:
 - [x] Auto-save every conversation turn to memory — autoSaveMemory() in chat route
 - [x] Memory search (keyword + semantic) — /api/memories/search, /api/memories/search/semantic
 - [x] Memory retrieval injection into chat context — /api/memories/context endpoint
-- [ ] Memory management UI (browse, search, delete memories)
+<!-- superseded 2026-07-11: MemoryBrowser UI exists -->
+- [x] Memory management UI (browse, search, delete memories) — `MemoryBrowser`
 - [x] Conversation summarization for long-term memory compression — /api/memories/summarize/:convId
 - [x] Memory export/import — /api/memories/export, /api/memories/import
 
@@ -598,6 +602,145 @@ API base: `/api/arena/*` (see `server/src/routes/arena.ts`).
 
 ---
 
+## 10.6 Collaborative Chat & Group AI — Product Spec (Draft, 2026-07-11)
+
+> **Status**: Design locked via product discussion; **not implemented yet**.  
+> **Scope**: `multi-model-ai` only.  
+> **Principle**: Two tracks in a group — left = human social, right = shared AI workbench. AI never reads human-only chat unless the user explicitly @AI.
+
+### 10.6.1 Session list (sidebar)
+
+| Type | Behavior |
+|------|----------|
+| **Private (DM with AI)** | One user ↔ AI only. **Pinned at top** by default. If more than **~3** private sessions, older ones **fold** (WeChat-style expand on click). |
+| **Group** | Multiple users + **one** shared group AI. Created by users; **platform admin does not join** as a member. |
+
+### 10.6.2 Group UI layout
+
+**Desktop (primary)**
+
+```
+┌── ~1/3 ──────────────┬── ~2/3 ────────────────────────────┐
+│ Human chat           │ Group AI workbench (single thread) │
+│ Text / kaomoji        │ Delivered prompts + AI replies     │
+│ Images & files       │ Streaming, “thinking…”, long text  │
+│ @AI = delivery stub  │                                    │
+│ only (no AI essay)   │                                    │
+└──────────────────────┴────────────────────────────────────┘
+```
+
+**Mobile**
+
+- Default: **human chat only**.
+- Enter AI pane via **right arrow / horizontal swipe** (page-slide feel).
+- Desktop-first product; mobile is secondary.
+
+### 10.6.3 What may be sent (human track)
+
+| Allowed | Not allowed |
+|---------|-------------|
+| Plain text | Voice messages |
+| Keyboard kaomoji / unicode emoji typed by user | Sticker shop / custom emoji packs |
+| Attachments: **images** and **files** | Video, voice clips, etc. |
+
+Attachment button is required; no separate emoji system.
+
+### 10.6.4 @AI occupancy (input lock)
+
+- Typing `@` in the composer does **nothing**. Only the **header @AI button** starts delivery mode.
+- When user A clicks @AI:
+  - Everyone else’s @AI button is **disabled (grey)**.
+  - UI shows **“A is typing…”** and a **shared countdown**.
+- **Countdown**: 2 minutes per cycle; **no max renewals**.
+- When timer hits 0: modal “Still need to type?”
+  - **Need** → add **+2 minutes**; countdown **syncs for all members**.
+  - **Don’t need** → release immediately.
+  - **No choice within 30s** → treat as don’t need → **auto-release**.
+- After send: enter **AI task running** until the assistant **finishes the reply**; only then can anyone @AI again.
+
+### 10.6.5 AI task concurrency (critical)
+
+| Scope | Rule |
+|-------|------|
+| **Inside one group** | Only **one** AI task at a time. Next @AI only after previous reply **completes**. |
+| **Across groups** | Independent — groups may run AI in parallel. |
+| **Private AI chats** | Independent of all groups and of each other. |
+| **Backend** | Multi-session/multi-room capable; **product lock is per `roomId` only**. Multi-thread APIs may be reserved for later; V1 UI is single-task per group. |
+
+### 10.6.6 Context isolation
+
+- **Human track messages** (no @AI): AI **never** sees them.
+- To inform AI: user must **@AI and restate** (or future “forward quote to AI”).
+- **AI track** is the only context sent to the model.
+- Left side shows only a short **delivery stub** when someone @AIs (no long AI answer on the left).
+- Right side: full user delivery + “thinking” + full streaming reply. **All members** (including newcomers) see **full left history and full right AI history**.
+
+### 10.6.7 Files & knowledge bases
+
+| Upload location | Storage | Who can read via AI |
+|-----------------|---------|---------------------|
+| **Group** | Group knowledge base | **Only that group’s AI**, when user @AI and **selects** attachment(s) |
+| **Private chat** | User personal knowledge base | **All of that user’s private AI sessions** may use the full personal library |
+
+- Group files do **not** enter personal KB; personal files do **not** enter group AI.
+- On @AI, the chat message may carry **file name / id only**; content is loaded on a **separate RAG/read path** into the AI request.
+- **Multi-file select allowed**, with confirm modal: context is limited; prefer one file; multiple is allowed at user risk.
+
+### 10.6.8 Model preferences
+
+| Scope | Slots | Who changes | Cooldown |
+|-------|-------|-------------|----------|
+| **Group** | chat / image / TTS (one set per group) | Any member | **Shared 5 minutes for whole group** after a change |
+| **Private** | Same three slots (per user) | That user | **5 minutes** per user |
+
+- Each change requires a **confirm modal**: “After confirm, cannot change again within 5 minutes.”
+- Group model changes **do not** affect private preferences, and vice versa.
+- @AI in a group uses **group** model prefs, not the individual’s.
+
+### 10.6.9 Group owner (minimal)
+
+| Rule | Detail |
+|------|--------|
+| Owner | **Creator** of the group; **cannot transfer / cannot change** |
+| Create | At least **2 members** (owner + ≥1 other) |
+| Owner powers only | **Disband**, **invite**, **kick** |
+| Explicitly out of scope | Co-admins, mute, announcements, etc. |
+| Member cap | Default **10**; higher only via **platform admin** grant |
+
+### 10.6.10 Platform admin vs content privacy
+
+| Daily | Exception |
+|-------|-----------|
+| Admin **cannot** read private or group message bodies | Safety pipeline watches **AI replies** (e.g. refusal / policy lines) using **admin-maintained** keywords/rules |
+| Admin manages: stations, model pull/public flags, member-cap grants, functional config | On hit: **alert + push that single dialog**; admin gains **read access only for that dialog** |
+
+**User-facing notice (required when alert fires):**
+
+> 该对话收到 NSFW 警告，平台管理员将拥有该对话框的查阅权限。如需继续对话，请新建对话。
+
+English equivalent for i18n:
+
+> This chat received an NSFW warning. Platform admins can now review **this** dialog. To continue privately, start a **new** chat.
+
+### 10.6.11 Implementation notes (non-binding until build)
+
+Suggested building blocks (for later implementation; not started):
+
+- Entities: `rooms`, `room_members`, `room_messages` (human), `room_ai_messages` or linked `conversations`, `room_files`, `room_model_prefs`, `safety_alerts`.
+- Realtime: WebSocket (or similar) for human messages + occupancy/countdown; reuse SSE for AI stream fan-out to room members.
+- State machine per room: `idle → occupying_input → ai_running → idle`.
+- Safety: rule engine on assistant text → alert row + temporary read grant scoped to one dialog id.
+
+### 10.6.12 Out of scope (explicit)
+
+- Full WeChat clone (moments, friend graph, calls).
+- Group co-admin roles.
+- Emoji/sticker marketplace.
+- Multi-AI-task UI inside one group (backend may reserve; product V1 is single task).
+- Platform admin routine content surveillance.
+
+---
+
 ## 11. Configuration File Format
 
 ```yaml
@@ -632,16 +775,22 @@ settings:
 | 2026-07-11 | 0.4.0 | Arena MVP (admin): ModelInvocation service, arena tables, battle one-question-multi-answer + single pick, leaderboard by selection count/rate, admin-only UI shell | Claude |
 | 2026-07-11 | 0.5.0 | Arena Prompt Lab + Benchmark: prompt library/sets, multi-model & multi-prompt experiments, benchmark runs with manual pass/fail/skip | Claude |
 | 2026-07-11 | 0.6.0 | Arena P5: CSV exports, async benchmark runs with polling, concurrency-limited invocation pool | Claude |
+| 2026-07-11 | 0.7.0 | Spec only: Collaborative group chat + dual-pane Group AI (human left / AI right), occupancy countdown, per-room single AI task, KB isolation, model cooldown, NSFW single-dialog admin open-window — see §10.6 | Claude + Aurelia |
+| 2026-07-11 | 0.7.1 | Cleanup only: archived obsolete screenshots & superseded plans under `trash/` (not deleted); commented deprecated multi_prompt i18n/UI paths; roadmap checkboxes synced to reality | Claude |
 
 ---
 
 ## 13. Notes & Open Questions
 
 - [ ] Should we support WebSocket in addition to SSE for bidirectional communication?
-- [ ] Multi-user support or single-user local deployment?
+  - **Update 2026-07-11**: Collaborative human chat (§10.6) **expects** a bidirectional channel (WebSocket or equivalent) for occupancy/countdown and human messages; AI stream may remain SSE fan-out.
+- [x] Multi-user support or single-user local deployment?
+  - Multi-user (admin / user / guest) already in product; group chat extends this.
 - [ ] Should model capabilities be auto-detected or manually configured?
 - [ ] Database migration strategy if schema evolves?
 - [ ] Support for custom system prompts per conversation?
+- [ ] Occupancy renew max (product currently: unlimited 2‑minute renewals)?
+- [ ] Safety keyword list UX for platform admins?
 
 ---
 

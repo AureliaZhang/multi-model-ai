@@ -280,6 +280,50 @@ function initTables(db: Database.Database): void {
     // Column already exists
   }
 
+  // Dual-layer model visibility: admin pool vs public
+  // admin_enabled = selected for admin use; enabled = public to end users
+  try {
+    db.exec(`ALTER TABLE station_models ADD COLUMN admin_enabled INTEGER NOT NULL DEFAULT 1`);
+  } catch {
+    // exists
+  }
+  // Backfill: previously "enabled" meant exposed; keep that meaning for public.
+  // Ensure admin_enabled is at least as broad as public (if public, admin can use too).
+  try {
+    db.exec(`UPDATE station_models SET admin_enabled = 1 WHERE enabled = 1 AND (admin_enabled IS NULL OR admin_enabled = 0)`);
+  } catch {
+    /* ignore */
+  }
+
+  // API usage logs for admin audit
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS api_usage_logs (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      username TEXT,
+      role TEXT,
+      kind TEXT NOT NULL DEFAULT 'chat',
+      model_normalized TEXT,
+      model_used TEXT,
+      station_id TEXT,
+      station_name TEXT,
+      conversation_id TEXT,
+      status TEXT NOT NULL DEFAULT 'ok',
+      http_status INTEGER,
+      error_message TEXT,
+      prompt_tokens INTEGER,
+      completion_tokens INTEGER,
+      total_tokens INTEGER,
+      latency_ms INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_usage_created ON api_usage_logs(created_at);
+    CREATE INDEX IF NOT EXISTS idx_usage_user ON api_usage_logs(user_id);
+    CREATE INDEX IF NOT EXISTS idx_usage_status ON api_usage_logs(status);
+    CREATE INDEX IF NOT EXISTS idx_usage_model ON api_usage_logs(model_normalized);
+  `);
+
   // Migration: add folder_id column to file_library if not exists
   try {
     db.exec(`ALTER TABLE file_library ADD COLUMN folder_id TEXT REFERENCES file_folders(id) ON DELETE SET NULL`);

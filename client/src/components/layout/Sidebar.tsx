@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useChatStore } from '../../stores/chatStore';
 import { useAuthStore } from '../../stores/authStore';
-import { MessageSquarePlus, Settings, Trash2, LogOut, Users, Shield, User, Brain, Globe, Lock, Eye, EyeOff, FolderOpen, X, Swords } from 'lucide-react';
+import { MessageSquarePlus, Settings, Trash2, LogOut, Users, Shield, User, Brain, Globe, Lock, Eye, EyeOff, FolderOpen, X, Swords, PanelLeftClose, ScrollText } from 'lucide-react';
 import { useTranslation } from '../../i18n';
 import type { ConversationVisibility } from '../../types';
 
@@ -9,6 +9,7 @@ interface SidebarProps {
   isGuest?: boolean;
   onOpenSettings: () => void;
   onOpenUsers: () => void;
+  onOpenUsage?: () => void;
   onOpenMemory: () => void;
   onOpenFiles: () => void;
   onOpenArena?: () => void;
@@ -16,7 +17,7 @@ interface SidebarProps {
   onLogout?: () => void;
 }
 
-export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMemory, onOpenFiles, onOpenArena, onToggleSidebar: _onToggleSidebar, onLogout }: SidebarProps) {
+export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUsage, onOpenMemory, onOpenFiles, onOpenArena, onToggleSidebar, onLogout }: SidebarProps) {
   const conversations = useChatStore(s => s.conversations);
   const currentConversationId = useChatStore(s => s.currentConversationId);
   const selectConversation = useChatStore(s => s.selectConversation);
@@ -65,16 +66,25 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMe
 
   return (
     <div className="h-full flex flex-col bg-[var(--color-sidebar-surface)]">
-      {/* Header - New chat button */}
-      <div className="p-2">
+      {/* Header - collapse + new chat */}
+      <div className="p-2 flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={onToggleSidebar}
+          className="flex-shrink-0 p-2 rounded-lg border border-[var(--color-border-light)] hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+          title={t('sidebar.collapseSidebar')}
+          aria-label={t('sidebar.collapseSidebar')}
+        >
+          <PanelLeftClose size={18} strokeWidth={1.5} />
+        </button>
         <button
           onClick={handleNewChat}
           disabled={isGuest}
-          className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-[var(--color-border-light)] hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-primary)] text-sm w-full transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-[var(--color-border-light)] hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-primary)] text-sm flex-1 min-w-0 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
           title={isGuest ? t('sidebar.signInToChat') : t('sidebar.newChat')}
         >
           <MessageSquarePlus size={18} strokeWidth={1.5} />
-          <span>{t('sidebar.newChat')}</span>
+          <span className="truncate">{t('sidebar.newChat')}</span>
         </button>
       </div>
 
@@ -226,6 +236,16 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenMe
           >
             <Users size={16} strokeWidth={1.5} />
             <span>{t('sidebar.userManagement')}</span>
+          </button>
+        )}
+
+        {isAuthenticated && user?.role === 'admin' && onOpenUsage && (
+          <button
+            onClick={onOpenUsage}
+            className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-secondary)] text-[13px] w-full transition-colors duration-150"
+          >
+            <ScrollText size={16} strokeWidth={1.5} />
+            <span>{t('sidebar.usageLogs')}</span>
           </button>
         )}
 

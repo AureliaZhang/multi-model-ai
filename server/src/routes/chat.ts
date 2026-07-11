@@ -1,4 +1,7 @@
 import { Router, Request, Response } from 'express';
+import { optionalAuth } from '../middleware/auth';
+import { logApiUsage } from '../services/usageLog';
+import type { AuthRequest } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string; numpages: number; numrender: number; info: any; metadata: any; version: string }>;
@@ -82,7 +85,7 @@ async function extractFileText(mimeType: string, base64Data: string, filename: s
 }
 
 // POST /api/chat - Send message & get streaming response (SSE)
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { conversationId, modelNormalizedName, message, attachments, fileIds } = req.body;
     if (!conversationId || !modelNormalizedName || !message) {
@@ -90,6 +93,8 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     const db = getDb();
+    const isAdmin = req.user?.role === 'admin';
+    const chatStarted = Date.now();
 
     // Get conversation
     const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(conversationId) as any;
@@ -266,7 +271,7 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     // Try stations with failover
-    const stations = getStationsForModel(db, modelNormalizedName);
+    const stations = getStationsForModel(db, modelNormalizedName, isAdmin);
     let assistantContent = '';
     let usedStation = '';
 
@@ -462,6 +467,17 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     if (!assistantContent) {
+      logApiUsage({
+        userId: req.user?.id || conv.user_id || null,
+        username: req.user?.username || null,
+        role: req.user?.role || null,
+        kind: 'chat',
+        modelNormalized: modelNormalizedName,
+        conversationId,
+        status: 'error',
+        errorMessage: 'All stations failed',
+        latencyMs: Date.now() - chatStarted,
+      });
       res.write(`data: ${JSON.stringify({ error: 'All stations failed' })}\n\n`);
       res.write('data: [DONE]\n\n');
       res.end();
@@ -539,6 +555,24 @@ ${assistantContent}
       'INSERT INTO messages (id, conversation_id, role, content, model_used, created_at) VALUES (?, ?, ?, ?, ?, ?)'
     ).run(assistantMsgId, conversationId, 'assistant', assistantContent, usedStation, assistantTime);
 
+    // Approximate tokens when provider usage missing
+    const approxPrompt = Math.ceil(String(message).length / 4);
+    const approxCompletion = Math.ceil(String(assistantContent).length / 4);
+    logApiUsage({
+      userId: req.user?.id || conv.user_id || null,
+      username: req.user?.username || null,
+      role: req.user?.role || null,
+      kind: 'chat',
+      modelNormalized: modelNormalizedName,
+      modelUsed: usedStation,
+      conversationId,
+      status: 'ok',
+      promptTokens: approxPrompt,
+      completionTokens: approxCompletion,
+      totalTokens: approxPrompt + approxCompletion,
+      latencyMs: Date.now() - chatStarted,
+    });
+
     // Auto-save to memory store (with vector embedding generation)
     const userId = conv.user_id || null;
     autoSaveMemory(db, conversationId, userMsgId, 'user', message, modelNormalizedName, userId).catch(err => console.error('[memory] User memory save error:', err));
@@ -547,6 +581,19 @@ ${assistantContent}
     res.end();
   } catch (err: any) {
     console.error('Chat error:', err);
+    try {
+      logApiUsage({
+        userId: (req as AuthRequest).user?.id || null,
+        username: (req as AuthRequest).user?.username || null,
+        role: (req as AuthRequest).user?.role || null,
+        kind: 'chat',
+        modelNormalized: (req.body || {}).modelNormalizedName,
+        conversationId: (req.body || {}).conversationId,
+        status: 'error',
+        httpStatus: 500,
+        errorMessage: err.message,
+      });
+    } catch { /* ignore */ }
     if (!res.headersSent) {
       res.status(500).json({ success: false, error: err.message });
     } else {
@@ -568,12 +615,15 @@ function resolveModel(db: any, normalizedName: string): { station: any; modelId:
 }
 
 // Get all healthy stations for a normalized model name
-function getStationsForModel(db: any, normalizedName: string): { station: any; modelId: string }[] {
+function getStationsForModel(db: any, normalizedName: string, adminPool = false): { station: any; modelId: string }[] {
+  const pool = adminPool
+    ? 'COALESCE(sm.admin_enabled, 1) = 1'
+    : 'sm.enabled = 1';
   const rows = db.prepare(`
     SELECT sm.model_id, s.id, s.name, s.base_url, s.api_key, s.health_status, s.enabled
     FROM station_models sm
     JOIN stations s ON sm.station_id = s.id
-    WHERE sm.enabled = 1 AND s.enabled = 1
+    WHERE ${pool} AND s.enabled = 1
   `).all() as any[];
 
   return rows

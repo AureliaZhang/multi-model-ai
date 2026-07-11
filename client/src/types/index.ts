@@ -2,7 +2,7 @@
 // Shared TypeScript types for the frontend
 // ============================================================
 
-export type ModelCapability = 'text' | 'vision' | 'image-gen' | 'code';
+export type ModelCapability = 'text' | 'vision' | 'image-gen' | 'code' | 'tts' | 'embedding';
 
 export interface Station {
   id: string;
@@ -16,15 +16,44 @@ export interface Station {
   updatedAt: string;
 }
 
+/** Alias used by settings admin model picker */
+export type StationModelRow = StationModel;
+
 export interface StationModel {
   id: string;
   stationId: string;
   modelId: string;
   displayName: string;
-  capabilities: ModelCapability[];
+  capabilities: ModelCapability[] | string[];
+  /** Selected into admin pool (admin can use) */
+  adminEnabled?: boolean;
+  /** When true, model is exposed to end-user home selector */
   enabled: boolean;
+  publicEnabled?: boolean;
   createdAt: string;
 }
+
+export interface UsageLogItem {
+  id: string;
+  userId?: string | null;
+  username?: string | null;
+  role?: string | null;
+  kind: string;
+  modelNormalized?: string | null;
+  modelUsed?: string | null;
+  stationId?: string | null;
+  stationName?: string | null;
+  conversationId?: string | null;
+  status: string;
+  httpStatus?: number | null;
+  errorMessage?: string | null;
+  promptTokens?: number | null;
+  completionTokens?: number | null;
+  totalTokens?: number | null;
+  latencyMs?: number | null;
+  createdAt: string;
+}
+
 
 export interface AggregatedModel {
   displayName: string;

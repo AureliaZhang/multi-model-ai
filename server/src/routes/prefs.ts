@@ -16,14 +16,20 @@ function todayUtc(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function listModelsByCapability(cap: 'text' | 'image-gen' | 'tts') {
+function listModelsByCapability(
+  cap: 'text' | 'image-gen' | 'tts',
+  opts?: { adminPool?: boolean }
+) {
   const db = getDb();
+  const pool = opts?.adminPool
+    ? 'COALESCE(sm.admin_enabled, 1) = 1'
+    : 'sm.enabled = 1';
   const rows = db.prepare(`
     SELECT sm.model_id, sm.display_name, sm.capabilities,
            s.id as station_id, s.name as station_name
     FROM station_models sm
     JOIN stations s ON sm.station_id = s.id
-    WHERE sm.enabled = 1 AND s.enabled = 1
+    WHERE ${pool} AND s.enabled = 1
   `).all() as any[];
 
   const map = new Map<string, {
@@ -184,14 +190,15 @@ router.put('/', (req: AuthRequest, res: Response) => {
   }
 });
 
-router.get('/catalog', (_req: AuthRequest, res: Response) => {
+router.get('/catalog', (req: AuthRequest, res: Response) => {
   try {
+    const isAdmin = req.user?.role === 'admin';
     res.json({
       success: true,
       data: {
-        chat: listModelsByCapability('text'),
-        image: listModelsByCapability('image-gen'),
-        tts: listModelsByCapability('tts'),
+        chat: listModelsByCapability('text', { adminPool: isAdmin }),
+        image: listModelsByCapability('image-gen', { adminPool: isAdmin }),
+        tts: listModelsByCapability('tts', { adminPool: isAdmin }),
       },
     });
   } catch (err: any) {

@@ -4,17 +4,20 @@ import { ModelSelector } from '../chat/ModelSelector';
 import { ChatInput } from '../chat/ChatInput';
 import { MessageBubble } from '../chat/MessageBubble';
 import { ErrorBoundary } from '../ErrorBoundary';
-import { Sparkles, ChevronUp } from 'lucide-react';
+import { Sparkles, ChevronUp, PanelLeft } from 'lucide-react';
 import { useTranslation } from '../../i18n';
 
 interface ChatAreaProps {
   isGuest?: boolean;
   onSignIn?: () => void;
+  /** When true, show open-sidebar control next to model selector (not floating over it). */
+  sidebarCollapsed?: boolean;
+  onOpenSidebar?: () => void;
 }
 
 const PAGE_SIZE = 50;
 
-export function ChatArea({ isGuest = false, onSignIn }: ChatAreaProps) {
+export function ChatArea({ isGuest = false, onSignIn, sidebarCollapsed = false, onOpenSidebar }: ChatAreaProps) {
   const messages = useChatStore(s => s.messages);
   const isStreaming = useChatStore(s => s.isStreaming);
   const streamingContent = useChatStore(s => s.streamingContent);
@@ -56,9 +59,25 @@ export function ChatArea({ isGuest = false, onSignIn }: ChatAreaProps) {
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
-      {/* Header with model selector */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--color-border-light)] bg-[var(--color-main-surface-primary)]" style={{ minHeight: '52px' }}>
-        <ModelSelector />
+      {/* Header: open-sidebar (when collapsed) + model selector — same row, no overlap */}
+      <div
+        className="flex items-center gap-2 px-4 sm:px-5 py-3 border-b border-[var(--color-border-light)] bg-[var(--color-main-surface-primary)]"
+        style={{ minHeight: '52px' }}
+      >
+        {sidebarCollapsed && onOpenSidebar && (
+          <button
+            type="button"
+            onClick={onOpenSidebar}
+            className="flex-shrink-0 p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+            title={t('layout.openSidebar')}
+            aria-label={t('layout.openSidebar')}
+          >
+            <PanelLeft size={20} strokeWidth={1.5} />
+          </button>
+        )}
+        <div className="min-w-0 flex-1">
+          <ModelSelector />
+        </div>
       </div>
 
       {/* Messages area */}

@@ -73,6 +73,8 @@ interface ArenaState {
   deletePromptSet: (id: string) => Promise<void>;
 
   runMultiModelExperiment: (promptBody: string, models: string[], title?: string, systemPrompt?: string) => Promise<void>;
+  // DEPRECATED: multi_prompt UI removed (framework: Prompt Lab = one prompt × many models only).
+  // Kept for API compatibility with existing experiments in DB; do not expose in UI.
   runMultiPromptExperiment: (model: string, prompts: { body: string; systemPrompt?: string }[], title?: string) => Promise<void>;
   fetchExperiments: () => Promise<void>;
   loadExperiment: (id: string) => Promise<void>;
@@ -299,6 +301,7 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
     }
   },
 
+  // DEPRECATED multi_prompt — UI removed; backend still accepts mode for history.
   runMultiPromptExperiment: async (model, prompts, title) => {
     set({ experimentLoading: true, experimentError: null });
     try {
