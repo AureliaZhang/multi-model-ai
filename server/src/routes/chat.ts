@@ -10,6 +10,7 @@ import { normalizeModelName } from './models';
 import { ApiResponse } from '../types';
 import { loadEnabledMcpTools, resolveToolCall, executeToolCall } from '../services/mcpClient';
 import { generateEmbedding, serializeEmbedding, vectorSearch } from '../services/embeddings';
+import { roundRobin } from '../services/loadBalancer';
 import { getActiveScripts, applyRegexScripts } from '../services/regexEngine';
 
 const router = Router();
@@ -271,7 +272,7 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
     }
 
     // Try stations with failover
-    const stations = getStationsForModel(db, modelNormalizedName, isAdmin);
+    const stations = roundRobin(modelNormalizedName, getStationsForModel(db, modelNormalizedName, isAdmin));
     let assistantContent = '';
     let usedStation = '';
 
@@ -604,13 +605,13 @@ ${assistantContent}
   }
 });
 
-// Resolve model to a station using round-robin
+// Resolve model to a single station using counter-based round-robin
 function resolveModel(db: any, normalizedName: string): { station: any; modelId: string } | null {
   const stations = getStationsForModel(db, normalizedName);
   if (stations.length === 0) return null;
 
-  // Simple round-robin: use a random pick for now (proper counter-based RR in Phase 3)
-  const pick = stations[Math.floor(Math.random() * stations.length)];
+  // Counter-based round-robin: rotate the station list, take the first.
+  const pick = roundRobin(normalizedName, stations)[0];
   return { station: pick.station, modelId: pick.modelId };
 }
 

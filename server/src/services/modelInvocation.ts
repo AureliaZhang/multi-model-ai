@@ -5,6 +5,7 @@
 
 import { getDb } from '../database';
 import { normalizeModelName } from '../routes/models';
+import { roundRobin } from './loadBalancer';
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -89,8 +90,8 @@ export function getStationsForModel(
 
   // Prefer healthy / unknown; fall back to unhealthy if nothing else
   const pool = healthy.length > 0 ? healthy : unhealthy;
-  // Shuffle lightly for load spread
-  return pool.sort(() => Math.random() - 0.5);
+  // Round-robin across stations for this model (even spread, keeps failover order)
+  return roundRobin(normalizedName, pool);
 }
 
 /**
