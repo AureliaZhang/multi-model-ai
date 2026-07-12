@@ -541,3 +541,66 @@ export interface BenchmarkRun {
     fail: number;
   };
 }
+
+// --- §10.6 Collaborative group chat + shared Group AI ---
+
+export type RoomAiState = 'idle' | 'occupying_input' | 'ai_running';
+
+export interface RoomMemberInfo {
+  userId: string;
+  role: 'owner' | 'member';
+  username: string;
+  displayName: string | null;
+}
+
+export interface Room {
+  id: string;
+  name: string;
+  ownerId: string;
+  memberCap: number;
+  chatModel: string | null;
+  imageModel: string | null;
+  ttsModel: string | null;
+  modelLockedUntil: string | null;
+  aiState: RoomAiState;
+  occupantUserId: string | null;
+  occupancyUntil: string | null;
+  createdAt: string;
+  updatedAt: string;
+  memberCount?: number;
+  members?: RoomMemberInfo[];
+}
+
+export interface RoomMessage {
+  id: string;
+  userId: string | null;
+  username?: string;
+  displayName?: string | null;
+  kind: 'text' | 'ai_stub' | 'system';
+  content: string;
+  aiMessageId?: string | null;
+  attachments: { name: string; mimeType?: string; url?: string }[];
+  createdAt: string;
+}
+
+export interface RoomAiMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  authorId?: string | null;
+  authorName?: string | null;
+  status: 'thinking' | 'streaming' | 'done' | 'error';
+  errorMessage?: string | null;
+  modelUsed?: string | null;
+  fileIds?: string[];
+  createdAt: string;
+}
+
+export interface RoomFile {
+  id: string;
+  originalName: string;
+  mimeType: string;
+  fileSize: number;
+  uploadedBy?: string | null;
+  createdAt: string;
+}

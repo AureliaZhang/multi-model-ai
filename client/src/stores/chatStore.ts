@@ -196,7 +196,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { currentConversationId, isStreaming } = get();
     if (isStreaming) return;
 
-    let convId = currentConversationId;
+    const convId = currentConversationId;
 
     // If no conversation, create one first
     if (!convId) {

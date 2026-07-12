@@ -7,6 +7,7 @@ import { UsageLogsPage } from '../admin/UsageLogsPage';
 import { MemoryBrowser } from '../memory/MemoryBrowser';
 import { FileBrowser } from '../files/FileBrowser';
 import { ArenaLayout } from '../arena/ArenaLayout';
+import { RoomsPage } from '../rooms/RoomsPage';
 import { GuideOverlay } from '../guide/GuideOverlay';
 import { LanguageToggle } from './LanguageToggle';
 import { DailyModelModal } from '../prefs/DailyModelModal';
@@ -23,7 +24,7 @@ interface LayoutProps {
   onSignIn?: () => void;
 }
 
-type PageView = 'chat' | 'settings' | 'users' | 'memory' | 'files' | 'arena' | 'usage';
+type PageView = 'chat' | 'settings' | 'users' | 'memory' | 'files' | 'arena' | 'usage' | 'rooms';
 
 export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
   const [page, setPage] = useState<PageView>('chat');
@@ -80,6 +81,10 @@ export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
     return withLang(<ArenaLayout onClose={() => setPage('chat')} />);
   }
 
+  if (page === 'rooms') {
+    return withLang(<RoomsPage onClose={() => setPage('chat')} />);
+  }
+
   return withLang(
     <div className="flex h-full w-full overflow-hidden">
       {/* Sidebar */}
@@ -93,6 +98,7 @@ export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
             onOpenMemory={() => setPage('memory')}
             onOpenFiles={() => setPage('files')}
             onOpenArena={() => setPage('arena')}
+            onOpenRooms={() => setPage('rooms')}
             onToggleSidebar={() => setSidebarOpen(false)}
             onLogout={onLogout}
           />

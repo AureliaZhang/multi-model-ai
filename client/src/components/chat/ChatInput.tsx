@@ -55,9 +55,16 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
 
   const [selectedModel, _setSelectedModel] = useState(() => localStorage.getItem('selected_model') || '');
 
+  // Keep a live ref so the unmount cleanup revokes the CURRENT object URLs,
+  // not the empty array captured at mount time (that leak left blobs alive).
+  const attachmentsRef = useRef(attachments);
+  useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
+
   useEffect(() => {
     return () => {
-      attachments.forEach(a => {
+      attachmentsRef.current.forEach(a => {
         if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
       });
     };

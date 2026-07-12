@@ -525,6 +525,101 @@ function initTables(db: Database.Database): void {
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
+
+    -- ============================================================
+    -- §10.6 Collaborative group chat + shared Group AI
+    -- Left track = human social; right track = shared AI thread.
+    -- ============================================================
+
+    -- A group room (WeChat-style). Owner = creator (immutable).
+    CREATE TABLE IF NOT EXISTS rooms (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      owner_id TEXT NOT NULL,
+      member_cap INTEGER NOT NULL DEFAULT 10,
+      -- group model prefs (one AI per group)
+      chat_model TEXT,
+      image_model TEXT,
+      tts_model TEXT,
+      -- shared 5-min cooldown for model changes (whole group)
+      model_locked_until TEXT,
+      -- room AI task state machine: idle | occupying_input | ai_running
+      ai_state TEXT NOT NULL DEFAULT 'idle'
+        CHECK(ai_state IN ('idle','occupying_input','ai_running')),
+      -- who currently holds the @AI input lock (occupying_input)
+      occupant_user_id TEXT,
+      occupancy_until TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    -- Room membership. Owner also has a row here (role='owner').
+    CREATE TABLE IF NOT EXISTS room_members (
+      room_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'member' CHECK(role IN ('owner','member')),
+      joined_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (room_id, user_id),
+      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    -- Left track: human-to-human messages. AI NEVER reads these.
+    -- kind='text' normal chat; kind='ai_stub' = short "X asked AI ..." marker.
+    CREATE TABLE IF NOT EXISTS room_messages (
+      id TEXT PRIMARY KEY,
+      room_id TEXT NOT NULL,
+      user_id TEXT,
+      kind TEXT NOT NULL DEFAULT 'text' CHECK(kind IN ('text','ai_stub','system')),
+      content TEXT NOT NULL DEFAULT '',
+      -- for ai_stub: link to the right-track ai message it summarizes
+      ai_message_id TEXT,
+      attachments_json TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    -- Right track: the shared Group AI thread. Only these are sent to the model.
+    CREATE TABLE IF NOT EXISTS room_ai_messages (
+      id TEXT PRIMARY KEY,
+      room_id TEXT NOT NULL,
+      role TEXT NOT NULL CHECK(role IN ('user','assistant','system')),
+      content TEXT NOT NULL DEFAULT '',
+      -- who delivered this (for role='user')
+      author_id TEXT,
+      author_name TEXT,
+      -- generation status for assistant rows
+      status TEXT NOT NULL DEFAULT 'done'
+        CHECK(status IN ('thinking','streaming','done','error')),
+      error_message TEXT,
+      model_used TEXT,
+      -- file ids referenced from the group KB for this delivery
+      file_ids_json TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+      FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    -- Group knowledge base files (only this group's AI may read them).
+    CREATE TABLE IF NOT EXISTS room_files (
+      id TEXT PRIMARY KEY,
+      room_id TEXT NOT NULL,
+      uploaded_by TEXT,
+      original_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      file_size INTEGER NOT NULL DEFAULT 0,
+      content TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+      FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_room_members_user ON room_members(user_id);
+    CREATE INDEX IF NOT EXISTS idx_room_messages_room ON room_messages(room_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_room_ai_messages_room ON room_ai_messages(room_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_room_files_room ON room_files(room_id);
   `);
 
   // Refresh capabilities for known specialty model names (seeded rows may only say ["text"])

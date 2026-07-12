@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useChatStore } from '../../stores/chatStore';
 import { useAuthStore } from '../../stores/authStore';
-import { MessageSquarePlus, Settings, Trash2, LogOut, Users, Shield, User, Brain, Globe, Lock, Eye, EyeOff, FolderOpen, X, Swords, PanelLeftClose, ScrollText } from 'lucide-react';
+import { MessageSquarePlus, Settings, Trash2, LogOut, Users, Users2, Shield, User, Brain, Globe, Lock, Eye, EyeOff, FolderOpen, X, Swords, PanelLeftClose, ScrollText } from 'lucide-react';
 import { useTranslation } from '../../i18n';
 import type { ConversationVisibility } from '../../types';
 
@@ -13,11 +13,12 @@ interface SidebarProps {
   onOpenMemory: () => void;
   onOpenFiles: () => void;
   onOpenArena?: () => void;
+  onOpenRooms?: () => void;
   onToggleSidebar: () => void;
   onLogout?: () => void;
 }
 
-export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUsage, onOpenMemory, onOpenFiles, onOpenArena, onToggleSidebar, onLogout }: SidebarProps) {
+export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUsage, onOpenMemory, onOpenFiles, onOpenArena, onOpenRooms, onToggleSidebar, onLogout }: SidebarProps) {
   const conversations = useChatStore(s => s.conversations);
   const currentConversationId = useChatStore(s => s.currentConversationId);
   const selectConversation = useChatStore(s => s.selectConversation);
@@ -216,6 +217,15 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
               <FolderOpen size={16} strokeWidth={1.5} />
               <span>{t('sidebar.fileLibrary')}</span>
             </button>
+            {onOpenRooms && (
+              <button
+                onClick={onOpenRooms}
+                className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-secondary)] text-[13px] w-full transition-colors duration-150"
+              >
+                <Users2 size={16} strokeWidth={1.5} />
+                <span>{t('sidebar.rooms')}</span>
+              </button>
+            )}
           </>
         )}
 

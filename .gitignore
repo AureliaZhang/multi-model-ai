@@ -9,6 +9,7 @@ server/data/
 *.db-wal
 .env
 *.log
+*.tsbuildinfo
 .DS_Store
 .vscode/
 .idea/

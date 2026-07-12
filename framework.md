@@ -1,8 +1,10 @@
 # Multi-Model AI Integration Platform — Framework Document
 
-> **Version**: 0.7.1
+<!-- > **Version**: 0.7.1 -->
+<!-- > **Last Updated**: 2026-07-11 (v0.7.1 — cleanup: trash/ archive + comment deprecated multi_prompt strings; §10.6 still not implemented) -->
+> **Version**: 0.7.2
 > **Created**: 2026-06-15
-> **Last Updated**: 2026-07-11 (v0.7.1 — cleanup: trash/ archive + comment deprecated multi_prompt strings; §10.6 still not implemented)
+> **Last Updated**: 2026-07-12 (v0.7.2 — bug/breakpoint sweep across shipped work; wired the already-built group-chat UI (§10.6) into the app; fixed 4 real bugs; see §12 change log)
 > **Rule**: This file must be kept in sync with every development step. Content is NEVER deleted, only commented out with `<!-- ... -->` when superseded. Other files may be freely modified.
 
 ---
@@ -553,8 +555,9 @@ Steps:
 <!-- superseded 2026-07-11: image generation MVP via /api/media/images + prefs image model -->
 - [x] Image generation model support — `/api/media/images` + confirm modal (MVP)
 - [ ] Dark/Light theme toggle
-- [ ] Responsive mobile design — desktop-first; group-chat mobile slide planned in §10.6
+- [ ] Responsive mobile design — desktop-first; group-chat pane slide done (§10.6), rest still desktop-first
 - [ ] Export/import conversations
+- [x] Group chat / Group AI (§10.6) — wired into app 2026-07-12 (RoomsPage + Sidebar entry); realtime still poll-based, WebSocket deferred
 
 ### Phase 5: Memory Store (记忆库)
 - [x] Memory store database schema & CRUD — memory_entries, memory_tags, memory_config tables
@@ -567,10 +570,11 @@ Steps:
 - [x] Memory export/import — /api/memories/export, /api/memories/import
 
 ### Phase 6: Polish
-- [ ] Performance optimization
+- [ ] Performance optimization — client bundle is one 660 KB chunk; consider route-level code-splitting
 - [ ] Comprehensive error messages
 - [ ] Documentation
-- [ ] Testing (unit + integration)
+- [ ] Testing (unit + integration) — **no test files exist yet**; root `npm test` is still the placeholder
+- [ ] Type-safety cleanup — remove ~80 `any` (mostly `catch (err: any)`; a few `as any` casts). See §10.7 for priority. Not a runtime bug; reduces future-proofing.
 
 ### Phase 7: Arena — Model Battle & Eval (管理员)
 - [x] Shared `ModelInvocation` service (non-stream completion + station failover) — `server/src/services/modelInvocation.ts`
@@ -604,7 +608,8 @@ API base: `/api/arena/*` (see `server/src/routes/arena.ts`).
 
 ## 10.6 Collaborative Chat & Group AI — Product Spec (Draft, 2026-07-11)
 
-> **Status**: Design locked via product discussion; **not implemented yet**.  
+<!-- > **Status**: Design locked via product discussion; **not implemented yet**. (superseded 2026-07-12) -->
+> **Status**: **Implemented (V1)** as of 2026-07-12. Backend (`server/src/routes/rooms.ts`, 17 endpoints), `roomStore`, `roomApi`, and `GroupChatLayout` were built earlier but left unwired; now reachable via Sidebar → "Group Chats" → `RoomsPage` (list + create + open). WebSocket realtime is still deferred — human/AI tracks poll every 3s (see `roomStore.openRoom`). i18n `room.*` keys added for zh/en.  
 > **Scope**: `multi-model-ai` only.  
 > **Principle**: Two tracks in a group — left = human social, right = shared AI workbench. AI never reads human-only chat unless the user explicitly @AI.
 
@@ -741,6 +746,45 @@ Suggested building blocks (for later implementation; not started):
 
 ---
 
+## 10.7 Remaining Work — Prioritized Backlog (added 2026-07-12)
+
+> Single consolidated view of everything still open, ranked. The project **builds and runs**; nothing here blocks that. Items are pulled from the roadmap above (Phase 3/4/6) plus a bug/breakpoint sweep on 2026-07-12.
+
+### P0 — Reliability gaps that affect live behaviour
+
+| Item | Where | Status / note |
+|------|-------|---------------|
+| Round-robin load balancer | `server/src/routes/chat.ts:613`, `server/src/services/modelInvocation.ts:93` | Still a **random pick**, not a real per-model RR counter. Failover works; even distribution does not. |
+| Health-check background job | `server/src/index.ts` | Only **manual** health-check exists. Unhealthy stations aren't auto-detected/auto-excluded on a timer (§8.3). |
+| Error handling & retry UI | chat client | No user-facing retry affordance when all stations fail. |
+
+### P1 — Product features users will notice missing
+
+| Item | Note |
+|------|------|
+| Export / import conversations | Memory has export/import; **conversations do not**. |
+| Dark / Light theme toggle | No theme system yet. |
+| Responsive mobile design | Desktop-first everywhere except the group-chat pane slide (§10.6). |
+| Group chat realtime | Currently 3s polling (`roomStore.openRoom`). WebSocket for occupancy/countdown + AI stream fan-out is deferred (§13). |
+
+### P2 — Code quality / hardening (no runtime impact)
+
+| Item | Note |
+|------|------|
+| Remove ~80 `any` | Overwhelmingly `catch (err: any)` (define a small `errMessage(e: unknown)` helper and reuse) plus a few `as any` casts that each need a real type. Improves future-proofing, not behaviour. |
+| Test suite (unit + integration) | **Zero tests today.** Highest-value targets: `normalizeModelName` dedup, station failover/RR, memory search, room occupancy state machine. |
+| Bundle code-splitting | Client is a single ~660 KB JS chunk; route-level `import()` would cut first-load. |
+| Comprehensive error messages + docs | Phase 6 polish. |
+
+### Done in the 2026-07-12 sweep (for reference)
+
+- Fixed 4 real bugs: RegexManager form remount/focus-loss, empty group-chat model dropdowns (wrong catalog key), ChatInput object-URL leak, GroupChatLayout impure `Date.now()` in render.
+- Wired the already-built §10.6 group chat into the app; added missing `room.*` i18n (zh/en).
+- ESLint: `set-state-in-effect` → warn (was error-spamming 10 files); honoured `^_` unused-var convention.
+- Local env: rebuilt `better-sqlite3`, installed linux-arm64 rolldown binding (node_modules was macOS-built).
+
+---
+
 ## 11. Configuration File Format
 
 ```yaml
@@ -777,6 +821,7 @@ settings:
 | 2026-07-11 | 0.6.0 | Arena P5: CSV exports, async benchmark runs with polling, concurrency-limited invocation pool | Claude |
 | 2026-07-11 | 0.7.0 | Spec only: Collaborative group chat + dual-pane Group AI (human left / AI right), occupancy countdown, per-room single AI task, KB isolation, model cooldown, NSFW single-dialog admin open-window — see §10.6 | Claude + Aurelia |
 | 2026-07-11 | 0.7.1 | Cleanup only: archived obsolete screenshots & superseded plans under `trash/` (not deleted); commented deprecated multi_prompt i18n/UI paths; roadmap checkboxes synced to reality | Claude |
+| 2026-07-12 | 0.7.2 | Bug/breakpoint sweep on shipped work. Fixed: (1) `RegexManager` `ScriptForm` defined inside render → input focus loss (now a plain render fn); (2) group-chat model dropdowns empty due to wrong catalog key (`text`/`image-gen` → `chat`/`image`); (3) `ChatInput` object-URL leak — unmount cleanup captured empty mount-time array (now a live ref); (4) `GroupChatLayout` `Date.now()` in render (purity) → mount-time state init. Wired the already-built §10.6 group chat into the app (`RoomsPage` + Sidebar entry + Layout route) and added all `room.*` i18n keys (zh/en) that were missing. ESLint: downgraded the over-aggressive `react-hooks/set-state-in-effect` to `warn`, honoured `^_` unused-var convention. Client `tsc -b` + `vite build` and server `tsc` now pass; rooms CRUD smoke-tested end-to-end. Also fixed local env: rebuilt `better-sqlite3` + installed linux-arm64 rolldown binding (node_modules had been populated on macOS). | Claude |
 
 ---
 

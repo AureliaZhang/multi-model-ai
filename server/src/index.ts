@@ -16,6 +16,7 @@ import regexRoutes from './routes/regex';
 import arenaRoutes from './routes/arena';
 import prefsRoutes from './routes/prefs';
 import mediaRoutes from './routes/media';
+import roomRoutes from './routes/rooms';
 import usageRoutes from './routes/usage';
 
 const app = express();
@@ -44,6 +45,7 @@ app.use('/api/regex', regexRoutes);
 app.use('/api/arena', arenaRoutes);
 app.use('/api/prefs', prefsRoutes);
 app.use('/api/media', mediaRoutes);
+app.use('/api/rooms', roomRoutes);
 app.use('/api/usage', usageRoutes);
 
 // Health check

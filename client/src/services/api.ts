@@ -567,6 +567,68 @@ export const arenaApi = {
 };
 
 
+// --- §10.6 Rooms (group chat + shared Group AI) ---
+export const roomApi = {
+  list: () => request<import('../types').Room[]>('/rooms'),
+  create: (name: string, memberUserIds: string[]) =>
+    request<import('../types').Room>('/rooms', {
+      method: 'POST',
+      body: JSON.stringify({ name, memberUserIds }),
+    }),
+  get: (id: string) => request<import('../types').Room>(`/rooms/${id}`),
+  disband: (id: string) => request<void>(`/rooms/${id}`, { method: 'DELETE' }),
+  invite: (id: string, userIds: string[]) =>
+    request<import('../types').RoomMemberInfo[]>(`/rooms/${id}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ userIds }),
+    }),
+  kick: (id: string, userId: string) =>
+    request<import('../types').RoomMemberInfo[]>(`/rooms/${id}/members/${userId}`, { method: 'DELETE' }),
+
+  // left track (human)
+  listMessages: (id: string) => request<import('../types').RoomMessage[]>(`/rooms/${id}/messages`),
+  sendMessage: (id: string, content: string, attachments?: unknown[]) =>
+    request<import('../types').RoomMessage>(`/rooms/${id}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ content, attachments }),
+    }),
+
+  // right track (AI)
+  listAi: (id: string) => request<import('../types').RoomAiMessage[]>(`/rooms/${id}/ai`),
+  ask: (id: string, content: string, fileIds?: string[]) =>
+    request<{ userMessageId: string; assistant: import('../types').RoomAiMessage }>(`/rooms/${id}/ai/ask`, {
+      method: 'POST',
+      body: JSON.stringify({ content, fileIds }),
+    }),
+
+  // occupancy (@AI input lock)
+  claim: (id: string) => request<import('../types').Room>(`/rooms/${id}/occupancy/claim`, { method: 'POST' }),
+  renew: (id: string) => request<import('../types').Room>(`/rooms/${id}/occupancy/renew`, { method: 'POST' }),
+  release: (id: string) => request<import('../types').Room>(`/rooms/${id}/occupancy/release`, { method: 'POST' }),
+
+  // group model prefs (shared 5-min cooldown)
+  setModels: (id: string, models: { chatModel?: string | null; imageModel?: string | null; ttsModel?: string | null }) =>
+    request<import('../types').Room>(`/rooms/${id}/models`, {
+      method: 'PUT',
+      body: JSON.stringify(models),
+    }),
+
+  // group files
+  listFiles: (id: string) => request<import('../types').RoomFile[]>(`/rooms/${id}/files`),
+  uploadFile: (id: string, name: string, mimeType: string, content: string, fileSize: number) =>
+    request<import('../types').RoomFile>(`/rooms/${id}/files`, {
+      method: 'POST',
+      body: JSON.stringify({ name, mimeType, content, fileSize }),
+    }),
+  deleteFile: (id: string, fileId: string) =>
+    request<void>(`/rooms/${id}/files/${fileId}`, { method: 'DELETE' }),
+};
+
+// --- Users (list for invite picker; admin creates, but members list is needed for group invite) ---
+export const usersApi = {
+  listBasic: () => request<import('../types').UserPublic[]>('/rooms/util/users'),
+};
+
 // --- Usage logs (admin) ---
 export const usageApi = {
   list: (params?: {

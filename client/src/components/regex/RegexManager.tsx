@@ -161,11 +161,14 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
   };
 
   // --- Script Edit Form ---
-  const ScriptForm = ({ script, onSave, onCancel }: {
-    script: Partial<RegexScript>;
-    onSave: () => void;
-    onCancel: () => void;
-  }) => (
+  // Rendered as a plain function (not a nested component) so it is NOT
+  // recreated as a new component type on every parent render — that would
+  // remount the inputs and drop focus while typing.
+  const renderScriptForm = (
+    script: Partial<RegexScript>,
+    onSave: () => void,
+    onCancel: () => void,
+  ) => (
     <div className="bg-[var(--color-surface-elevated)] border border-[var(--color-border)] rounded-xl p-4 space-y-3">
       <div>
         <label className="text-xs text-[var(--color-text-secondary)] mb-1 block">{t('regex.scriptName')}</label>
@@ -295,11 +298,11 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
             </div>
 
             {showNewScript && editingScript && !editingScript.id && (
-              <ScriptForm
-                script={editingScript}
-                onSave={handleCreateScript}
-                onCancel={() => { setShowNewScript(false); setEditingScript(null); }}
-              />
+              renderScriptForm(
+                editingScript,
+                handleCreateScript,
+                () => { setShowNewScript(false); setEditingScript(null); },
+              )
             )}
 
             {loading ? (
@@ -313,11 +316,11 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
               scripts.map((script, index) => (
                 <div key={script.id}>
                   {editingScript?.id === script.id ? (
-                    <ScriptForm
-                      script={editingScript}
-                      onSave={handleUpdateScript}
-                      onCancel={() => setEditingScript(null)}
-                    />
+                    renderScriptForm(
+                      editingScript,
+                      handleUpdateScript,
+                      () => setEditingScript(null),
+                    )
                   ) : (
                     <div className={`bg-[var(--color-surface)] border border-[var(--color-border-light)] rounded-xl p-3 transition-opacity ${!script.enabled ? 'opacity-50' : ''}`}>
                       <div className="flex items-center justify-between">
