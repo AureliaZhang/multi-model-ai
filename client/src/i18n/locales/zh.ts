@@ -6,6 +6,7 @@ const zh = {
   'common.save': '保存',
   'common.confirm': '确认',
   'common.dismiss': '关闭',
+  'common.retry': '重试',
   'common.enable': '启用',
   'common.disable': '禁用',
   'common.settings': '设置',

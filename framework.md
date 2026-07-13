@@ -509,10 +509,12 @@ Steps:
 
 ### 8.3 Health Check
 
-- Background job every 60 seconds.
+- Background job every 60 seconds (override via `HEALTH_CHECK_INTERVAL_MS`).
 - Call `/v1/models` or lightweight endpoint on each station.
 - Update `healthStatus` field.
 - Unhealthy stations are excluded from routing; re-included once healthy.
+
+**Implemented** (`server/src/services/healthCheck.ts`): `checkStationHealth()` pings `/models` and writes health to the DB; `runHealthCheckSweep()` runs all enabled stations in parallel on a timer started in `server/src/index.ts` (`startHealthCheckJob()` on listen, `stopHealthCheckJob()` on SIGINT/SIGTERM; timer is `unref()`'d). The manual health-check route reuses `checkStationHealth()`.
 
 ---
 
@@ -543,11 +545,10 @@ Steps:
 - [x] Conversation management (CRUD) — Create, list, delete, select conversations
 
 ### Phase 3: Reliability
-<!-- partial: station failover exists in chat/modelInvocation; not full RR counter yet -->
-- [ ] Round-robin load balancer — still random pick among stations in places
+- [x] Round-robin load balancer — real per-model RR counter across stations (commit 05c2a97)
 - [x] Automatic failover — try next station on failure (chat + modelInvocation)
-- [ ] Health check background job — manual health-check only
-- [ ] Error handling & retry UI
+- [x] Health check background job — periodic sweep pings `/models` per station, writes health to DB (§8.3)
+- [x] Error handling & retry UI — error banner offers retry when all stations fail
 
 ### Phase 4: Advanced Features
 <!-- superseded 2026-07-11: file upload/vision largely implemented via chat attachments + files module -->
@@ -752,11 +753,13 @@ Suggested building blocks (for later implementation; not started):
 
 ### P0 — Reliability gaps that affect live behaviour
 
+**All three P0 reliability items are now done** (2026-07-13, v0.7.3). Kept here for traceability:
+
 | Item | Where | Status / note |
 |------|-------|---------------|
-| Round-robin load balancer | `server/src/routes/chat.ts:613`, `server/src/services/modelInvocation.ts:93` | Still a **random pick**, not a real per-model RR counter. Failover works; even distribution does not. |
-| Health-check background job | `server/src/index.ts` | Only **manual** health-check exists. Unhealthy stations aren't auto-detected/auto-excluded on a timer (§8.3). |
-| Error handling & retry UI | chat client | No user-facing retry affordance when all stations fail. |
+| Round-robin load balancer | `server/src/routes/chat.ts`, `server/src/services/modelInvocation.ts` | ✅ Done (commit 05c2a97) — real per-model RR counter across stations, replacing the earlier random pick. |
+| Health-check background job | `server/src/services/healthCheck.ts`, `server/src/index.ts` | ✅ Done — periodic sweep pings `/models` per enabled station in parallel and writes health to DB; started on listen, stopped on SIGINT/SIGTERM (§8.3). Interval override via `HEALTH_CHECK_INTERVAL_MS`. |
+| Error handling & retry UI | `client/src/stores/chatStore.ts`, `client/src/components/Layout/ChatArea.tsx` | ✅ Done — failed sends stash their params in `lastFailedSend`; the error banner shows a **Retry** button that re-runs the send without duplicating the user bubble. |
 
 ### P1 — Product features users will notice missing
 
@@ -822,6 +825,7 @@ settings:
 | 2026-07-11 | 0.7.0 | Spec only: Collaborative group chat + dual-pane Group AI (human left / AI right), occupancy countdown, per-room single AI task, KB isolation, model cooldown, NSFW single-dialog admin open-window — see §10.6 | Claude + Aurelia |
 | 2026-07-11 | 0.7.1 | Cleanup only: archived obsolete screenshots & superseded plans under `trash/` (not deleted); commented deprecated multi_prompt i18n/UI paths; roadmap checkboxes synced to reality | Claude |
 | 2026-07-12 | 0.7.2 | Bug/breakpoint sweep on shipped work. Fixed: (1) `RegexManager` `ScriptForm` defined inside render → input focus loss (now a plain render fn); (2) group-chat model dropdowns empty due to wrong catalog key (`text`/`image-gen` → `chat`/`image`); (3) `ChatInput` object-URL leak — unmount cleanup captured empty mount-time array (now a live ref); (4) `GroupChatLayout` `Date.now()` in render (purity) → mount-time state init. Wired the already-built §10.6 group chat into the app (`RoomsPage` + Sidebar entry + Layout route) and added all `room.*` i18n keys (zh/en) that were missing. ESLint: downgraded the over-aggressive `react-hooks/set-state-in-effect` to `warn`, honoured `^_` unused-var convention. Client `tsc -b` + `vite build` and server `tsc` now pass; rooms CRUD smoke-tested end-to-end. Also fixed local env: rebuilt `better-sqlite3` + installed linux-arm64 rolldown binding (node_modules had been populated on macOS). | Claude |
+| 2026-07-13 | 0.7.3 | P0 reliability closeout. (1) Health-check background job: new `server/src/services/healthCheck.ts` (`checkStationHealth()` pings `/models` and writes status; `runHealthCheckSweep()` walks all enabled stations in parallel on a timer, `HEALTH_CHECK_INTERVAL_MS` override, `unref()`ed), started in `index.ts` on listen and stopped on SIGINT/SIGTERM; manual health-check endpoint refactored to reuse `checkStationHealth()` (response shape unchanged). (2) Whole-app failure retry: `chatStore` gains `lastFailedSend` + `retryLastSend`, with a shared `startStream()` helper so the error banner (`ChatArea`) can offer a **Retry** button that reuses the existing user bubble; added `common.retry` i18n (zh/en). (3) Note: round-robin (commit 05c2a97) was already done but the backlog still listed it as open — corrected §8, §10.7, Phase 3. Server `tsc` + client `tsc -b`/`vite build` pass. | Claude |
 
 ---
 

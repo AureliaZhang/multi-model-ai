@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { create, type StoreApi } from 'zustand';
 import type { Conversation, ConversationVisibility, Message, PendingAttachment, ToolCallInfo } from '../types';
 import { conversationApi, streamChat } from '../services/api';
 import { synthesizeSpeech, usePrefsStore } from './prefsStore';
@@ -8,6 +8,153 @@ import { synthesizeSpeech, usePrefsStore } from './prefsStore';
 let _selectGeneration = 0;
 // Guard to prevent concurrent fetchConversations from double-auto-selecting
 let _fetchConvRunning = false;
+
+/**
+ * Kick off a streaming chat request and wire all SSE callbacks into the store.
+ *
+ * Shared by the first send (doSendMessage, which inserts the user bubble first)
+ * and retryLastSend (which reuses the bubble already in the list). It therefore
+ * does NOT touch `messages` on entry — the caller owns inserting the user turn.
+ *
+ * On failure we stash the originating params in `lastFailedSend` so the error
+ * banner can offer a retry; on success we clear it.
+ */
+function startStream(
+  set: StoreApi<ChatState>['setState'],
+  get: StoreApi<ChatState>['getState'],
+  params: FailedSend,
+): void {
+  const { convId, message, modelNormalizedName, attachments, fileIds } = params;
+
+  set({ isStreaming: true, streamingContent: '', error: null, pendingToolCalls: [] });
+
+  // Convert attachments to API format
+  const apiAttachments = attachments?.map(a => ({
+    filename: a.file.name,
+    mimeType: a.file.type,
+    base64: a.base64 || '',
+  }));
+
+  const controller = streamChat(
+    convId,
+    modelNormalizedName,
+    message,
+    {
+      // onChunk
+      onChunk: (content) => {
+        set(state => ({ streamingContent: state.streamingContent + content }));
+      },
+      // onDone
+      onDone: () => {
+        const { streamingContent, pendingToolCalls } = get();
+        const assistantMsg: Message = {
+          id: `assistant-${Date.now()}`,
+          conversationId: convId,
+          role: 'assistant',
+          content: streamingContent,
+          toolCalls: pendingToolCalls.length > 0 ? [...pendingToolCalls] : undefined,
+          createdAt: new Date().toISOString(),
+        };
+        set(state => ({
+          messages: [...state.messages, assistantMsg],
+          isStreaming: false,
+          streamingContent: '',
+          abortController: null,
+          pendingToolCalls: [],
+          lastFailedSend: null,
+        }));
+        // Refresh conversation list to update title
+        get().fetchConversations();
+
+        // Auto TTS: speak assistant text with user-selected TTS model (OpenAI-compatible)
+        try {
+          const prefs = usePrefsStore.getState().prefs;
+          if (prefs?.autoTts && prefs.ttsModel && streamingContent.trim()) {
+            const speakText = streamingContent.replace(/```[\s\S]*?```/g, ' ').slice(0, 3000);
+            synthesizeSpeech(prefs.ttsModel, speakText).then((ttsRes) => {
+              if (ttsRes.success && ttsRes.data?.dataUrl) {
+                const audioMsg: Message = {
+                  id: `tts-${Date.now()}`,
+                  conversationId: convId,
+                  role: 'assistant',
+                  content: '',
+                  attachments: [{
+                    id: `tts-att-${Date.now()}`,
+                    type: 'file',
+                    filename: 'speech.mp3',
+                    mimeType: ttsRes.data.mimeType || 'audio/mpeg',
+                    url: ttsRes.data.dataUrl,
+                  }],
+                  modelUsed: ttsRes.data.modelUsed,
+                  createdAt: new Date().toISOString(),
+                };
+                set((state) => ({ messages: [...state.messages, audioMsg] }));
+                try {
+                  const a = new Audio(ttsRes.data.dataUrl);
+                  a.play().catch(() => undefined);
+                } catch {
+                  /* ignore */
+                }
+              }
+            }).catch(() => undefined);
+          }
+        } catch {
+          /* prefs optional */
+        }
+      },
+      // onReviewedContent — replaces streaming content with self-reviewed version
+      onReviewedContent: (reviewedContent: string) => {
+        set({ streamingContent: reviewedContent });
+      },
+      // onRegexContent — replaces streaming content with regex-transformed version
+      onRegexContent: (regexContent: string) => {
+        set({ streamingContent: regexContent });
+      },
+      // onError — keep the params so the user can retry (e.g. all stations down)
+      onError: (error) => {
+        set({
+          isStreaming: false,
+          streamingContent: '',
+          error,
+          abortController: null,
+          pendingToolCalls: [],
+          lastFailedSend: params,
+        });
+      },
+      // onToolCall
+      onToolCall: (toolCall) => {
+        set(state => ({
+          pendingToolCalls: [...state.pendingToolCalls, {
+            id: toolCall.id,
+            name: toolCall.name,
+            arguments: toolCall.arguments,
+          }],
+        }));
+      },
+      // onToolResult
+      onToolResult: (toolResult) => {
+        set(state => ({
+          pendingToolCalls: state.pendingToolCalls.map(tc =>
+            tc.id === toolResult.id ? { ...tc, result: toolResult.result } : tc
+          ),
+        }));
+      },
+    },
+    apiAttachments,
+    fileIds && fileIds.length > 0 ? fileIds : undefined,
+  );
+
+  set({ abortController: controller });
+}
+
+/** Params of the most recent send that failed, kept so the user can retry it. */
+interface FailedSend {
+  convId: string;
+  message: string;
+  modelNormalizedName: string;
+  attachments?: PendingAttachment[];
+  fileIds?: string[];
+}
 
 interface ChatState {
   conversations: Conversation[];
@@ -20,6 +167,8 @@ interface ChatState {
   pendingToolCalls: ToolCallInfo[];
   currentVisibility: ConversationVisibility;
   currentSelfReview: boolean;
+  /** Set when a send fails (e.g. all stations down); powers the retry button. */
+  lastFailedSend: FailedSend | null;
 
   fetchConversations: () => Promise<void>;
   createConversation: (modelNormalizedName: string, title?: string, visibility?: ConversationVisibility, selfReview?: boolean) => Promise<string>;
@@ -28,6 +177,8 @@ interface ChatState {
   updateConversation: (id: string, data: { title?: string; visibility?: ConversationVisibility; selfReview?: boolean }) => Promise<void>;
   sendMessage: (message: string, modelNormalizedName: string, attachments?: PendingAttachment[], fileIds?: string[]) => void;
   doSendMessage: (convId: string, message: string, modelNormalizedName: string, attachments?: PendingAttachment[], fileIds?: string[]) => void;
+  /** Re-run the last failed send without inserting a duplicate user message. */
+  retryLastSend: () => void;
   stopStreaming: () => void;
   clearError: () => void;
   setVisibility: (v: ConversationVisibility) => void;
@@ -45,6 +196,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   pendingToolCalls: [],
   currentVisibility: 'public',
   currentSelfReview: false,
+  lastFailedSend: null,
 
   fetchConversations: async () => {
     // Prevent concurrent fetchConversations from double-auto-selecting (StrictMode double-mount)
@@ -226,123 +378,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
       createdAt: new Date().toISOString(),
     };
 
-    set(state => ({
-      messages: [...state.messages, userMsg],
-      isStreaming: true,
-      streamingContent: '',
-      error: null,
-      pendingToolCalls: [],
-    }));
+    set(state => ({ messages: [...state.messages, userMsg] }));
 
-    // Convert attachments to API format
-    const apiAttachments = attachments?.map(a => ({
-      filename: a.file.name,
-      mimeType: a.file.type,
-      base64: a.base64 || '',
-    }));
+    startStream(set, get, { convId, message, modelNormalizedName, attachments, fileIds });
+  },
 
-    const controller = streamChat(
-      convId,
-      modelNormalizedName,
-      message,
-      {
-        // onChunk
-        onChunk: (content) => {
-          set(state => ({ streamingContent: state.streamingContent + content }));
-        },
-        // onDone
-        onDone: () => {
-          const { streamingContent, pendingToolCalls } = get();
-          const assistantMsg: Message = {
-            id: `assistant-${Date.now()}`,
-            conversationId: convId,
-            role: 'assistant',
-            content: streamingContent,
-            toolCalls: pendingToolCalls.length > 0 ? [...pendingToolCalls] : undefined,
-            createdAt: new Date().toISOString(),
-          };
-          set(state => ({
-            messages: [...state.messages, assistantMsg],
-            isStreaming: false,
-            streamingContent: '',
-            abortController: null,
-            pendingToolCalls: [],
-          }));
-          // Refresh conversation list to update title
-          get().fetchConversations();
-
-          // Auto TTS: speak assistant text with user-selected TTS model (OpenAI-compatible)
-          try {
-            const prefs = usePrefsStore.getState().prefs;
-            if (prefs?.autoTts && prefs.ttsModel && streamingContent.trim()) {
-              const speakText = streamingContent.replace(/```[\s\S]*?```/g, ' ').slice(0, 3000);
-              synthesizeSpeech(prefs.ttsModel, speakText).then((ttsRes) => {
-                if (ttsRes.success && ttsRes.data?.dataUrl) {
-                  const audioMsg: Message = {
-                    id: `tts-${Date.now()}`,
-                    conversationId: convId,
-                    role: 'assistant',
-                    content: '',
-                    attachments: [{
-                      id: `tts-att-${Date.now()}`,
-                      type: 'file',
-                      filename: 'speech.mp3',
-                      mimeType: ttsRes.data.mimeType || 'audio/mpeg',
-                      url: ttsRes.data.dataUrl,
-                    }],
-                    modelUsed: ttsRes.data.modelUsed,
-                    createdAt: new Date().toISOString(),
-                  };
-                  set((state) => ({ messages: [...state.messages, audioMsg] }));
-                  try {
-                    const a = new Audio(ttsRes.data.dataUrl);
-                    a.play().catch(() => undefined);
-                  } catch {
-                    /* ignore */
-                  }
-                }
-              }).catch(() => undefined);
-            }
-          } catch {
-            /* prefs optional */
-          }
-        },
-        // onReviewedContent — replaces streaming content with self-reviewed version
-        onReviewedContent: (reviewedContent: string) => {
-          set({ streamingContent: reviewedContent });
-        },
-        // onRegexContent — replaces streaming content with regex-transformed version
-        onRegexContent: (regexContent: string) => {
-          set({ streamingContent: regexContent });
-        },
-        // onError
-        onError: (error) => {
-          set({ isStreaming: false, streamingContent: '', error, abortController: null, pendingToolCalls: [] });
-        },
-        // onToolCall
-        onToolCall: (toolCall) => {
-          set(state => ({
-            pendingToolCalls: [...state.pendingToolCalls, {
-              id: toolCall.id,
-              name: toolCall.name,
-              arguments: toolCall.arguments,
-            }],
-          }));
-        },
-        // onToolResult
-        onToolResult: (toolResult) => {
-          set(state => ({
-            pendingToolCalls: state.pendingToolCalls.map(tc =>
-              tc.id === toolResult.id ? { ...tc, result: toolResult.result } : tc
-            ),
-          }));
-        },
-      },
-      apiAttachments,
-      fileIds && fileIds.length > 0 ? fileIds : undefined,
-    );
-
-    set({ abortController: controller });
+  // Re-run the last failed send. The user bubble is already in the list, so we
+  // just restart the stream with the same params — no duplicate message.
+  retryLastSend: () => {
+    const { lastFailedSend, isStreaming } = get();
+    if (!lastFailedSend || isStreaming) return;
+    startStream(set, get, lastFailedSend);
   },
 
   stopStreaming: () => {

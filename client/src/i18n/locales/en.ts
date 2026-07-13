@@ -6,6 +6,7 @@ const en = {
   'common.save': 'Save',
   'common.confirm': 'Confirm',
   'common.dismiss': 'Dismiss',
+  'common.retry': 'Retry',
   'common.enable': 'Enable',
   'common.disable': 'Disable',
   'common.settings': 'Settings',

@@ -23,6 +23,8 @@ export function ChatArea({ isGuest = false, onSignIn, sidebarCollapsed = false, 
   const streamingContent = useChatStore(s => s.streamingContent);
   const error = useChatStore(s => s.error);
   const clearError = useChatStore(s => s.clearError);
+  const lastFailedSend = useChatStore(s => s.lastFailedSend);
+  const retryLastSend = useChatStore(s => s.retryLastSend);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { t } = useTranslation();
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -134,7 +136,12 @@ export function ChatArea({ isGuest = false, onSignIn, sidebarCollapsed = false, 
             {error && (
               <div className="mx-4 mb-4 p-3 rounded-xl bg-[var(--color-surface-error)] border border-[rgba(239,68,68,0.2)] text-[var(--color-text-error)] text-sm flex items-center justify-between">
                 <span>{error}</span>
-                <button onClick={clearError} className="text-[var(--color-text-error)] hover:opacity-70 ml-2 text-xs font-medium">{t('common.dismiss')}</button>
+                <div className="flex items-center gap-3 ml-2 shrink-0">
+                  {lastFailedSend && (
+                    <button onClick={retryLastSend} className="text-[var(--color-text-error)] hover:opacity-70 text-xs font-medium">{t('common.retry')}</button>
+                  )}
+                  <button onClick={clearError} className="text-[var(--color-text-error)] hover:opacity-70 text-xs font-medium">{t('common.dismiss')}</button>
+                </div>
               </div>
             )}
 

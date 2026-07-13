@@ -4,6 +4,7 @@ import { getDb } from '../database';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { Station, CreateStationRequest, UpdateStationRequest, ApiResponse } from '../types';
 import type { AuthRequest } from '../types';
+import { checkStationHealth } from '../services/healthCheck';
 
 const router = Router();
 
@@ -360,34 +361,11 @@ router.post('/:id/health-check', async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, error: 'Station not found' });
     }
 
-    const baseUrl = station.base_url.replace(/\/+$/, '');
-    const modelsUrl = `${baseUrl}/models`;
-    const now = new Date().toISOString();
-    let status = 'unhealthy';
-    let detail = '';
-    try {
-      const response = await fetch(modelsUrl, {
-        headers: { Authorization: `Bearer ${station.api_key}` },
-        signal: AbortSignal.timeout(10000),
-      });
-      if (response.ok) {
-        status = 'healthy';
-      } else {
-        detail = `HTTP ${response.status}`;
-      }
-    } catch (fetchErr: any) {
-      status = 'unhealthy';
-      detail = fetchErr.name === 'TimeoutError' ? 'Timeout' : fetchErr.message;
-    }
+    // Reuse the same ping+persist logic the background sweep uses (§8.3).
+    const { status, detail } = await checkStationHealth(db, station);
+    const updated = db.prepare('SELECT last_health_check FROM stations WHERE id = ?').get(id) as any;
 
-    db.prepare('UPDATE stations SET health_status = ?, last_health_check = ?, updated_at = ? WHERE id = ?').run(
-      status,
-      now,
-      now,
-      id
-    );
-
-    res.json({ success: true, data: { healthStatus: status, lastHealthCheck: now, detail } });
+    res.json({ success: true, data: { healthStatus: status, lastHealthCheck: updated?.last_health_check, detail } });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

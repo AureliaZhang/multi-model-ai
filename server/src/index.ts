@@ -18,6 +18,7 @@ import prefsRoutes from './routes/prefs';
 import mediaRoutes from './routes/media';
 import roomRoutes from './routes/rooms';
 import usageRoutes from './routes/usage';
+import { startHealthCheckJob, stopHealthCheckJob } from './services/healthCheck';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -85,15 +86,20 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Multi-Model AI Server running on http://localhost:${PORT} (env: ${isProduction ? 'production' : 'development'})`);
+  // Begin periodic station health checks so unhealthy stations are auto-detected
+  // and auto-recovered without a manual check (§8.3).
+  startHealthCheckJob();
 });
 
 // Graceful shutdown
 process.on('SIGINT', () => {
+  stopHealthCheckJob();
   closeDb();
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
+  stopHealthCheckJob();
   closeDb();
   process.exit(0);
 });
