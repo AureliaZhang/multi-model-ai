@@ -138,6 +138,37 @@ export const conversationApi = {
     request(`/conversations/${id}`, { method: 'DELETE' }),
   getMessages: (id: string) =>
     request<Message[]>(`/conversations/${id}/messages`),
+  // Download all in-scope conversations (+ messages) as a JSON file.
+  downloadExport: async () => {
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${BASE_URL}/conversations/export`, { headers });
+    if (res.status === 401 && token) {
+      removeToken();
+      window.location.reload();
+      return;
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error((err as { error?: string }).error || 'Export failed');
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const stamp = new Date().toISOString().slice(0, 10);
+    a.download = `conversations-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
+  import: (payload: unknown) =>
+    request<{ importedConversations: number; importedMessages: number; total: number }>(
+      '/conversations/import',
+      { method: 'POST', body: JSON.stringify(payload) }
+    ),
 };
 
 // --- Chat (SSE streaming) ---

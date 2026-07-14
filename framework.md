@@ -2,9 +2,10 @@
 
 <!-- > **Version**: 0.7.1 -->
 <!-- > **Last Updated**: 2026-07-11 (v0.7.1 — cleanup: trash/ archive + comment deprecated multi_prompt strings; §10.6 still not implemented) -->
-> **Version**: 0.7.2
+> **Version**: 0.7.4
 > **Created**: 2026-06-15
-> **Last Updated**: 2026-07-12 (v0.7.2 — bug/breakpoint sweep across shipped work; wired the already-built group-chat UI (§10.6) into the app; fixed 4 real bugs; see §12 change log)
+> **Last Updated**: 2026-07-14 (v0.7.4 — P1: conversation export/import (nested conv+messages, idempotent import); see §12 change log)
+<!-- > **Last Updated**: 2026-07-12 (v0.7.2 — bug/breakpoint sweep across shipped work; wired the already-built group-chat UI (§10.6) into the app; fixed 4 real bugs; see §12 change log) -->
 > **Rule**: This file must be kept in sync with every development step. Content is NEVER deleted, only commented out with `<!-- ... -->` when superseded. Other files may be freely modified.
 
 ---
@@ -765,7 +766,7 @@ Suggested building blocks (for later implementation; not started):
 
 | Item | Note |
 |------|------|
-| Export / import conversations | Memory has export/import; **conversations do not**. |
+| ~~Export / import conversations~~ | ✅ Done (2026-07-14, v0.7.4). `GET /api/conversations/export` (nested conv+messages JSON download, visibility-scoped like list) + `POST /api/conversations/import` (transaction, `INSERT OR IGNORE` dedup by id, accepts wrapped or bare array). Sidebar footer Export/Import buttons. **Attachments NOT included in v1** (separate binary storage) — TODO left in `conversations.ts`. |
 | Dark / Light theme toggle | No theme system yet. |
 | Responsive mobile design | Desktop-first everywhere except the group-chat pane slide (§10.6). |
 | Group chat realtime | Currently 3s polling (`roomStore.openRoom`). WebSocket for occupancy/countdown + AI stream fan-out is deferred (§13). |
@@ -825,6 +826,7 @@ settings:
 | 2026-07-11 | 0.7.0 | Spec only: Collaborative group chat + dual-pane Group AI (human left / AI right), occupancy countdown, per-room single AI task, KB isolation, model cooldown, NSFW single-dialog admin open-window — see §10.6 | Claude + Aurelia |
 | 2026-07-11 | 0.7.1 | Cleanup only: archived obsolete screenshots & superseded plans under `trash/` (not deleted); commented deprecated multi_prompt i18n/UI paths; roadmap checkboxes synced to reality | Claude |
 | 2026-07-12 | 0.7.2 | Bug/breakpoint sweep on shipped work. Fixed: (1) `RegexManager` `ScriptForm` defined inside render → input focus loss (now a plain render fn); (2) group-chat model dropdowns empty due to wrong catalog key (`text`/`image-gen` → `chat`/`image`); (3) `ChatInput` object-URL leak — unmount cleanup captured empty mount-time array (now a live ref); (4) `GroupChatLayout` `Date.now()` in render (purity) → mount-time state init. Wired the already-built §10.6 group chat into the app (`RoomsPage` + Sidebar entry + Layout route) and added all `room.*` i18n keys (zh/en) that were missing. ESLint: downgraded the over-aggressive `react-hooks/set-state-in-effect` to `warn`, honoured `^_` unused-var convention. Client `tsc -b` + `vite build` and server `tsc` now pass; rooms CRUD smoke-tested end-to-end. Also fixed local env: rebuilt `better-sqlite3` + installed linux-arm64 rolldown binding (node_modules had been populated on macOS). | Claude |
+| 2026-07-14 | 0.7.4 | P1: conversation export/import. Backend `server/src/routes/conversations.ts`: `GET /export` streams a JSON download (`{ exportedAt, version:1, conversations:[{...conv, messages:[]}] }`) scoped exactly like the list endpoint (authed user's own all-visibility + public; guests public-only); `POST /import` accepts the wrapped object or a bare array, inserts conv+messages in a single transaction with `INSERT OR IGNORE` (idempotent — re-importing the same file is 0/0), skips malformed entries, returns `{ importedConversations, importedMessages, total }`. Frontend: `conversationApi.downloadExport`/`import` (api.ts, blob download mirrors arena's), `chatStore.exportConversations`/`importConversations` (refreshes list after import), Sidebar footer Export/Import buttons (non-guest) + hidden file input; `sidebar.export*/import*` i18n (zh/en) with `{convs}`/`{msgs}` interpolation. NOTE: attachments (images/files) are NOT in v1 — separate binary storage; TODO left in code + P1 backlog. Smoke-tested end-to-end on a DB copy (create→export→re-import→idempotent re-import→400 on bad body→verified rows in DB); real `data/app.db` untouched. Server `tsc` + client `tsc -b`/`vite build` pass; no new lint issues (the 80 `any` errors are the pre-existing P2 backlog). | Claude |
 | 2026-07-13 | 0.7.3 | P0 reliability closeout. (1) Health-check background job: new `server/src/services/healthCheck.ts` (`checkStationHealth()` pings `/models` and writes status; `runHealthCheckSweep()` walks all enabled stations in parallel on a timer, `HEALTH_CHECK_INTERVAL_MS` override, `unref()`ed), started in `index.ts` on listen and stopped on SIGINT/SIGTERM; manual health-check endpoint refactored to reuse `checkStationHealth()` (response shape unchanged). (2) Whole-app failure retry: `chatStore` gains `lastFailedSend` + `retryLastSend`, with a shared `startStream()` helper so the error banner (`ChatArea`) can offer a **Retry** button that reuses the existing user bubble; added `common.retry` i18n (zh/en). (3) Note: round-robin (commit 05c2a97) was already done but the backlog still listed it as open — corrected §8, §10.7, Phase 3. Server `tsc` + client `tsc -b`/`vite build` pass. | Claude |
 
 ---

@@ -122,6 +122,139 @@ router.delete('/:id', (req: Request, res: Response) => {
   }
 });
 
+// GET /api/conversations/export - Export conversations (+ their messages) as JSON download
+// Scope mirrors the list endpoint: authed users get their own (all visibility) + public;
+// guests get public only. NOTE: attachments (images/files) are NOT included in v1 —
+// they live in separate binary storage. TODO 待更新：如果将来要连附件一起导出/导入，
+// 需要把 attachments 表 + 实际文件一起打包（见 framework §3.3 F-C04 / P1 backlog）。
+router.get('/export', optionalAuth, (req: AuthRequest, res: Response) => {
+  try {
+    const db = getDb();
+    const userId = req.user?.id;
+    let convRows: any[];
+
+    if (userId) {
+      convRows = db.prepare(
+        'SELECT * FROM conversations WHERE user_id = ? OR visibility = ? OR user_id IS NULL ORDER BY updated_at DESC'
+      ).all(userId, 'public') as any[];
+    } else {
+      convRows = db.prepare(
+        'SELECT * FROM conversations WHERE visibility = ? ORDER BY updated_at DESC'
+      ).all('public') as any[];
+    }
+
+    const msgStmt = db.prepare(
+      'SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC'
+    );
+
+    const conversations = convRows.map(c => ({
+      ...rowToConversation(c),
+      messages: (msgStmt.all(c.id) as any[]).map(r => ({
+        id: r.id,
+        role: r.role,
+        content: r.content,
+        modelUsed: r.model_used,
+        createdAt: r.created_at,
+      })),
+    }));
+
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      version: 1,
+      conversations,
+    };
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename=conversations-export.json');
+    res.json(payload);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/conversations/import - Import conversations (+ messages) from an export file.
+// Accepts either the wrapped { conversations: [...] } shape or a bare array.
+// Uses INSERT OR IGNORE so re-importing the same file is a no-op (dedup by id).
+router.post('/import', optionalAuth, (req: AuthRequest, res: Response) => {
+  try {
+    const body = req.body;
+    const list: any[] = Array.isArray(body)
+      ? body
+      : Array.isArray(body?.conversations)
+        ? body.conversations
+        : [];
+
+    if (list.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Body must be an array of conversations or an object with a "conversations" array',
+      });
+    }
+
+    const db = getDb();
+    const userId = req.user?.id || null;
+
+    const insertConv = db.prepare(`
+      INSERT OR IGNORE INTO conversations
+        (id, title, model_normalized_name, visibility, self_review, user_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const insertMsg = db.prepare(`
+      INSERT OR IGNORE INTO messages
+        (id, conversation_id, role, content, model_used, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+
+    let importedConvs = 0;
+    let importedMsgs = 0;
+
+    const runImport = db.transaction((items: any[]) => {
+      for (const c of items) {
+        if (!c || !c.modelNormalizedName) continue; // skip malformed entries
+        const convId = c.id || uuidv4();
+        const now = new Date().toISOString();
+        const vis = c.visibility === 'private' ? 'private' : 'public';
+        const review = c.selfReview ? 1 : 0;
+
+        const cr = insertConv.run(
+          convId,
+          c.title || 'Imported Conversation',
+          c.modelNormalizedName,
+          vis,
+          review,
+          userId,
+          c.createdAt || now,
+          c.updatedAt || now
+        );
+        if (cr.changes > 0) importedConvs++;
+
+        const messages = Array.isArray(c.messages) ? c.messages : [];
+        for (const m of messages) {
+          if (!m || !m.role || m.content === undefined || m.content === null) continue;
+          const mr = insertMsg.run(
+            m.id || uuidv4(),
+            convId,
+            m.role,
+            m.content,
+            m.modelUsed || null,
+            m.createdAt || now
+          );
+          if (mr.changes > 0) importedMsgs++;
+        }
+      }
+    });
+
+    runImport(list);
+
+    res.json({
+      success: true,
+      data: { importedConversations: importedConvs, importedMessages: importedMsgs, total: list.length },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // GET /api/conversations/:id/messages - Get messages
 router.get('/:id/messages', (req: Request, res: Response) => {
   try {

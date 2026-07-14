@@ -179,6 +179,10 @@ interface ChatState {
   doSendMessage: (convId: string, message: string, modelNormalizedName: string, attachments?: PendingAttachment[], fileIds?: string[]) => void;
   /** Re-run the last failed send without inserting a duplicate user message. */
   retryLastSend: () => void;
+  /** Download all visible conversations (+ messages) as a JSON file. */
+  exportConversations: () => Promise<void>;
+  /** Import conversations from a parsed export file; refreshes the list. Returns a summary. */
+  importConversations: (data: unknown) => Promise<{ importedConversations: number; importedMessages: number; total: number }>;
   stopStreaming: () => void;
   clearError: () => void;
   setVisibility: (v: ConversationVisibility) => void;
@@ -342,6 +346,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } catch (err: any) {
       console.error('Failed to update conversation:', err);
     }
+  },
+
+  exportConversations: async () => {
+    await conversationApi.downloadExport();
+  },
+
+  importConversations: async (data: unknown) => {
+    const res = await conversationApi.import(data);
+    if (!res.success) {
+      throw new Error(res.error || 'Import failed');
+    }
+    await get().fetchConversations();
+    return res.data as { importedConversations: number; importedMessages: number; total: number };
   },
 
   sendMessage: (message: string, modelNormalizedName: string, attachments?: PendingAttachment[], fileIds?: string[]) => {

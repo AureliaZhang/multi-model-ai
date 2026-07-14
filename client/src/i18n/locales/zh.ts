@@ -76,6 +76,11 @@ const zh = {
   'sidebar.signOut': '退出登录',
   'sidebar.openSidebar': '打开侧边栏',
   'sidebar.collapseSidebar': '收起侧栏',
+  'sidebar.exportChats': '导出对话',
+  'sidebar.importChats': '导入对话',
+  'sidebar.exportFailed': '导出失败',
+  'sidebar.importFailed': '导入失败：文件格式无效',
+  'sidebar.importDone': '已导入 {convs} 个对话、{msgs} 条消息',
 
   // 聊天区域
   'chat.browseMode': '浏览模式',

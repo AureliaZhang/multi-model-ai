@@ -76,6 +76,11 @@ const en = {
   'sidebar.signOut': 'Sign out',
   'sidebar.openSidebar': 'Open sidebar',
   'sidebar.collapseSidebar': 'Collapse sidebar',
+  'sidebar.exportChats': 'Export chats',
+  'sidebar.importChats': 'Import chats',
+  'sidebar.exportFailed': 'Export failed',
+  'sidebar.importFailed': 'Import failed: invalid file format',
+  'sidebar.importDone': 'Imported {convs} conversations, {msgs} messages',
 
   // Chat Area
   'chat.browseMode': 'Browse Mode',
