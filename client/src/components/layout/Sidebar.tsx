@@ -16,9 +16,11 @@ interface SidebarProps {
   onOpenRooms?: () => void;
   onToggleSidebar: () => void;
   onLogout?: () => void;
+  /** Called after selecting/creating a conversation — lets the mobile drawer close itself. */
+  onNavigate?: () => void;
 }
 
-export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUsage, onOpenMemory, onOpenFiles, onOpenArena, onOpenRooms, onToggleSidebar, onLogout }: SidebarProps) {
+export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUsage, onOpenMemory, onOpenFiles, onOpenArena, onOpenRooms, onToggleSidebar, onLogout, onNavigate }: SidebarProps) {
   const conversations = useChatStore(s => s.conversations);
   const currentConversationId = useChatStore(s => s.currentConversationId);
   const selectConversation = useChatStore(s => s.selectConversation);
@@ -64,6 +66,7 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
   const handleNewChat = () => {
     localStorage.removeItem('last_conversation_id');
     useChatStore.setState({ currentConversationId: null, messages: [] });
+    onNavigate?.();
   };
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
@@ -158,7 +161,7 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
             {conversations.map(conv => (
               <div
                 key={conv.id}
-                onClick={() => selectConversation(conv.id)}
+                onClick={() => { selectConversation(conv.id); onNavigate?.(); }}
                 onMouseLeave={() => { if (deleteConfirmId === conv.id) setDeleteConfirmId(null); }}
                 className={`group relative flex items-center px-3 py-2.5 rounded-lg cursor-pointer mb-0.5 transition-all duration-150 sidebar-item ${
                   currentConversationId === conv.id

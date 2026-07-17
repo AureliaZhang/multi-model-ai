@@ -29,7 +29,11 @@ type PageView = 'chat' | 'settings' | 'users' | 'memory' | 'files' | 'arena' | '
 
 export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
   const [page, setPage] = useState<PageView>('chat');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Desktop opens the sidebar inline by default; mobile (<768px) starts closed
+  // so the chat area isn't crushed — the sidebar becomes a slide-in drawer there.
+  const [sidebarOpen, setSidebarOpen] = useState(() =>
+    typeof window === 'undefined' ? true : window.innerWidth >= 768
+  );
   const [showGuide, setShowGuide] = useState(false);
   const fetchModels = useModelStore(s => s.fetchModels);
   const fetchConversations = useChatStore(s => s.fetchConversations);
@@ -87,22 +91,42 @@ export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
     return withLang(<RoomsPage onClose={() => setPage('chat')} />);
   }
 
+  // On mobile the sidebar is an overlay drawer, so selecting a destination
+  // should close it; on desktop it stays pinned open.
+  const closeSidebarOnMobile = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) setSidebarOpen(false);
+  };
+  const goToPage = (p: PageView) => {
+    setPage(p);
+    closeSidebarOnMobile();
+  };
+
   return withLang(
     <div className="flex h-full w-full overflow-hidden">
-      {/* Sidebar */}
+      {/* Mobile backdrop — tap to dismiss the drawer (hidden on md+) */}
       {sidebarOpen && (
-        <div className="w-[260px] flex-shrink-0 border-r border-[var(--color-border-light)]">
+        <div
+          className="fixed inset-0 z-30 bg-black/50 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Sidebar: inline column on desktop, fixed slide-in drawer on mobile */}
+      {sidebarOpen && (
+        <div className="fixed inset-y-0 left-0 z-40 w-[280px] max-w-[85vw] md:static md:z-auto md:w-[260px] md:max-w-none flex-shrink-0 border-r border-[var(--color-border-light)] fade-in md:animate-none">
           <Sidebar
             isGuest={isGuest}
-            onOpenSettings={() => setPage('settings')}
-            onOpenUsers={() => setPage('users')}
-            onOpenUsage={() => setPage('usage')}
-            onOpenMemory={() => setPage('memory')}
-            onOpenFiles={() => setPage('files')}
-            onOpenArena={() => setPage('arena')}
-            onOpenRooms={() => setPage('rooms')}
+            onOpenSettings={() => goToPage('settings')}
+            onOpenUsers={() => goToPage('users')}
+            onOpenUsage={() => goToPage('usage')}
+            onOpenMemory={() => goToPage('memory')}
+            onOpenFiles={() => goToPage('files')}
+            onOpenArena={() => goToPage('arena')}
+            onOpenRooms={() => goToPage('rooms')}
             onToggleSidebar={() => setSidebarOpen(false)}
             onLogout={onLogout}
+            onNavigate={closeSidebarOnMobile}
           />
         </div>
       )}

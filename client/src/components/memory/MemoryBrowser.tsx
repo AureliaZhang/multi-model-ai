@@ -172,7 +172,7 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
             title="Regenerate embeddings for all entries"
           >
             <RefreshCw size={14} />
-            Re-embed
+            <span className="hidden sm:inline">Re-embed</span>
           </button>
           <button
             onClick={() => setShowSettings(!showSettings)}
@@ -183,7 +183,7 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
             } text-sm font-medium`}
           >
             <Settings size={14} />
-            {t('memory.settings')}
+            <span className="hidden sm:inline">{t('memory.settings')}</span>
           </button>
         </div>
       </div>
@@ -192,7 +192,7 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
       {showSettings && (
         <div className="px-5 py-4 border-b border-[var(--color-border-light)] bg-[var(--color-bg-secondary)] flex-shrink-0 space-y-4">
           {/* Toggle configs */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <ConfigToggle
               label={t('memory.autoSave')}
               description={t('memory.autoSaveDesc')}
@@ -359,9 +359,10 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
             </p>
           </div>
         ) : (
-          <div className="px-3 py-2">
-            {/* Table header */}
-            <div className="grid grid-cols-[150px_80px_50px_1fr_80px_80px_70px] gap-2 px-3 py-2 text-[11px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-light)] mb-1">
+          <div className="px-3 py-2 overflow-x-auto">
+            {/* Table header — min-w keeps the fixed columns aligned; the parent
+                scrolls horizontally on narrow screens instead of crushing them. */}
+            <div className="grid grid-cols-[150px_80px_50px_1fr_80px_80px_70px] gap-2 px-3 py-2 text-[11px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-light)] mb-1 min-w-[720px]">
               <span className="flex items-center gap-1"><Clock size={11} /> {t('memory.colTime')}</span>
               <span className="flex items-center gap-1"><User size={11} /> {t('memory.colUser')}</span>
               <span>{t('memory.colRole')}</span>
@@ -375,7 +376,7 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
             {displayEntries.map(entry => (
               <div key={entry.id}>
                 <div
-                  className="group grid grid-cols-[150px_80px_50px_1fr_80px_80px_70px] gap-2 items-center px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] transition-colors cursor-pointer"
+                  className="group grid grid-cols-[150px_80px_50px_1fr_80px_80px_70px] gap-2 items-center px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] transition-colors cursor-pointer min-w-[720px]"
                   onClick={() => setExpandedRowId(expandedRowId === entry.id ? null : entry.id)}
                 >
                   {/* Time */}
@@ -456,7 +457,7 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
 
                 {/* Expanded detail row */}
                 {expandedRowId === entry.id && (
-                  <div className="mx-3 mb-2 p-3 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border-light)]">
+                  <div className="mx-3 mb-2 p-3 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border-light)] min-w-[720px]">
                     {/* Summary */}
                     {entry.summary && (
                       <div className="mb-2">

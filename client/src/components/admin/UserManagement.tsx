@@ -175,7 +175,7 @@ export function UserManagement({ onBack }: UserManagementProps) {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
               <div>
                 <label className="block text-xs text-[var(--color-text-tertiary)] mb-1">{t('users.createUsername')} *</label>
                 <input
@@ -207,7 +207,7 @@ export function UserManagement({ onBack }: UserManagementProps) {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
               <div>
                 <label className="block text-xs text-[var(--color-text-tertiary)] mb-1">{t('users.createPhone')}</label>
                 <input
@@ -266,9 +266,11 @@ export function UserManagement({ onBack }: UserManagementProps) {
         ) : users.length === 0 ? (
           <div className="text-center py-12 text-[var(--color-text-tertiary)]">{t('users.noUsers')}</div>
         ) : (
-          <div className="space-y-2">
+          /* min-w + overflow-x-auto: narrow screens scroll the table sideways
+             instead of crushing the six fixed columns. */
+          <div className="space-y-2 overflow-x-auto">
             {/* Table header */}
-            <div className="grid grid-cols-[1fr_120px_1fr_100px_100px_120px] gap-4 px-4 py-2 text-xs text-[var(--color-text-tertiary)] uppercase tracking-wider">
+            <div className="grid grid-cols-[1fr_120px_1fr_100px_100px_120px] gap-4 px-4 py-2 text-xs text-[var(--color-text-tertiary)] uppercase tracking-wider min-w-[680px]">
               <span>{t('users.user')}</span>
               <span>{t('users.phone')}</span>
               <span>{t('users.email')}</span>
@@ -280,7 +282,7 @@ export function UserManagement({ onBack }: UserManagementProps) {
             {users.map(user => (
               <div
                 key={user.id}
-                className="grid grid-cols-[1fr_120px_1fr_100px_100px_120px] gap-4 items-center px-4 py-3 rounded-lg bg-[var(--color-main-surface-secondary)] hover:bg-[var(--color-main-surface-tertiary)] transition-colors"
+                className="grid grid-cols-[1fr_120px_1fr_100px_100px_120px] gap-4 items-center px-4 py-3 rounded-lg bg-[var(--color-main-surface-secondary)] hover:bg-[var(--color-main-surface-tertiary)] transition-colors min-w-[680px]"
               >
                 {/* User info */}
                 <div>

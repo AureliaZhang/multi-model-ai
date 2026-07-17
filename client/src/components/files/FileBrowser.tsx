@@ -465,10 +465,11 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
             </div>
           </div>
         ) : (
-          /* Folder + file list */
-          <div className="px-3 py-2">
+          /* Folder + file list — scrolls horizontally on narrow screens; the
+             min-w on header + rows keeps the fixed columns aligned. */
+          <div className="px-3 py-2 overflow-x-auto">
             {/* Table header */}
-            <div className="grid grid-cols-[1fr_100px_100px_100px_90px] gap-2 px-3 py-2 text-[11px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-light)] mb-1">
+            <div className="grid grid-cols-[1fr_100px_100px_100px_90px] gap-2 px-3 py-2 text-[11px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-light)] mb-1 min-w-[620px]">
               <span>{t('files.title')}</span>
               <span className="text-right">Size</span>
               <span className="text-center">Status</span>
@@ -480,7 +481,7 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
             {folders.map(folder => (
               <div
                 key={folder.id}
-                className="group grid grid-cols-[1fr_100px_100px_100px_90px] gap-2 items-center px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] transition-colors cursor-pointer"
+                className="group grid grid-cols-[1fr_100px_100px_100px_90px] gap-2 items-center px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] transition-colors min-w-[620px] cursor-pointer"
                 onDoubleClick={() => handleFolderDoubleClick(folder)}
               >
                 {/* Folder name + icon */}
@@ -559,7 +560,7 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
             {files.map(file => (
               <div
                 key={file.id}
-                className="group grid grid-cols-[1fr_100px_100px_100px_90px] gap-2 items-center px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] transition-colors"
+                className="group grid grid-cols-[1fr_100px_100px_100px_90px] gap-2 items-center px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] transition-colors min-w-[620px]"
               >
                 {/* Name + icon */}
                 <div className="flex items-center gap-3 min-w-0">

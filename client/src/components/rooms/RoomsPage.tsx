@@ -28,8 +28,9 @@ export function RoomsPage({ onClose }: RoomsPageProps) {
 
   return (
     <div className="h-full flex bg-[var(--color-main-surface-primary)]">
-      {/* Left: group list */}
-      <div className="w-[280px] flex-shrink-0 border-r border-[var(--color-border-light)] flex flex-col">
+      {/* Left: group list — full-width on mobile when nothing is open; a fixed
+          column on desktop. Hidden on mobile once a group is open (list/detail). */}
+      <div className={`${selectedId ? 'hidden md:flex' : 'flex'} w-full md:w-[280px] flex-shrink-0 border-r border-[var(--color-border-light)] flex-col`}>
         <div className="p-2 flex items-center gap-1.5 border-b border-[var(--color-border-light)]">
           <button
             onClick={onClose}
@@ -78,12 +79,13 @@ export function RoomsPage({ onClose }: RoomsPageProps) {
         </div>
       </div>
 
-      {/* Right: open group or empty state */}
-      <div className="flex-1 min-w-0">
+      {/* Right: open group or empty state. On mobile this is hidden until a
+          group is picked (then it's full-width with a back arrow). */}
+      <div className={`${selectedId ? 'flex' : 'hidden md:flex'} flex-1 min-w-0`}>
         {selectedId ? (
-          <GroupChatLayout key={selectedId} roomId={selectedId} />
+          <GroupChatLayout key={selectedId} roomId={selectedId} onBack={() => setSelectedId(null)} />
         ) : (
-          <div className="h-full flex flex-col items-center justify-center text-[var(--color-text-tertiary)] gap-2">
+          <div className="h-full w-full flex flex-col items-center justify-center text-[var(--color-text-tertiary)] gap-2">
             <Users2 size={40} className="opacity-30" />
             <p className="text-[13px]">{t('room.pickAGroup')}</p>
           </div>
