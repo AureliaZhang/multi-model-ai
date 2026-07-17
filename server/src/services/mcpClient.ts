@@ -7,6 +7,7 @@
 
 import { getDb } from '../database';
 import { v4 as uuidv4 } from 'uuid';
+import type Database from 'better-sqlite3';
 
 interface JsonRpcRequest {
   jsonrpc: '2.0';
@@ -167,7 +168,7 @@ export async function connectAndDiscoverTools(serverId: string): Promise<McpTool
     ).run(new Date().toISOString(), new Date().toISOString(), serverId);
 
     return tools;
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Mark server as error
     db.prepare(
       "UPDATE mcp_servers SET status = 'error', updated_at = ? WHERE id = ?"
@@ -200,7 +201,7 @@ export async function executeToolCall(
  * Load all enabled MCP tools from the database, formatted for OpenAI function calling.
  * Returns tools in the OpenAI tools format.
  */
-export function loadEnabledMcpTools(db: any): Array<{
+export function loadEnabledMcpTools(db: Database.Database): Array<{
   type: 'function';
   function: {
     name: string;

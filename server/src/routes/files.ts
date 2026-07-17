@@ -9,6 +9,7 @@ import { generateEmbedding } from '../services/embeddings';
 import { requireAuth } from '../middleware/auth';
 import type { AuthRequest } from '../types';
 import type { FileLibraryEntry, FileFolder } from '../types';
+import { getErrorMessage } from '../utils/errors';
 
 const router = Router();
 
@@ -59,9 +60,9 @@ router.get('/folders', requireAuth, (req: AuthRequest, res: Response) => {
 
     const folders: FileFolder[] = rows.map(rowToFolder);
     res.json({ success: true, data: folders });
-  } catch (err: any) {
-    console.error('[files] Error listing folders:', err.message);
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    console.error('[files] Error listing folders:', getErrorMessage(err));
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -103,9 +104,9 @@ router.post('/folders', requireAuth, (req: AuthRequest, res: Response) => {
     };
 
     res.json({ success: true, data: folder });
-  } catch (err: any) {
-    console.error('[files] Error creating folder:', err.message);
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    console.error('[files] Error creating folder:', getErrorMessage(err));
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -130,9 +131,9 @@ router.put('/folders/:id', requireAuth, (req: AuthRequest, res: Response) => {
     db.prepare('UPDATE file_folders SET name = ?, updated_at = ? WHERE id = ?').run(name.trim(), now, req.params.id);
 
     res.json({ success: true, data: { ...rowToFolder(row), name: name.trim(), updatedAt: now } });
-  } catch (err: any) {
-    console.error('[files] Error renaming folder:', err.message);
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    console.error('[files] Error renaming folder:', getErrorMessage(err));
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -155,9 +156,9 @@ router.delete('/folders/:id', requireAuth, (req: AuthRequest, res: Response) => 
     db.prepare('DELETE FROM file_folders WHERE id = ?').run(req.params.id);
 
     res.json({ success: true });
-  } catch (err: any) {
-    console.error('[files] Error deleting folder:', err.message);
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    console.error('[files] Error deleting folder:', getErrorMessage(err));
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -179,9 +180,9 @@ router.get('/folders/:id/path', requireAuth, (req: AuthRequest, res: Response) =
     }
 
     res.json({ success: true, data: pathArr });
-  } catch (err: any) {
-    console.error('[files] Error getting folder path:', err.message);
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    console.error('[files] Error getting folder path:', getErrorMessage(err));
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -240,9 +241,9 @@ router.get('/', requireAuth, (req: AuthRequest, res: Response) => {
         totalPages: Math.ceil(countRow.total / limit),
       },
     });
-  } catch (err: any) {
-    console.error('[files] Error listing files:', err.message);
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    console.error('[files] Error listing files:', getErrorMessage(err));
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -258,8 +259,8 @@ router.get('/:id', requireAuth, (req: AuthRequest, res: Response) => {
       return res.status(404).json({ success: false, error: 'File not found' });
     }
     res.json({ success: true, data: rowToFile(row) });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -294,8 +295,8 @@ router.get('/:id/chunks', requireAuth, (req: AuthRequest, res: Response) => {
         totalPages: Math.ceil(countRow.total / limit),
       },
     });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -355,14 +356,14 @@ router.post('/upload', requireAuth, upload.array('files', 20), async (req: AuthR
       // Process file asynchronously (don't await - fire and forget)
       const filePath = path.join(UPLOADS_DIR, file.filename);
       processFile(fileId, filePath, mimeType, originalName).catch(err => {
-        console.error(`[files] Background processing failed for ${originalName}:`, err.message);
+        console.error(`[files] Background processing failed for ${originalName}:`, getErrorMessage(err));
       });
     }
 
     res.json({ success: true, data: results });
-  } catch (err: any) {
-    console.error('[files] Upload error:', err.message);
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    console.error('[files] Upload error:', getErrorMessage(err));
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -392,9 +393,9 @@ router.patch('/:id/move', requireAuth, (req: AuthRequest, res: Response) => {
     db.prepare('UPDATE file_library SET folder_id = ?, updated_at = ? WHERE id = ?').run(folderId || null, now, req.params.id);
 
     res.json({ success: true, data: { ...rowToFile(row), folderId: folderId || null, updatedAt: now } });
-  } catch (err: any) {
-    console.error('[files] Error moving file:', err.message);
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    console.error('[files] Error moving file:', getErrorMessage(err));
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -416,16 +417,16 @@ router.delete('/:id', requireAuth, (req: AuthRequest, res: Response) => {
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
-    } catch (fsErr: any) {
-      console.warn(`[files] Could not delete file from disk: ${fsErr.message}`);
+    } catch (fsErr: unknown) {
+      console.warn(`[files] Could not delete file from disk: ${getErrorMessage(fsErr)}`);
     }
 
     // Delete from DB (chunks cascade deleted via FK)
     db.prepare('DELETE FROM file_library WHERE id = ?').run(req.params.id);
 
     res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -455,12 +456,12 @@ router.post('/:id/reindex', requireAuth, async (req: AuthRequest, res: Response)
 
     // Re-process asynchronously
     processFile(req.params.id, filePath, row.mime_type, row.original_name).catch(err => {
-      console.error(`[files] Reindex failed for ${row.original_name}:`, err.message);
+      console.error(`[files] Reindex failed for ${row.original_name}:`, getErrorMessage(err));
     });
 
     res.json({ success: true, data: { status: 'processing' } });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -494,9 +495,9 @@ router.post('/search', requireAuth, async (req: AuthRequest, res: Response) => {
     const results = searchFileChunks(queryEmbedding, targetFileIds, limit || 5);
 
     res.json({ success: true, data: results });
-  } catch (err: any) {
-    console.error('[files] Search error:', err.message);
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    console.error('[files] Search error:', getErrorMessage(err));
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 

@@ -12,6 +12,7 @@ import { invokeModel } from '../services/modelInvocation';
 import { arenaConcurrency, mapPool } from '../utils/asyncPool';
 import { sendCsv, toCsv } from '../utils/csv';
 import type { AuthRequest, ApiResponse } from '../types';
+import { getErrorMessage } from '../utils/errors';
 
 const router = Router();
 
@@ -172,8 +173,8 @@ router.get('/models', (_req: AuthRequest, res: Response) => {
     });
 
     res.json({ success: true, data } as ApiResponse);
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -258,8 +259,8 @@ router.put('/models/:normalizedName', (req: AuthRequest, res: Response) => {
         tags: JSON.parse(row.tagsJson || '[]'),
       },
     });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -325,9 +326,9 @@ router.post('/battles', async (req: AuthRequest, res: Response) => {
 
     const detail = getBattleDetail(sessionId);
     res.status(201).json({ success: true, data: detail });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[arena] create battle error', err);
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -355,8 +356,8 @@ router.post('/battles/:id/run', async (req: AuthRequest, res: Response) => {
 
     await runBattleCandidates(session.id, session.question_text);
     res.json({ success: true, data: getBattleDetail(session.id) });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -369,8 +370,8 @@ router.get('/battles/:id', (req: AuthRequest, res: Response) => {
       return;
     }
     res.json({ success: true, data: detail });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -393,8 +394,8 @@ router.get('/battles', (req: AuthRequest, res: Response) => {
 
     const total = (db.prepare('SELECT COUNT(*) as n FROM arena_battle_sessions').get() as any).n;
     res.json({ success: true, data: { items: rows, total, limit, offset } });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -468,8 +469,8 @@ router.post('/battles/:id/select', (req: AuthRequest, res: Response) => {
     `).run(now, session.id);
 
     res.json({ success: true, data: getBattleDetail(session.id) });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -544,8 +545,8 @@ router.get('/leaderboard', (req: AuthRequest, res: Response) => {
     rows.sort((a, b) => b.selections - a.selections || b.selectionRate - a.selectionRate);
 
     res.json({ success: true, data: rows });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -595,8 +596,8 @@ router.get('/stats/summary', (_req: AuthRequest, res: Response) => {
         benchmarkRunCount: benchCount,
       },
     });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -623,8 +624,8 @@ router.get('/prompts', (_req: AuthRequest, res: Response) => {
       FROM arena_prompts ORDER BY updated_at DESC
     `).all();
     res.json({ success: true, data: rows.map(mapPrompt) });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -653,8 +654,8 @@ router.post('/prompts', (req: AuthRequest, res: Response) => {
     );
     const row = db.prepare('SELECT * FROM arena_prompts WHERE id = ?').get(id);
     res.status(201).json({ success: true, data: mapPrompt(row) });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -685,8 +686,8 @@ router.put('/prompts/:id', (req: AuthRequest, res: Response) => {
       req.params.id
     );
     res.json({ success: true, data: mapPrompt(db.prepare('SELECT * FROM arena_prompts WHERE id = ?').get(req.params.id)) });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -699,8 +700,8 @@ router.delete('/prompts/:id', (req: AuthRequest, res: Response) => {
       return;
     }
     res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -739,8 +740,8 @@ router.get('/prompt-sets', (_req: AuthRequest, res: Response) => {
       ORDER BY s.created_at DESC
     `).all();
     res.json({ success: true, data: rows });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -752,8 +753,8 @@ router.get('/prompt-sets/:id', (req: AuthRequest, res: Response) => {
       return;
     }
     res.json({ success: true, data: detail });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -787,8 +788,8 @@ router.post('/prompt-sets', (req: AuthRequest, res: Response) => {
     }
 
     res.status(201).json({ success: true, data: getPromptSetDetail(id) });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -828,8 +829,8 @@ router.put('/prompt-sets/:id', (req: AuthRequest, res: Response) => {
       });
     }
     res.json({ success: true, data: getPromptSetDetail(req.params.id) });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -841,8 +842,8 @@ router.delete('/prompt-sets/:id', (req: AuthRequest, res: Response) => {
       return;
     }
     res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -993,9 +994,9 @@ router.post('/prompt-experiments', async (req: AuthRequest, res: Response) => {
     }
 
     res.status(201).json({ success: true, data: getExperimentDetail(id) });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[arena] experiment error', err);
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -1012,8 +1013,8 @@ router.get('/prompt-experiments', (req: AuthRequest, res: Response) => {
       LIMIT ?
     `).all(limit);
     res.json({ success: true, data: rows });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -1025,8 +1026,8 @@ router.get('/prompt-experiments/:id', (req: AuthRequest, res: Response) => {
       return;
     }
     res.json({ success: true, data: detail });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -1053,8 +1054,8 @@ router.post('/prompt-experiments/:id/select-cell', (req: AuthRequest, res: Respo
     db.prepare(`UPDATE arena_prompt_experiment_cells SET selected = 0 WHERE experiment_id = ?`).run(req.params.id);
     db.prepare(`UPDATE arena_prompt_experiment_cells SET selected = 1 WHERE id = ?`).run(cellId);
     res.json({ success: true, data: getExperimentDetail(req.params.id) });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -1244,9 +1245,9 @@ router.post('/benchmarks/runs', async (req: AuthRequest, res: Response) => {
     }
 
     res.status(201).json({ success: true, data: getBenchmarkRunDetail(runId) });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[arena] benchmark run error', err);
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -1271,8 +1272,8 @@ router.get('/benchmarks/runs', (req: AuthRequest, res: Response) => {
         models: JSON.parse(r.modelListJson || '[]'),
       })),
     });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -1284,8 +1285,8 @@ router.get('/benchmarks/runs/:id', (req: AuthRequest, res: Response) => {
       return;
     }
     res.json({ success: true, data: detail });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -1306,8 +1307,8 @@ router.patch('/benchmarks/results/:id', (req: AuthRequest, res: Response) => {
     }
     db.prepare('UPDATE arena_benchmark_case_results SET manual_verdict = ? WHERE id = ?').run(manualVerdict, req.params.id);
     res.json({ success: true, data: getBenchmarkRunDetail(row.run_id) });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -1385,8 +1386,8 @@ router.get('/export/leaderboard.csv', (req: AuthRequest, res: Response) => {
         rows
       )
     );
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -1448,8 +1449,8 @@ router.get('/export/battles.csv', (_req: AuthRequest, res: Response) => {
         rows
       )
     );
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -1494,8 +1495,8 @@ router.get('/export/benchmarks/:runId.csv', (req: AuthRequest, res: Response) =>
         rows
       )
     );
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -1538,8 +1539,8 @@ router.get('/export/experiments/:id.csv', (req: AuthRequest, res: Response) => {
         rows
       )
     );
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 

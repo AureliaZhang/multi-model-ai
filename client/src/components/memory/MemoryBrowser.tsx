@@ -7,6 +7,7 @@ import {
   ChevronLeft, ChevronRight, X, Settings, ChevronDown, ChevronUp,
   RefreshCw, Layers, AlertCircle, Brain, Key, Globe
 } from 'lucide-react';
+import { getErrorMessage } from '../../utils/errors';
 
 interface MemoryBrowserProps {
   onClose: () => void;
@@ -105,8 +106,8 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
       } else {
         setEmbFetchError(res.error || t('memory.fetchModelsFailed'));
       }
-    } catch (err: any) {
-      setEmbFetchError(err.message);
+    } catch (err: unknown) {
+      setEmbFetchError(getErrorMessage(err));
     } finally {
       setEmbFetching(false);
     }

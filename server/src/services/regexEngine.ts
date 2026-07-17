@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import { getErrorMessage } from '../utils/errors';
 
 // ============================================================
 // Regex Engine — applies regex scripts to message text
@@ -142,7 +143,7 @@ export function testRegex(
       });
     });
     return { result, matches: matchCount };
-  } catch (err: any) {
-    return { result: testText, matches: 0, error: err.message };
+  } catch (err: unknown) {
+    return { result: testText, matches: 0, error: getErrorMessage(err) };
   }
 }

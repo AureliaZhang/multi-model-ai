@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { McpServer, McpTool, CreateMcpServerRequest, UpdateMcpServerRequest } from '../types';
 import { mcpApi } from '../services/api';
+import { getErrorMessage } from '../utils/errors';
 
 interface McpState {
   servers: (McpServer & { toolCount: number })[];
@@ -36,8 +37,8 @@ export const useMcpStore = create<McpState>((set, get) => ({
       } else {
         set({ loading: false, error: res.error || 'Failed to fetch MCP servers' });
       }
-    } catch (err: any) {
-      set({ loading: false, error: err.message });
+    } catch (err: unknown) {
+      set({ loading: false, error: getErrorMessage(err) });
     }
   },
 
@@ -51,8 +52,8 @@ export const useMcpStore = create<McpState>((set, get) => ({
       } else {
         throw new Error(res.error || 'Failed to create MCP server');
       }
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
       throw err;
     }
   },
@@ -67,8 +68,8 @@ export const useMcpStore = create<McpState>((set, get) => ({
       } else {
         throw new Error(res.error || 'Failed to update MCP server');
       }
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
       throw err;
     }
   },
@@ -85,8 +86,8 @@ export const useMcpStore = create<McpState>((set, get) => ({
       } else {
         throw new Error(res.error || 'Failed to delete MCP server');
       }
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
       throw err;
     }
   },
@@ -105,8 +106,8 @@ export const useMcpStore = create<McpState>((set, get) => ({
       } else {
         throw new Error(res.error || 'Failed to connect to MCP server');
       }
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
       throw err;
     }
   },
@@ -124,8 +125,8 @@ export const useMcpStore = create<McpState>((set, get) => ({
       if (res.success && res.data) {
         set({ tools: res.data });
       }
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
     }
   },
 
@@ -137,8 +138,8 @@ export const useMcpStore = create<McpState>((set, get) => ({
           tools: state.tools.map(t => t.id === toolId ? { ...t, enabled } : t),
         }));
       }
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
     }
   },
 

@@ -11,6 +11,7 @@ import type {
   PromptExperiment,
   BenchmarkRun,
 } from '../types';
+import { getErrorMessage } from '../utils/errors';
 
 export type ArenaTab =
   | 'battle'
@@ -130,8 +131,8 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
       const res = await arenaApi.listModels();
       if (res.success && res.data) set({ models: res.data, modelsLoading: false });
       else set({ modelsLoading: false, battleError: res.error || 'Failed to load models' });
-    } catch (err: any) {
-      set({ modelsLoading: false, battleError: err.message });
+    } catch (err: unknown) {
+      set({ modelsLoading: false, battleError: getErrorMessage(err) });
     }
   },
 
@@ -155,8 +156,8 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
       }
       set({ battleLoading: false, battleError: res.error || 'Create battle failed' });
       return null;
-    } catch (err: any) {
-      set({ battleLoading: false, battleError: err.message });
+    } catch (err: unknown) {
+      set({ battleLoading: false, battleError: getErrorMessage(err) });
       return null;
     }
   },
@@ -175,8 +176,8 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
       } else {
         set({ battleLoading: false, battleError: res.error || 'Select failed' });
       }
-    } catch (err: any) {
-      set({ battleLoading: false, battleError: err.message });
+    } catch (err: unknown) {
+      set({ battleLoading: false, battleError: getErrorMessage(err) });
     }
   },
 
@@ -189,8 +190,8 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
       if (res.success && res.data) {
         set({ currentBattle: res.data, battleLoading: false, tab: 'battle' });
       } else set({ battleLoading: false, battleError: res.error || 'Load failed' });
-    } catch (err: any) {
-      set({ battleLoading: false, battleError: err.message });
+    } catch (err: unknown) {
+      set({ battleLoading: false, battleError: getErrorMessage(err) });
     }
   },
 
@@ -296,8 +297,8 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
       } else {
         set({ experimentLoading: false, experimentError: res.error || 'Failed' });
       }
-    } catch (err: any) {
-      set({ experimentLoading: false, experimentError: err.message });
+    } catch (err: unknown) {
+      set({ experimentLoading: false, experimentError: getErrorMessage(err) });
     }
   },
 
@@ -319,8 +320,8 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
       } else {
         set({ experimentLoading: false, experimentError: res.error || 'Failed' });
       }
-    } catch (err: any) {
-      set({ experimentLoading: false, experimentError: err.message });
+    } catch (err: unknown) {
+      set({ experimentLoading: false, experimentError: getErrorMessage(err) });
     }
   },
 
@@ -340,8 +341,8 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
       if (res.success && res.data) {
         set({ currentExperiment: res.data, experimentLoading: false, tab: 'promptLab' });
       } else set({ experimentLoading: false, experimentError: res.error || 'Load failed' });
-    } catch (err: any) {
-      set({ experimentLoading: false, experimentError: err.message });
+    } catch (err: unknown) {
+      set({ experimentLoading: false, experimentError: getErrorMessage(err) });
     }
   },
 
@@ -399,8 +400,8 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
       } else {
         set({ benchmarkLoading: false, benchmarkError: res.error || 'Failed' });
       }
-    } catch (err: any) {
-      set({ benchmarkLoading: false, benchmarkError: err.message });
+    } catch (err: unknown) {
+      set({ benchmarkLoading: false, benchmarkError: getErrorMessage(err) });
     }
   },
 
@@ -411,8 +412,8 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
       if (res.success && res.data) {
         set({ currentBenchmark: res.data, benchmarkLoading: false, tab: 'benchmark' });
       } else set({ benchmarkLoading: false, benchmarkError: res.error || 'Load failed' });
-    } catch (err: any) {
-      set({ benchmarkLoading: false, benchmarkError: err.message });
+    } catch (err: unknown) {
+      set({ benchmarkLoading: false, benchmarkError: getErrorMessage(err) });
     }
   },
 

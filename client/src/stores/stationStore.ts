@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Station, CreateStationRequest, StationModelRow } from '../types';
 import { stationApi } from '../services/api';
+import { getErrorMessage } from '../utils/errors';
 
 interface StationState {
   stations: Station[];
@@ -35,8 +36,8 @@ export const useStationStore = create<StationState>((set, get) => ({
       } else {
         set({ error: res.error || 'Failed to fetch stations', loading: false });
       }
-    } catch (err: any) {
-      set({ error: err.message, loading: false });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err), loading: false });
     }
   },
 

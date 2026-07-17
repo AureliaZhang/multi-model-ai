@@ -16,6 +16,7 @@ import { getDb } from '../database';
 import { connectAndDiscoverTools } from '../services/mcpClient';
 import { requireAuth, requireRole } from '../middleware/auth';
 import type { AuthRequest, McpServer, McpTool } from '../types';
+import { getErrorMessage } from '../utils/errors';
 
 const router = Router();
 
@@ -49,8 +50,8 @@ router.get('/servers', (req: AuthRequest, res: Response) => {
     }));
 
     res.json({ success: true, data: servers });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -86,8 +87,8 @@ router.post('/servers', (req: AuthRequest, res: Response) => {
         toolCount: 0,
       },
     });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -140,8 +141,8 @@ router.put('/servers/:id', (req: AuthRequest, res: Response) => {
         toolCount: server.tool_count,
       },
     });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -157,8 +158,8 @@ router.delete('/servers/:id', (req: AuthRequest, res: Response) => {
     }
 
     res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -182,8 +183,8 @@ router.post('/servers/:id/connect', async (req: AuthRequest, res: Response) => {
         tools: tools.map(t => ({ name: t.name, description: t.description })),
       },
     });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -208,8 +209,8 @@ router.get('/servers/:id/tools', (req: AuthRequest, res: Response) => {
     }));
 
     res.json({ success: true, data: tools });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -226,8 +227,8 @@ router.put('/tools/:id/toggle', (req: AuthRequest, res: Response) => {
     }
 
     res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 

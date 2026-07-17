@@ -9,6 +9,7 @@ import {
   ToggleLeft, ToggleRight, Radio, Info, ChevronDown, ChevronRight, Check, Pencil,
 } from 'lucide-react';
 import type { StationModelRow } from '../../types';
+import { getErrorMessage } from '../../utils/errors';
 
 interface SettingsPageProps {
   onClose: () => void;
@@ -84,8 +85,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
       setNewUrl('');
       setNewKey('');
       setShowAdd(false);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setActionLoading(null);
     }
@@ -109,8 +110,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
         })
       );
       setTimeout(() => setSuccess(''), 6000);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setActionLoading(null);
     }
@@ -123,8 +124,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
       try {
         setActionLoading(`list-${id}`);
         await fetchStationModels(id);
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err: unknown) {
+        setError(getErrorMessage(err));
       } finally {
         setActionLoading(null);
       }
@@ -135,8 +136,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     try {
       await setModelExposed(stationId, model.id, !model.enabled);
       await fetchModels();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     }
   };
 
@@ -162,8 +163,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
       await fetchModels();
       setEditingModelId(null);
       setEditName('');
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     }
   };
 
@@ -172,8 +173,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
       setActionLoading(`bulk-${stationId}`);
       await bulkSetExposed(stationId, flags);
       await fetchModels();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setActionLoading(null);
     }
@@ -184,8 +185,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
       const next = !(model.adminEnabled !== false);
       await setModelAdminEnabled(stationId, model.id, next);
       await fetchModels();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     }
   };
 
@@ -193,8 +194,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     try {
       setActionLoading(`health-${id}`);
       await healthCheck(id);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setActionLoading(null);
     }
@@ -206,8 +207,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
       setActionLoading(`delete-${id}`);
       await deleteStation(id);
       await fetchModels();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setActionLoading(null);
     }
@@ -217,8 +218,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     try {
       await updateStation(id, { enabled });
       await fetchModels();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     }
   };
 

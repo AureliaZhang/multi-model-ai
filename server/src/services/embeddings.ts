@@ -9,6 +9,8 @@
  */
 
 import { getDb } from '../database';
+import { getErrorMessage } from '../utils/errors';
+import type Database from 'better-sqlite3';
 
 // Embedding dimension for local fallback (compact but effective)
 const LOCAL_EMBEDDING_DIM = 256;
@@ -68,8 +70,8 @@ async function generateApiEmbedding(text: string): Promise<number[] | null> {
         } else {
           console.warn(`[embeddings] Dedicated embedding API returned HTTP ${response.status}`);
         }
-      } catch (err: any) {
-        console.warn(`[embeddings] Dedicated embedding API failed: ${err.message}`);
+      } catch (err: unknown) {
+        console.warn(`[embeddings] Dedicated embedding API failed: ${getErrorMessage(err)}`);
       }
     }
 
@@ -120,15 +122,15 @@ async function generateApiEmbedding(text: string): Promise<number[] | null> {
 
         // None of the embedding models worked for this station
         stationEmbeddingSupport.set(station.id, false);
-      } catch (err: any) {
+      } catch (err: unknown) {
         // Network error or timeout - don't mark as unsupported, might be temporary
-        console.warn(`[embeddings] Station ${station.name} embedding attempt failed: ${err.message}`);
+        console.warn(`[embeddings] Station ${station.name} embedding attempt failed: ${getErrorMessage(err)}`);
       }
     }
 
     return null;
-  } catch (err: any) {
-    console.error('[embeddings] API embedding error:', err.message);
+  } catch (err: unknown) {
+    console.error('[embeddings] API embedding error:', getErrorMessage(err));
     return null;
   }
 }
@@ -237,7 +239,7 @@ export function cosineSimilarity(a: number[], b: number[]): number {
  * @param threshold - Minimum similarity threshold (default 0.3)
  */
 export function vectorSearch(
-  db: any,
+  db: Database.Database,
   queryEmbedding: number[],
   limit: number = 5,
   threshold: number = 0.3

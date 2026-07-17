@@ -8,6 +8,7 @@ import { requireAuth } from '../middleware/auth';
 import { normalizeModelName } from '../services/normalizeModelName';
 import { detectCapabilities } from './stations';
 import type { AuthRequest, ApiResponse } from '../types';
+import { getErrorMessage } from '../utils/errors';
 
 const router = Router();
 router.use(requireAuth);
@@ -107,8 +108,8 @@ router.get('/', (req: AuthRequest, res: Response) => {
         role: req.user!.role,
       },
     } as ApiResponse);
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -185,8 +186,8 @@ router.put('/', (req: AuthRequest, res: Response) => {
         role: req.user!.role,
       },
     });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -201,8 +202,8 @@ router.get('/catalog', (req: AuthRequest, res: Response) => {
         tts: listModelsByCapability('tts', { adminPool: isAdmin }),
       },
     });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 

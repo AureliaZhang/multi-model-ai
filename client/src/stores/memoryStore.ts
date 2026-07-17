@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { MemoryEntry, MemoryConfig } from '../types';
 import { memoryApi } from '../services/api';
+import { getErrorMessage } from '../utils/errors';
 
 interface MemoryState {
   entries: MemoryEntry[];
@@ -59,8 +60,8 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
       } else {
         set({ loading: false, error: res.error || 'Failed to fetch memories' });
       }
-    } catch (err: any) {
-      set({ loading: false, error: err.message });
+    } catch (err: unknown) {
+      set({ loading: false, error: getErrorMessage(err) });
     }
   },
 
@@ -77,8 +78,8 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
       } else {
         set({ loading: false, error: res.error || 'Search failed' });
       }
-    } catch (err: any) {
-      set({ loading: false, error: err.message });
+    } catch (err: unknown) {
+      set({ loading: false, error: getErrorMessage(err) });
     }
   },
 
@@ -90,7 +91,7 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
       if (res.success && res.data) {
         set({ allTags: res.data.map((t: any) => t.name) });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to fetch memory tags:', err);
     }
   },
@@ -101,7 +102,7 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
       if (res.success && res.data) {
         set({ config: res.data });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to fetch memory config:', err);
     }
   },
@@ -112,8 +113,8 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
       if (res.success && res.data) {
         set({ config: res.data });
       }
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
     }
   },
 
@@ -127,8 +128,8 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
           total: state.total - 1,
         }));
       }
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
     }
   },
 
@@ -168,8 +169,8 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
 
       // Refresh config to get updated stats
       get().fetchConfig();
-    } catch (err: any) {
-      set({ loading: false, error: err.message, backfillStatus: null });
+    } catch (err: unknown) {
+      set({ loading: false, error: getErrorMessage(err), backfillStatus: null });
     }
   },
 }));

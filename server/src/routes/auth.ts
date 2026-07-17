@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../database';
 import { generateToken, requireAuth } from '../middleware/auth';
 import type { AuthRequest, RegisterRequest, LoginRequest, AuthResponse, UserPublic } from '../types';
+import { getErrorMessage } from '../utils/errors';
 
 const router = Router();
 
@@ -81,9 +82,9 @@ router.post('/register', (req: AuthRequest, res: Response) => {
 
     const response: AuthResponse = { token, user };
     res.status(201).json({ success: true, data: response });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Register error:', err);
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -155,9 +156,9 @@ router.post('/login', (req: AuthRequest, res: Response) => {
 
     const response: AuthResponse = { token, user };
     res.json({ success: true, data: response });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Login error:', err);
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 

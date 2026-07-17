@@ -34,6 +34,7 @@ import type {
   BenchmarkRun,
 } from '../types';
 import { getToken, removeToken } from './auth';
+import { getErrorMessage } from '../utils/errors';
 
 const BASE_URL = '/api';
 
@@ -51,9 +52,9 @@ async function request<T>(url: string, options?: RequestInit): Promise<ApiRespon
   let res: Response;
   try {
     res = await fetch(fullUrl, { ...options, headers });
-  } catch (fetchErr: any) {
-    console.error(`[request] Fetch failed for ${fullUrl}:`, fetchErr.message);
-    return { success: false, error: `Network error: ${fetchErr.message}` } as ApiResponse<T>;
+  } catch (fetchErr: unknown) {
+    console.error(`[request] Fetch failed for ${fullUrl}:`, getErrorMessage(fetchErr));
+    return { success: false, error: `Network error: ${getErrorMessage(fetchErr)}` } as ApiResponse<T>;
   }
 
   // Global 401 handling: token is invalid (user deleted, DB wiped, etc.)
@@ -68,8 +69,8 @@ async function request<T>(url: string, options?: RequestInit): Promise<ApiRespon
   try {
     const data = await res.json();
     return data as ApiResponse<T>;
-  } catch (jsonErr: any) {
-    console.error(`[request] JSON parse failed for ${fullUrl} (status ${res.status}):`, jsonErr.message);
+  } catch (jsonErr: unknown) {
+    console.error(`[request] JSON parse failed for ${fullUrl} (status ${res.status}):`, getErrorMessage(jsonErr));
     return { success: false, error: `Invalid response from server (HTTP ${res.status})` } as ApiResponse<T>;
   }
 }

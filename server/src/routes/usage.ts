@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { getDb } from '../database';
 import { requireAuth, requireRole } from '../middleware/auth';
 import type { AuthRequest } from '../types';
+import { getErrorMessage } from '../utils/errors';
 
 const router = Router();
 router.use(requireAuth, requireRole('admin'));
@@ -87,8 +88,8 @@ router.get('/', (req: AuthRequest, res: Response) => {
         },
       },
     });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 

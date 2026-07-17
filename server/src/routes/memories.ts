@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../database';
 import { MemoryEntry, MemoryConfig, ApiResponse } from '../types';
 import { generateEmbedding, serializeEmbedding, vectorSearch } from '../services/embeddings';
+import { getErrorMessage, isAbortError } from '../utils/errors';
 
 const router = Router();
 
@@ -42,8 +43,8 @@ router.get('/', (req: Request, res: Response) => {
       success: true,
       data: { entries, total, page, limit, totalPages: Math.ceil(total / limit) },
     });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -63,8 +64,8 @@ router.get('/search', (req: Request, res: Response) => {
 
     const entries = rows.map(rowToMemoryEntry);
     res.json({ success: true, data: entries } as ApiResponse<MemoryEntry[]>);
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -103,8 +104,8 @@ router.post('/search/semantic', async (req: Request, res: Response) => {
           }));
           return res.json({ success: true, data: entries, method: 'vector' } as any);
         }
-      } catch (vecErr: any) {
-        console.warn(`[memories] Vector search failed, falling back to keyword: ${vecErr.message}`);
+      } catch (vecErr: unknown) {
+        console.warn(`[memories] Vector search failed, falling back to keyword: ${getErrorMessage(vecErr)}`);
       }
     }
 
@@ -117,8 +118,8 @@ router.post('/search/semantic', async (req: Request, res: Response) => {
 
     const entries = rows.map(rowToMemoryEntry);
     res.json({ success: true, data: entries, method: 'keyword' } as any);
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -160,8 +161,8 @@ router.get('/context', async (req: Request, res: Response) => {
             }));
             return res.json({ success: true, data: entries, method: 'vector' } as any);
           }
-        } catch (vecErr: any) {
-          console.warn(`[memories] Vector context search failed: ${vecErr.message}`);
+        } catch (vecErr: unknown) {
+          console.warn(`[memories] Vector context search failed: ${getErrorMessage(vecErr)}`);
         }
       }
 
@@ -181,8 +182,8 @@ router.get('/context', async (req: Request, res: Response) => {
     }
 
     res.json({ success: true, data: entries } as ApiResponse<MemoryEntry[]>);
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -192,8 +193,8 @@ router.get('/tags', (_req: Request, res: Response) => {
     const db = getDb();
     const rows = db.prepare('SELECT * FROM memory_tags ORDER BY entry_count DESC').all() as any[];
     res.json({ success: true, data: rows });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -223,8 +224,8 @@ router.get('/config', (_req: Request, res: Response) => {
       embeddingStats: { total: totalEntries, embedded: embeddedEntries },
     };
     res.json({ success: true, data: config } as ApiResponse<any>);
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -268,8 +269,8 @@ router.put('/config', (req: Request, res: Response) => {
       embeddingModel: updated.embedding_model || null,
     };
     res.json({ success: true, data: config } as ApiResponse<MemoryConfig>);
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -293,10 +294,10 @@ router.post('/fetch-embedding-models', async (req: Request, res: Response) => {
         },
         signal: AbortSignal.timeout(15000),
       });
-    } catch (fetchErr: any) {
-      const hint = fetchErr.name === 'TimeoutError' || fetchErr.name === 'AbortError'
+    } catch (fetchErr: unknown) {
+      const hint = isAbortError(fetchErr)
         ? 'Request timed out. Check that the Base URL is correct and reachable.'
-        : fetchErr.message;
+        : getErrorMessage(fetchErr);
       return res.status(502).json({ success: false, error: `Failed to connect: ${hint}` });
     }
 
@@ -316,8 +317,8 @@ router.post('/fetch-embedding-models', async (req: Request, res: Response) => {
       .map((m: any) => ({ id: m.id || m.name, name: m.name || m.id }));
 
     res.json({ success: true, data: embeddingModels });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -331,8 +332,8 @@ router.get('/:id', (req: Request, res: Response) => {
       return res.status(404).json({ success: false, error: 'Memory entry not found' });
     }
     res.json({ success: true, data: rowToMemoryEntry(row) } as ApiResponse<MemoryEntry>);
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -346,8 +347,8 @@ router.delete('/:id', (req: Request, res: Response) => {
       return res.status(404).json({ success: false, error: 'Memory entry not found' });
     }
     res.json({ success: true } as ApiResponse);
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -358,8 +359,8 @@ router.delete('/conversation/:convId', (req: Request, res: Response) => {
     const db = getDb();
     const result = db.prepare('DELETE FROM memory_entries WHERE conversation_id = ?').run(convId);
     res.json({ success: true, data: { deleted: result.changes } });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -372,8 +373,8 @@ router.post('/export', (_req: Request, res: Response) => {
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', 'attachment; filename=memories-export.json');
     res.json(entries);
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -414,8 +415,8 @@ router.post('/import', (req: Request, res: Response) => {
     }
 
     res.json({ success: true, data: { imported, total: entries.length } });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -450,8 +451,8 @@ router.post('/backfill-embeddings', async (req: Request, res: Response) => {
         db.prepare('UPDATE memory_entries SET embedding = ? WHERE id = ?')
           .run(embeddingJson, row.id);
         processed++;
-      } catch (err: any) {
-        console.warn(`[memories] Backfill embedding failed for ${row.id}: ${err.message}`);
+      } catch (err: unknown) {
+        console.warn(`[memories] Backfill embedding failed for ${row.id}: ${getErrorMessage(err)}`);
         failed++;
       }
     }
@@ -473,8 +474,8 @@ router.post('/backfill-embeddings', async (req: Request, res: Response) => {
           : `All entries now have embeddings!`,
       },
     });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -501,8 +502,8 @@ router.post('/summarize/:convId', (req: Request, res: Response) => {
       .run(summary, rows[0].id);
 
     res.json({ success: true, data: { summary, entriesSummarized: rows.length } });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 

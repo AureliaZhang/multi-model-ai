@@ -3,6 +3,7 @@ import { usePrefsStore, generateImage } from '../../stores/prefsStore';
 import { useChatStore } from '../../stores/chatStore';
 import { useTranslation } from '../../i18n';
 import { ImageIcon, X } from 'lucide-react';
+import { getErrorMessage } from '../../utils/errors';
 
 export function ImageConfirmModal() {
   const imageConfirm = usePrefsStore((s) => s.imageConfirm);
@@ -58,8 +59,8 @@ export function ImageConfirmModal() {
         messages: [...s.messages, msg],
       }));
       closeImageConfirm();
-    } catch (e: any) {
-      setError(e.message || t('prefs.imageFailed'));
+    } catch (e: unknown) {
+      setError(getErrorMessage(e) || t('prefs.imageFailed'));
     }
     setLoading(false);
   };

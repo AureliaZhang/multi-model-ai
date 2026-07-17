@@ -3,6 +3,7 @@ import { getDb } from '../database';
 import { optionalAuth } from '../middleware/auth';
 import { AggregatedModel, ModelCapability, ApiResponse, AuthRequest } from '../types';
 import { normalizeModelName } from '../services/normalizeModelName';
+import { getErrorMessage } from '../utils/errors';
 
 // Re-export so existing `from './models'` importers keep working.
 export { normalizeModelName } from '../services/normalizeModelName';
@@ -81,8 +82,8 @@ router.get('/', optionalAuth, (req: AuthRequest, res: Response) => {
 
     const models = Array.from(modelMap.values());
     res.json({ success: true, data: models } as ApiResponse<AggregatedModel[]>);
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -114,8 +115,8 @@ router.get('/:normalizedName/stations', optionalAuth, (req: AuthRequest, res: Re
       }));
 
     res.json({ success: true, data: stations } as ApiResponse);
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 

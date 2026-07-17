@@ -5,6 +5,7 @@ import { requireAuth, requireRole } from '../middleware/auth';
 import { Station, CreateStationRequest, UpdateStationRequest, ApiResponse } from '../types';
 import type { AuthRequest } from '../types';
 import { checkStationHealth } from '../services/healthCheck';
+import { getErrorMessage, isAbortError } from '../utils/errors';
 
 const router = Router();
 
@@ -40,8 +41,8 @@ router.get('/', (_req: Request, res: Response) => {
     const rows = db.prepare('SELECT * FROM stations ORDER BY created_at DESC').all() as any[];
     const stations: Station[] = rows.map(rowToStation);
     res.json({ success: true, data: stations } as ApiResponse<Station[]>);
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -61,8 +62,8 @@ router.post('/', (req: Request, res: Response) => {
 
     const station = db.prepare('SELECT * FROM stations WHERE id = ?').get(id) as any;
     res.status(201).json({ success: true, data: rowToStation(station) } as ApiResponse<Station>);
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -90,8 +91,8 @@ router.put('/:id', (req: Request, res: Response) => {
 
     const station = db.prepare('SELECT * FROM stations WHERE id = ?').get(id) as any;
     res.json({ success: true, data: rowToStation(station) } as ApiResponse<Station>);
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -105,8 +106,8 @@ router.delete('/:id', (req: Request, res: Response) => {
       return res.status(404).json({ success: false, error: 'Station not found' });
     }
     res.json({ success: true } as ApiResponse);
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -126,8 +127,8 @@ router.get('/:id/models', requireAuth, requireRole('admin'), (req: AuthRequest, 
       'SELECT * FROM station_models WHERE station_id = ? ORDER BY display_name ASC'
     ).all(id) as any[];
     res.json({ success: true, data: rows.map(mapStationModel) });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -181,8 +182,8 @@ router.put('/:id/models/:modelRowId', requireAuth, requireRole('admin'), (req: A
 
     const updated = db.prepare('SELECT * FROM station_models WHERE id = ?').get(modelRowId);
     res.json({ success: true, data: mapStationModel(updated) });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -230,8 +231,8 @@ router.put('/:id/models-bulk', requireAuth, requireRole('admin'), (req: AuthRequ
       'SELECT * FROM station_models WHERE station_id = ? ORDER BY display_name ASC'
     ).all(id);
     res.json({ success: true, data: rows.map(mapStationModel) });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -257,13 +258,13 @@ router.post('/:id/pull-models', async (req: Request, res: Response) => {
         },
         signal: AbortSignal.timeout(15000),
       });
-    } catch (fetchErr: any) {
-      if (fetchErr.name === 'TimeoutError' || fetchErr.name === 'AbortError') {
+    } catch (fetchErr: unknown) {
+      if (isAbortError(fetchErr)) {
         throw new Error(
           `Request timed out connecting to ${modelsUrl}. Check that the Base URL is correct and the server is reachable.`
         );
       }
-      throw new Error(`Failed to connect to ${modelsUrl}: ${fetchErr.message}`);
+      throw new Error(`Failed to connect to ${modelsUrl}: ${getErrorMessage(fetchErr)}`);
     }
 
     if (!response.ok) {
@@ -346,8 +347,8 @@ router.post('/:id/pull-models', async (req: Request, res: Response) => {
         firstPull: isFirstPull,
       },
     });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -366,8 +367,8 @@ router.post('/:id/health-check', async (req: Request, res: Response) => {
     const updated = db.prepare('SELECT last_health_check FROM stations WHERE id = ?').get(id) as any;
 
     res.json({ success: true, data: { healthStatus: status, lastHealthCheck: updated?.last_health_check, detail } });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 

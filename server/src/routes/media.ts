@@ -8,6 +8,7 @@ import { getStationsForModel } from '../services/modelInvocation';
 import { normalizeModelName } from '../services/normalizeModelName';
 import { logApiUsage } from '../services/usageLog';
 import type { AuthRequest } from '../types';
+import { getErrorMessage } from '../utils/errors';
 
 const router = Router();
 router.use(requireAuth);
@@ -95,8 +96,8 @@ router.post('/images', async (req: AuthRequest, res: Response) => {
           },
         });
         return;
-      } catch (err: any) {
-        errors.push(`${s.station.name}: ${err.message}`);
+      } catch (err: unknown) {
+        errors.push(`${s.station.name}: ${getErrorMessage(err)}`);
       }
     }
 
@@ -111,8 +112,8 @@ router.post('/images', async (req: AuthRequest, res: Response) => {
       latencyMs: Date.now() - started,
     });
     res.status(502).json({ success: false, error: errors.join(' | ') || 'Image generation failed' });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -200,8 +201,8 @@ router.post('/tts', async (req: AuthRequest, res: Response) => {
           },
         });
         return;
-      } catch (err: any) {
-        errors.push(`${s.station.name}: ${err.message}`);
+      } catch (err: unknown) {
+        errors.push(`${s.station.name}: ${getErrorMessage(err)}`);
       }
     }
 
@@ -216,8 +217,8 @@ router.post('/tts', async (req: AuthRequest, res: Response) => {
       latencyMs: Date.now() - started,
     });
     res.status(502).json({ success: false, error: errors.join(' | ') || 'TTS failed' });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 

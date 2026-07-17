@@ -6,6 +6,7 @@
 import { getDb } from '../database';
 import { normalizeModelName } from './normalizeModelName';
 import { roundRobin } from './loadBalancer';
+import { getErrorMessage, isAbortError } from '../utils/errors';
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -171,8 +172,8 @@ export async function invokeModel(options: InvokeModelOptions): Promise<InvokeMo
         modelId: s.modelId,
         latencyMs: Date.now() - started,
       };
-    } catch (err: any) {
-      const msg = err?.name === 'AbortError' ? 'timeout' : (err?.message || String(err));
+    } catch (err: unknown) {
+      const msg = isAbortError(err) ? 'timeout' : getErrorMessage(err);
       errors.push(`${s.station.name}: ${msg}`);
       try {
         db.prepare('UPDATE stations SET health_status = ?, updated_at = ? WHERE id = ?')

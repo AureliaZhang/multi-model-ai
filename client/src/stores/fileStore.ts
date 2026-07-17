@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { FileLibraryEntry, FileFolder } from '../types';
 import { fileApi } from '../services/api';
+import { getErrorMessage } from '../utils/errors';
 
 interface FileState {
   files: FileLibraryEntry[];
@@ -50,8 +51,8 @@ export const useFileStore = create<FileState>((set, get) => ({
       } else {
         set({ error: res.error || 'Failed to load files', loading: false });
       }
-    } catch (err: any) {
-      set({ error: err.message, loading: false });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err), loading: false });
     }
   },
 
@@ -61,8 +62,8 @@ export const useFileStore = create<FileState>((set, get) => ({
       if (res.success && res.data) {
         set(state => ({ folders: [...state.folders, res.data!] }));
       }
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
     }
   },
 
@@ -74,8 +75,8 @@ export const useFileStore = create<FileState>((set, get) => ({
           folders: state.folders.map(f => f.id === id ? { ...f, name } : f),
         }));
       }
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
     }
   },
 
@@ -86,8 +87,8 @@ export const useFileStore = create<FileState>((set, get) => ({
         // Refresh to get files that were moved to root
         await get().fetchFiles();
       }
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
     }
   },
 
@@ -125,8 +126,8 @@ export const useFileStore = create<FileState>((set, get) => ({
       } else {
         set({ error: res.error || 'Upload failed', uploading: false });
       }
-    } catch (err: any) {
-      set({ error: err.message, uploading: false });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err), uploading: false });
     }
   },
 
@@ -139,8 +140,8 @@ export const useFileStore = create<FileState>((set, get) => ({
           selectedFileIds: state.selectedFileIds.filter(fid => fid !== id),
         }));
       }
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
     }
   },
 
@@ -156,8 +157,8 @@ export const useFileStore = create<FileState>((set, get) => ({
         setTimeout(() => get().fetchFiles(), 3000);
         setTimeout(() => get().fetchFiles(), 8000);
       }
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
     }
   },
 

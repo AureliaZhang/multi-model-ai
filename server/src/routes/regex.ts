@@ -4,6 +4,7 @@ import { getDb } from '../database';
 import { requireAuth, optionalAuth } from '../middleware/auth';
 import type { AuthRequest } from '../types';
 import { testRegex } from '../services/regexEngine';
+import { getErrorMessage } from '../utils/errors';
 
 const router = Router();
 
@@ -48,8 +49,8 @@ router.get('/scripts', requireAuth, (req: AuthRequest, res: Response) => {
     }));
 
     res.json({ success: true, data: scripts });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -67,8 +68,8 @@ router.post('/scripts', requireAuth, (req: AuthRequest, res: Response) => {
     // Validate regex
     try {
       new RegExp(findPattern, flags);
-    } catch (e: any) {
-      return res.status(400).json({ success: false, error: `Invalid regex: ${e.message}` });
+    } catch (e: unknown) {
+      return res.status(400).json({ success: false, error: `Invalid regex: ${getErrorMessage(e)}` });
     }
 
     const id = uuidv4();
@@ -92,8 +93,8 @@ router.post('/scripts', requireAuth, (req: AuthRequest, res: Response) => {
       success: true,
       data: { id, name, findPattern, replacement, flags, placement, enabled, order: scriptOrder, userId, createdAt: now, updatedAt: now },
     });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -120,8 +121,8 @@ router.put('/scripts/:id', requireAuth, (req: AuthRequest, res: Response) => {
     const newFlags = flags ?? existing.flags;
     try {
       new RegExp(newPattern, newFlags);
-    } catch (e: any) {
-      return res.status(400).json({ success: false, error: `Invalid regex: ${e.message}` });
+    } catch (e: unknown) {
+      return res.status(400).json({ success: false, error: `Invalid regex: ${getErrorMessage(e)}` });
     }
 
     const now = new Date().toISOString();
@@ -143,8 +144,8 @@ router.put('/scripts/:id', requireAuth, (req: AuthRequest, res: Response) => {
     );
 
     res.json({ success: true, data: { id, updatedAt: now } });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -165,8 +166,8 @@ router.delete('/scripts/:id', requireAuth, (req: AuthRequest, res: Response) => 
 
     db.prepare('DELETE FROM regex_scripts WHERE id = ?').run(id);
     res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -191,8 +192,8 @@ router.put('/scripts/reorder', requireAuth, (req: AuthRequest, res: Response) =>
     transaction();
 
     res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -257,8 +258,8 @@ router.get('/presets', requireAuth, (req: AuthRequest, res: Response) => {
     }
 
     res.json({ success: true, data: presets });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -295,8 +296,8 @@ router.post('/presets', requireAuth, (req: AuthRequest, res: Response) => {
     transaction();
 
     res.json({ success: true, data: { id, name, description: description || null, isDefault: false, createdAt: now, updatedAt: now } });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -336,8 +337,8 @@ router.put('/presets/:id', requireAuth, (req: AuthRequest, res: Response) => {
     );
 
     res.json({ success: true, data: { id, updatedAt: now } });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -358,8 +359,8 @@ router.delete('/presets/:id', requireAuth, (req: AuthRequest, res: Response) => 
 
     db.prepare('DELETE FROM regex_presets WHERE id = ?').run(id);
     res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -399,8 +400,8 @@ router.post('/presets/:id/scripts', requireAuth, (req: AuthRequest, res: Respons
     transaction();
 
     res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -423,8 +424,8 @@ router.post('/presets/:id/activate', optionalAuth, (req: AuthRequest, res: Respo
     `).run(conversationId, presetId);
 
     res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -465,8 +466,8 @@ router.get('/presets/:id/export', requireAuth, (req: AuthRequest, res: Response)
     };
 
     res.json({ success: true, data: exportData });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -520,8 +521,8 @@ router.post('/import', requireAuth, (req: AuthRequest, res: Response) => {
 
     const presetId = transaction();
     res.json({ success: true, data: { id: presetId } });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -542,8 +543,8 @@ router.get('/test', (req: Request, res: Response) => {
     );
 
     res.json({ success: true, data: result });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 

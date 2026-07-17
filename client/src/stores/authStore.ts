@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { UserPublic } from '../types';
 import { authApi, setToken, removeToken, getToken } from '../services/auth';
+import { getErrorMessage } from '../utils/errors';
 
 interface AuthState {
   user: UserPublic | null;
@@ -52,8 +53,8 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
       } else {
         set({ error: res.error || 'Login failed' });
       }
-    } catch (err: any) {
-      set({ error: err.message || 'Login failed' });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) || 'Login failed' });
     }
   },
 
@@ -69,8 +70,8 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
       } else {
         set({ error: res.error || 'Registration failed' });
       }
-    } catch (err: any) {
-      set({ error: err.message || 'Registration failed' });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) || 'Registration failed' });
     }
   },
 

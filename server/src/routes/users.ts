@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../database';
 import { requireAuth, requireRole } from '../middleware/auth';
 import type { AuthRequest, UserPublic, CreateUserRequest, UpdateUserRequest } from '../types';
+import { getErrorMessage } from '../utils/errors';
 
 const router = Router();
 
@@ -31,8 +32,8 @@ router.get('/', (req: AuthRequest, res: Response) => {
     }));
 
     res.json({ success: true, data: users });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -108,9 +109,9 @@ router.post('/', (req: AuthRequest, res: Response) => {
     };
 
     res.status(201).json({ success: true, data: user });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Create user error:', err);
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -134,8 +135,8 @@ router.get('/:id', (req: AuthRequest, res: Response) => {
     }
 
     res.json({ success: true, data: { ...row, isActive: Boolean(row.isActive) } });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -196,8 +197,8 @@ router.put('/:id', (req: AuthRequest, res: Response) => {
     `).get(userId) as any;
 
     res.json({ success: true, data: { ...row, isActive: Boolean(row.isActive) } });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -223,8 +224,8 @@ router.delete('/:id', (req: AuthRequest, res: Response) => {
     }
 
     res.json({ success: true, data: { message: 'User deleted' } });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 

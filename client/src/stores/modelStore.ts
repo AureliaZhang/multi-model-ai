@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { AggregatedModel } from '../types';
 import { modelApi } from '../services/api';
+import { getErrorMessage } from '../utils/errors';
 
 interface ModelState {
   models: AggregatedModel[];
@@ -24,8 +25,8 @@ export const useModelStore = create<ModelState>((set, get) => ({
       } else {
         set({ error: res.error || 'Failed to fetch models', loading: false });
       }
-    } catch (err: any) {
-      set({ error: err.message, loading: false });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err), loading: false });
     }
   },
 

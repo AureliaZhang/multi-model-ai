@@ -4,6 +4,7 @@ import { userApi } from '../../services/auth';
 import { useAuthStore } from '../../stores/authStore';
 import { useTranslation } from '../../i18n';
 import { ArrowLeft, Shield, ShieldOff, Trash2, UserCheck, UserX, Users, UserPlus, X, Eye, EyeOff } from 'lucide-react';
+import { getErrorMessage } from '../../utils/errors';
 
 interface UserManagementProps {
   onBack: () => void;
@@ -30,8 +31,8 @@ export function UserManagement({ onBack }: UserManagementProps) {
       } else {
         setError(res.error || 'Failed to fetch users');
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -70,8 +71,8 @@ export function UserManagement({ onBack }: UserManagementProps) {
       } else {
         setCreateError(res.error || t('users.createFailed'));
       }
-    } catch (err: any) {
-      setCreateError(err.message);
+    } catch (err: unknown) {
+      setCreateError(getErrorMessage(err));
     } finally {
       setCreateLoading(false);
     }
@@ -86,8 +87,8 @@ export function UserManagement({ onBack }: UserManagementProps) {
       } else {
         setError(res.error || 'Failed to update user');
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     }
   };
 
@@ -100,8 +101,8 @@ export function UserManagement({ onBack }: UserManagementProps) {
       } else {
         setError(res.error || 'Failed to update user');
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     }
   };
 
@@ -115,8 +116,8 @@ export function UserManagement({ onBack }: UserManagementProps) {
       } else {
         setError(res.error || 'Failed to delete user');
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     }
   };
 

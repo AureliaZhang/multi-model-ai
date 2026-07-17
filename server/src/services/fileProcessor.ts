@@ -9,6 +9,7 @@ import fs from 'fs';
 import path from 'path';
 import { getDb } from '../database';
 import { generateEmbedding, serializeEmbedding, cosineSimilarity } from './embeddings';
+import { getErrorMessage } from '../utils/errors';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string; numpages: number }>;
@@ -67,8 +68,8 @@ export async function extractTextFromFile(filePath: string, mimeType: string, fi
     }
 
     return null;
-  } catch (err: any) {
-    console.error(`[fileProcessor] Error extracting text from ${filename}:`, err.message);
+  } catch (err: unknown) {
+    console.error(`[fileProcessor] Error extracting text from ${filename}:`, getErrorMessage(err));
     return null;
   }
 }
@@ -186,8 +187,8 @@ export async function processFile(fileId: string, filePath: string, mimeType: st
       try {
         const embedding = await generateEmbedding(chunkContent);
         embeddingStr = serializeEmbedding(embedding);
-      } catch (err: any) {
-        console.warn(`[fileProcessor] Embedding failed for chunk ${i} of ${filename}: ${err.message}`);
+      } catch (err: unknown) {
+        console.warn(`[fileProcessor] Embedding failed for chunk ${i} of ${filename}: ${getErrorMessage(err)}`);
       }
 
       // Rough token count estimate (~4 chars per token for English, ~2 for Chinese)
@@ -204,10 +205,10 @@ export async function processFile(fileId: string, filePath: string, mimeType: st
 
     console.log(`[fileProcessor] ✓ File ${filename} processed: ${chunks.length} chunks`);
 
-  } catch (err: any) {
-    console.error(`[fileProcessor] Error processing file ${filename}:`, err.message);
+  } catch (err: unknown) {
+    console.error(`[fileProcessor] Error processing file ${filename}:`, getErrorMessage(err));
     db.prepare(`UPDATE file_library SET status = 'error', error_message = ?, updated_at = ? WHERE id = ?`)
-      .run(err.message || 'Unknown processing error', new Date().toISOString(), fileId);
+      .run(getErrorMessage(err) || 'Unknown processing error', new Date().toISOString(), fileId);
   }
 }
 

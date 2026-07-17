@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { regexApi } from '../services/api';
 import type { RegexScript, RegexPreset } from '../types';
+import { getErrorMessage } from '../utils/errors';
 
 interface RegexState {
   scripts: RegexScript[];
@@ -39,8 +40,8 @@ export const useRegexStore = create<RegexState>((set, get) => ({
       } else {
         set({ loading: false, error: res.error || 'Failed to fetch scripts' });
       }
-    } catch (err: any) {
-      set({ loading: false, error: err.message });
+    } catch (err: unknown) {
+      set({ loading: false, error: getErrorMessage(err) });
     }
   },
 
@@ -50,8 +51,8 @@ export const useRegexStore = create<RegexState>((set, get) => ({
       if (res.success && res.data) {
         set(state => ({ scripts: [...state.scripts, res.data!] }));
       }
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
     }
   },
 
@@ -62,8 +63,8 @@ export const useRegexStore = create<RegexState>((set, get) => ({
         // Refetch to get updated data
         get().fetchScripts();
       }
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
     }
   },
 
@@ -73,8 +74,8 @@ export const useRegexStore = create<RegexState>((set, get) => ({
       if (res.success) {
         set(state => ({ scripts: state.scripts.filter(s => s.id !== id) }));
       }
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
     }
   },
 
@@ -92,8 +93,8 @@ export const useRegexStore = create<RegexState>((set, get) => ({
           .filter(Boolean) as RegexScript[];
         return { scripts: reordered };
       });
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
     }
   },
 
@@ -103,8 +104,8 @@ export const useRegexStore = create<RegexState>((set, get) => ({
       if (res.success && res.data) {
         set({ presets: res.data });
       }
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
     }
   },
 
@@ -114,8 +115,8 @@ export const useRegexStore = create<RegexState>((set, get) => ({
       if (res.success && res.data) {
         set(state => ({ presets: [...state.presets, res.data!] }));
       }
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
     }
   },
 
@@ -123,8 +124,8 @@ export const useRegexStore = create<RegexState>((set, get) => ({
     try {
       await regexApi.updatePreset(id, data);
       get().fetchPresets();
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
     }
   },
 
@@ -134,8 +135,8 @@ export const useRegexStore = create<RegexState>((set, get) => ({
       if (res.success) {
         set(state => ({ presets: state.presets.filter(p => p.id !== id) }));
       }
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
     }
   },
 
@@ -143,16 +144,16 @@ export const useRegexStore = create<RegexState>((set, get) => ({
     try {
       await regexApi.setPresetScripts(presetId, scriptIds);
       get().fetchPresets();
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
     }
   },
 
   activatePreset: async (conversationId, presetId) => {
     try {
       await regexApi.activatePreset(presetId, conversationId);
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
     }
   },
 
@@ -163,8 +164,8 @@ export const useRegexStore = create<RegexState>((set, get) => ({
         return res.data;
       }
       return null;
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
       return null;
     }
   },
@@ -175,8 +176,8 @@ export const useRegexStore = create<RegexState>((set, get) => ({
       if (res.success && res.data) {
         set(state => ({ presets: [...state.presets, res.data!] }));
       }
-    } catch (err: any) {
-      set({ error: err.message });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
     }
   },
 }));

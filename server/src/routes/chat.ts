@@ -12,6 +12,8 @@ import { loadEnabledMcpTools, resolveToolCall, executeToolCall } from '../servic
 import { generateEmbedding, serializeEmbedding, vectorSearch } from '../services/embeddings';
 import { roundRobin } from '../services/loadBalancer';
 import { getActiveScripts, applyRegexScripts } from '../services/regexEngine';
+import { getErrorMessage } from '../utils/errors';
+import type Database from 'better-sqlite3';
 
 const router = Router();
 
@@ -37,8 +39,8 @@ async function extractFileText(mimeType: string, base64Data: string, filename: s
           return truncated;
         }
         return null;
-      } catch (pdfErr: any) {
-        console.error(`[extractFileText] PDF parse error for ${filename}:`, pdfErr.message || pdfErr);
+      } catch (pdfErr: unknown) {
+        console.error(`[extractFileText] PDF parse error for ${filename}:`, getErrorMessage(pdfErr));
         return null;
       }
     }
@@ -250,8 +252,8 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
             content: `以下是从文件库中检索到的相关内容：\n${fileContext}\n\n请基于这些文件内容回答用户的问题。`,
           });
         }
-      } catch (fileErr: any) {
-        console.warn('[chat] File RAG injection failed:', fileErr.message);
+      } catch (fileErr: unknown) {
+        console.warn('[chat] File RAG injection failed:', getErrorMessage(fileErr));
       }
     }
 
@@ -431,8 +433,8 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
               } else {
                 toolResult = JSON.stringify({ error: `Unknown tool: ${tc.name}` });
               }
-            } catch (err: any) {
-              toolResult = JSON.stringify({ error: err.message });
+            } catch (err: unknown) {
+              toolResult = JSON.stringify({ error: getErrorMessage(err) });
             }
 
             // Send tool result to client
@@ -457,8 +459,8 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
 
         // Success - break out of failover loop
         break;
-      } catch (err: any) {
-        console.error(`Station ${s.station.name} failed:`, err.message);
+      } catch (err: unknown) {
+        console.error(`Station ${s.station.name} failed:`, getErrorMessage(err));
         // Mark station unhealthy temporarily
         const failTime = new Date().toISOString();
         db.prepare('UPDATE stations SET health_status = ?, updated_at = ? WHERE id = ?')
@@ -531,8 +533,8 @@ ${assistantContent}
             console.error(`[chat] Self-review API call failed with status ${reviewResponse.status}`);
           }
         }
-      } catch (reviewErr: any) {
-        console.error('[chat] Self-review error:', reviewErr.message);
+      } catch (reviewErr: unknown) {
+        console.error('[chat] Self-review error:', getErrorMessage(reviewErr));
         // Continue with original content if review fails
       }
     }
@@ -580,7 +582,7 @@ ${assistantContent}
     autoSaveMemory(db, conversationId, assistantMsgId, 'assistant', assistantContent, modelNormalizedName, userId).catch(err => console.error('[memory] Assistant memory save error:', err));
 
     res.end();
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Chat error:', err);
     try {
       logApiUsage({
@@ -592,13 +594,13 @@ ${assistantContent}
         conversationId: (req.body || {}).conversationId,
         status: 'error',
         httpStatus: 500,
-        errorMessage: err.message,
+        errorMessage: getErrorMessage(err),
       });
     } catch { /* ignore */ }
     if (!res.headersSent) {
-      res.status(500).json({ success: false, error: err.message });
+      res.status(500).json({ success: false, error: getErrorMessage(err) });
     } else {
-      res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+      res.write(`data: ${JSON.stringify({ error: getErrorMessage(err) })}\n\n`);
       res.write('data: [DONE]\n\n');
       res.end();
     }
@@ -606,7 +608,7 @@ ${assistantContent}
 });
 
 // Resolve model to a single station using counter-based round-robin
-function resolveModel(db: any, normalizedName: string): { station: any; modelId: string } | null {
+function resolveModel(db: Database.Database, normalizedName: string): { station: any; modelId: string } | null {
   const stations = getStationsForModel(db, normalizedName);
   if (stations.length === 0) return null;
 
@@ -616,7 +618,7 @@ function resolveModel(db: any, normalizedName: string): { station: any; modelId:
 }
 
 // Get all healthy stations for a normalized model name
-function getStationsForModel(db: any, normalizedName: string, adminPool = false): { station: any; modelId: string }[] {
+function getStationsForModel(db: Database.Database, normalizedName: string, adminPool = false): { station: any; modelId: string }[] {
   const pool = adminPool
     ? 'COALESCE(sm.admin_enabled, 1) = 1'
     : 'sm.enabled = 1';
@@ -637,7 +639,7 @@ function getStationsForModel(db: any, normalizedName: string, adminPool = false)
 
 // Auto-save conversation turn to memory store with vector embedding
 async function autoSaveMemory(
-  db: any,
+  db: Database.Database,
   conversationId: string,
   messageId: string,
   role: 'user' | 'assistant',
@@ -662,8 +664,8 @@ async function autoSaveMemory(
       const embedding = await generateEmbedding(content);
       embeddingJson = serializeEmbedding(embedding);
       console.log(`[memory] Generated embedding for ${role} message (${embedding.length} dims)`);
-    } catch (embErr: any) {
-      console.warn(`[memory] Embedding generation failed, saving without vector: ${embErr.message}`);
+    } catch (embErr: unknown) {
+      console.warn(`[memory] Embedding generation failed, saving without vector: ${getErrorMessage(embErr)}`);
     }
 
     db.prepare(`
@@ -684,7 +686,7 @@ async function autoSaveMemory(
 }
 
 // Retrieve relevant memories for context injection using vector similarity
-async function retrieveRelevantMemories(db: any, query: string, limit: number = 5): Promise<any[]> {
+async function retrieveRelevantMemories(db: Database.Database, query: string, limit: number = 5): Promise<any[]> {
   try {
     const config = db.prepare('SELECT * FROM memory_config WHERE id = 1').get() as any;
     if (!config || !config.context_injection) return [];
@@ -707,8 +709,8 @@ async function retrieveRelevantMemories(db: any, query: string, limit: number = 
           return results;
         }
         console.log('[memory] Vector search returned 0 results, falling back to keyword search');
-      } catch (vecErr: any) {
-        console.warn(`[memory] Vector search failed, falling back to keyword: ${vecErr.message}`);
+      } catch (vecErr: unknown) {
+        console.warn(`[memory] Vector search failed, falling back to keyword: ${getErrorMessage(vecErr)}`);
       }
     }
 

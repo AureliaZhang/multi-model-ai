@@ -5,6 +5,7 @@ import {
   Plus, RefreshCw, Trash2, ToggleLeft, ToggleRight, PlugZap,
   ChevronDown, ChevronUp, Wrench, Server, AlertCircle, CheckCircle, XCircle,
 } from 'lucide-react';
+import { getErrorMessage } from '../../utils/errors';
 
 export function McpServerManager() {
   const servers = useMcpStore(s => s.servers);
@@ -45,8 +46,8 @@ export function McpServerManager() {
       setNewUrl('');
       setNewDesc('');
       setShowAdd(false);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setActionLoading(null);
     }
@@ -58,8 +59,8 @@ export function McpServerManager() {
       setConnectResult(null);
       const result = await connectServer(id);
       setConnectResult({ serverId: id, count: result.toolsCount });
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setActionLoading(null);
     }
@@ -70,8 +71,8 @@ export function McpServerManager() {
     try {
       setActionLoading(`delete-${id}`);
       await deleteServer(id);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setActionLoading(null);
     }
@@ -80,16 +81,16 @@ export function McpServerManager() {
   const handleToggleServer = async (id: string, enabled: boolean) => {
     try {
       await updateServer(id, { enabled });
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     }
   };
 
   const handleToggleTool = async (toolId: string, enabled: boolean) => {
     try {
       await toggleTool(toolId, enabled);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     }
   };
 

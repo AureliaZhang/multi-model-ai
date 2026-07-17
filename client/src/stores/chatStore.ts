@@ -2,6 +2,7 @@ import { create, type StoreApi } from 'zustand';
 import type { Conversation, ConversationVisibility, Message, PendingAttachment, ToolCallInfo } from '../types';
 import { conversationApi, streamChat } from '../services/api';
 import { synthesizeSpeech, usePrefsStore } from './prefsStore';
+import { getErrorMessage } from '../utils/errors';
 
 // Generation counter to prevent stale selectConversation results from being applied.
 // Each call to selectConversation increments this; only the latest call's result is used.
@@ -233,7 +234,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           }
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[chatStore] fetchConversations failed:', err);
     } finally {
       _fetchConvRunning = false;
@@ -316,9 +317,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       } else {
         set({ error: res.error || 'Failed to load messages' });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (_selectGeneration !== gen) return;
-      set({ error: err.message || 'Failed to load conversation' });
+      set({ error: getErrorMessage(err) || 'Failed to load conversation' });
     }
   },
 
@@ -343,7 +344,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           get().fetchConversations();
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to update conversation:', err);
     }
   },

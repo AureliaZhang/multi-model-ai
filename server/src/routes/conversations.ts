@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../database';
 import { Conversation, ConversationVisibility, ApiResponse, AuthRequest } from '../types';
 import { optionalAuth } from '../middleware/auth';
+import { getErrorMessage } from '../utils/errors';
 
 const router = Router();
 
@@ -43,8 +44,8 @@ router.get('/', optionalAuth, (req: AuthRequest, res: Response) => {
 
     const conversations: Conversation[] = rows.map(rowToConversation);
     res.json({ success: true, data: conversations } as ApiResponse<Conversation[]>);
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -71,8 +72,8 @@ router.post('/', optionalAuth, (req: AuthRequest, res: Response) => {
       success: true,
       data: rowToConversation(conv),
     } as ApiResponse<Conversation>);
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -102,8 +103,8 @@ router.put('/:id', optionalAuth, (req: AuthRequest, res: Response) => {
       success: true,
       data: rowToConversation(conv),
     } as ApiResponse<Conversation>);
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -117,8 +118,8 @@ router.delete('/:id', (req: Request, res: Response) => {
       return res.status(404).json({ success: false, error: 'Conversation not found' });
     }
     res.json({ success: true } as ApiResponse);
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -167,8 +168,8 @@ router.get('/export', optionalAuth, (req: AuthRequest, res: Response) => {
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', 'attachment; filename=conversations-export.json');
     res.json(payload);
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -250,8 +251,8 @@ router.post('/import', optionalAuth, (req: AuthRequest, res: Response) => {
       success: true,
       data: { importedConversations: importedConvs, importedMessages: importedMsgs, total: list.length },
     });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -279,9 +280,9 @@ router.get('/:id/messages', (req: Request, res: Response) => {
 
     console.log(`[getMessages] conv=${id} messages=${messages.length}`);
     res.json({ success: true, data: messages } as ApiResponse);
-  } catch (err: any) {
-    console.error('[getMessages] Error:', err.message);
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    console.error('[getMessages] Error:', getErrorMessage(err));
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 

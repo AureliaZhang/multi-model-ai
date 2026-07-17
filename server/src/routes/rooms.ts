@@ -22,6 +22,7 @@ import { invokeModel } from '../services/modelInvocation';
 import { logApiUsage } from '../services/usageLog';
 import { broadcast, closeRoom as closeRoomSockets, disconnectUser } from '../services/roomHub';
 import type { AuthRequest, ApiResponse } from '../types';
+import { getErrorMessage } from '../utils/errors';
 
 const router = Router();
 router.use(requireAuth);
@@ -109,8 +110,8 @@ router.get('/', (req: AuthRequest, res: Response) => {
       .all(req.user!.id) as any[];
     const data = rows.map((r) => ({ ...serializeRoom(r), memberCount: r.memberCount }));
     res.json({ success: true, data } as ApiResponse);
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -158,8 +159,8 @@ router.post('/', (req: AuthRequest, res: Response) => {
     for (const uid of validIds) addMember.run(roomId, uid, 'member', now);
 
     res.status(201).json({ success: true, data: { ...serializeRoom(getRoom(roomId)), members: memberInfo(roomId) } });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -173,8 +174,8 @@ router.get('/:id', (req: AuthRequest, res: Response) => {
     }
     room = reconcileOccupancy(room);
     res.json({ success: true, data: { ...serializeRoom(room), members: memberInfo(room.id) } });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -191,8 +192,8 @@ router.delete('/:id', (req: AuthRequest, res: Response) => {
     broadcast(room.id, { type: 'disband' });
     closeRoomSockets(room.id);
     res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -221,8 +222,8 @@ router.post('/:id/members', (req: AuthRequest, res: Response) => {
     db.prepare('UPDATE rooms SET updated_at = ? WHERE id = ?').run(nowIso(), room.id);
     broadcast(room.id, { type: 'members' });
     res.json({ success: true, data: memberInfo(room.id) });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -242,8 +243,8 @@ router.delete('/:id/members/:userId', (req: AuthRequest, res: Response) => {
     disconnectUser(room.id, req.params.userId);
     broadcast(room.id, { type: 'members' });
     res.json({ success: true, data: memberInfo(room.id) });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -272,8 +273,8 @@ router.get('/:id/messages', (req: AuthRequest, res: Response) => {
       attachmentsJson: undefined,
     }));
     res.json({ success: true, data });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -311,8 +312,8 @@ router.post('/:id/messages', (req: AuthRequest, res: Response) => {
     // Push the new human message to everyone in the room (replaces polling).
     broadcast(room.id, { type: 'message', message });
     res.status(201).json({ success: true, data: message });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -336,8 +337,8 @@ router.get('/:id/ai', (req: AuthRequest, res: Response) => {
       .all(room.id) as any[];
     const data = rows.map((r) => ({ ...r, fileIds: JSON.parse(r.fileIdsJson || '[]'), fileIdsJson: undefined }));
     res.json({ success: true, data });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -385,8 +386,8 @@ router.put('/:id/models', (req: AuthRequest, res: Response) => {
     const updated = serializeRoom(getRoom(room.id));
     broadcast(room.id, { type: 'room', room: updated });
     res.json({ success: true, data: updated });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -416,8 +417,8 @@ router.post('/:id/occupancy/claim', (req: AuthRequest, res: Response) => {
     const updated = serializeRoom(getRoom(room.id));
     broadcast(room.id, { type: 'room', room: updated });
     res.json({ success: true, data: updated });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -434,8 +435,8 @@ router.post('/:id/occupancy/renew', (req: AuthRequest, res: Response) => {
     const updated = serializeRoom(getRoom(room.id));
     broadcast(room.id, { type: 'room', room: updated });
     res.json({ success: true, data: updated });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -454,8 +455,8 @@ router.post('/:id/occupancy/release', (req: AuthRequest, res: Response) => {
     const updated = serializeRoom(getRoom(room.id));
     broadcast(room.id, { type: 'room', room: updated });
     res.json({ success: true, data: updated });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -634,7 +635,7 @@ router.post('/:id/ai/ask', async (req: AuthRequest, res: Response) => {
     broadcast(room.id, { type: 'room', room: serializeRoom(getRoom(room.id)) });
 
     res.json({ success: true, data: { userMessageId: userMsgId, assistant: asst } });
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Best-effort unlock so the room never stays stuck in ai_running
     try {
       if (room) {
@@ -645,7 +646,7 @@ router.post('/:id/ai/ask', async (req: AuthRequest, res: Response) => {
     } catch {
       /* ignore */
     }
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -666,8 +667,8 @@ router.get('/util/users', (req: AuthRequest, res: Response) => {
       .all(req.user!.id) as any[];
     const data = rows.map((r) => ({ ...r, isActive: Boolean(r.isActive) }));
     res.json({ success: true, data });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -700,8 +701,8 @@ router.get('/:id/files', (req: AuthRequest, res: Response) => {
       )
       .all(room.id) as any[];
     res.json({ success: true, data: rows.map(serializeRoomFile) });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -738,8 +739,8 @@ router.post('/:id/files', (req: AuthRequest, res: Response) => {
       now
     );
     res.status(201).json({ success: true, data: serializeRoomFile(getDb().prepare('SELECT * FROM room_files WHERE id = ?').get(id)) });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
@@ -753,8 +754,8 @@ router.delete('/:id/files/:fileId', (req: AuthRequest, res: Response) => {
     }
     getDb().prepare('DELETE FROM room_files WHERE id = ? AND room_id = ?').run(req.params.fileId, room.id);
     res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 

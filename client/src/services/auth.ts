@@ -7,6 +7,7 @@ import type {
   UserPublic,
   UpdateUserRequest,
 } from '../types';
+import { getErrorMessage } from '../utils/errors';
 
 const BASE_URL = '/api';
 
@@ -36,16 +37,16 @@ async function authRequest<T>(url: string, options?: RequestInit): Promise<ApiRe
   let res: Response;
   try {
     res = await fetch(fullUrl, { ...options, headers });
-  } catch (fetchErr: any) {
-    console.error(`[authRequest] Fetch failed for ${fullUrl}:`, fetchErr.message);
-    return { success: false, error: `Network error: ${fetchErr.message}` } as ApiResponse<T>;
+  } catch (fetchErr: unknown) {
+    console.error(`[authRequest] Fetch failed for ${fullUrl}:`, getErrorMessage(fetchErr));
+    return { success: false, error: `Network error: ${getErrorMessage(fetchErr)}` } as ApiResponse<T>;
   }
 
   try {
     const data = await res.json();
     return data as ApiResponse<T>;
-  } catch (jsonErr: any) {
-    console.error(`[authRequest] JSON parse failed for ${fullUrl} (status ${res.status}):`, jsonErr.message);
+  } catch (jsonErr: unknown) {
+    console.error(`[authRequest] JSON parse failed for ${fullUrl} (status ${res.status}):`, getErrorMessage(jsonErr));
     return { success: false, error: `Invalid response from server (HTTP ${res.status})` } as ApiResponse<T>;
   }
 }
