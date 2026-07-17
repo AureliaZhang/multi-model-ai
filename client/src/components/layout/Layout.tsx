@@ -1,14 +1,31 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, lazy, Suspense, type ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
 import { ChatArea } from './ChatArea';
-import { SettingsPage } from '../settings/SettingsPage';
-import { UserManagement } from '../admin/UserManagement';
-import { UsageLogsPage } from '../admin/UsageLogsPage';
-import { MemoryBrowser } from '../memory/MemoryBrowser';
-import { FileBrowser } from '../files/FileBrowser';
-import { ArenaLayout } from '../arena/ArenaLayout';
-import { RoomsPage } from '../rooms/RoomsPage';
-import { GuideOverlay } from '../guide/GuideOverlay';
+// Secondary pages are code-split — only the default chat shell loads on first paint.
+const SettingsPage = lazy(() =>
+  import('../settings/SettingsPage').then((m) => ({ default: m.SettingsPage }))
+);
+const UserManagement = lazy(() =>
+  import('../admin/UserManagement').then((m) => ({ default: m.UserManagement }))
+);
+const UsageLogsPage = lazy(() =>
+  import('../admin/UsageLogsPage').then((m) => ({ default: m.UsageLogsPage }))
+);
+const MemoryBrowser = lazy(() =>
+  import('../memory/MemoryBrowser').then((m) => ({ default: m.MemoryBrowser }))
+);
+const FileBrowser = lazy(() =>
+  import('../files/FileBrowser').then((m) => ({ default: m.FileBrowser }))
+);
+const ArenaLayout = lazy(() =>
+  import('../arena/ArenaLayout').then((m) => ({ default: m.ArenaLayout }))
+);
+const RoomsPage = lazy(() =>
+  import('../rooms/RoomsPage').then((m) => ({ default: m.RoomsPage }))
+);
+const GuideOverlay = lazy(() =>
+  import('../guide/GuideOverlay').then((m) => ({ default: m.GuideOverlay }))
+);
 import { LanguageToggle } from './LanguageToggle';
 import { ThemeToggle } from './ThemeToggle';
 import { DailyModelModal } from '../prefs/DailyModelModal';
@@ -26,6 +43,19 @@ interface LayoutProps {
 }
 
 type PageView = 'chat' | 'settings' | 'users' | 'memory' | 'files' | 'arena' | 'usage' | 'rooms';
+
+function PageFallback() {
+  return (
+    <div className="w-full h-full flex items-center justify-center bg-[var(--color-main-surface-primary)]">
+      <div className="text-[var(--color-text-tertiary)] text-sm">Loading...</div>
+    </div>
+  );
+}
+
+/** Wrap a lazy secondary page with Suspense + shared chrome (theme/lang/modals). */
+function lazyPage(node: ReactNode, withLang: (n: ReactNode) => ReactNode) {
+  return withLang(<Suspense fallback={<PageFallback />}>{node}</Suspense>);
+}
 
 export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
   const [page, setPage] = useState<PageView>('chat');
@@ -64,31 +94,31 @@ export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
   );
 
   if (page === 'settings') {
-    return withLang(<SettingsPage onClose={() => setPage('chat')} />);
+    return lazyPage(<SettingsPage onClose={() => setPage('chat')} />, withLang);
   }
 
   if (page === 'users') {
-    return withLang(<UserManagement onBack={() => setPage('chat')} />);
+    return lazyPage(<UserManagement onBack={() => setPage('chat')} />, withLang);
   }
 
   if (page === 'usage') {
-    return withLang(<UsageLogsPage onBack={() => setPage('chat')} />);
+    return lazyPage(<UsageLogsPage onBack={() => setPage('chat')} />, withLang);
   }
 
   if (page === 'memory') {
-    return withLang(<MemoryBrowser onClose={() => setPage('chat')} />);
+    return lazyPage(<MemoryBrowser onClose={() => setPage('chat')} />, withLang);
   }
 
   if (page === 'files') {
-    return withLang(<FileBrowser onClose={() => setPage('chat')} />);
+    return lazyPage(<FileBrowser onClose={() => setPage('chat')} />, withLang);
   }
 
   if (page === 'arena') {
-    return withLang(<ArenaLayout onClose={() => setPage('chat')} />);
+    return lazyPage(<ArenaLayout onClose={() => setPage('chat')} />, withLang);
   }
 
   if (page === 'rooms') {
-    return withLang(<RoomsPage onClose={() => setPage('chat')} />);
+    return lazyPage(<RoomsPage onClose={() => setPage('chat')} />, withLang);
   }
 
   // On mobile the sidebar is an overlay drawer, so selecting a destination
@@ -150,8 +180,12 @@ export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
         </button>
       </div>
 
-      {/* Onboarding Guide Overlay */}
-      {showGuide && <GuideOverlay onClose={() => setShowGuide(false)} />}
+      {/* Onboarding Guide Overlay (lazy — not needed for first paint) */}
+      {showGuide && (
+        <Suspense fallback={null}>
+          <GuideOverlay onClose={() => setShowGuide(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }
