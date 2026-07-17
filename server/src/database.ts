@@ -649,36 +649,54 @@ function seedDefaultAdmin(db: Database.Database): void {
   }
 }
 
+/**
+ * Optional first-run seed for a default relay station.
+ *
+ * NEVER hardcode API keys in source — they end up in git history.
+ * Provide credentials via env when you want a seeded station:
+ *   MIMO_BASE_URL  (default: https://token-plan-ams.xiaomimimo.com/v1)
+ *   MIMO_API_KEY   (required to seed; if missing, seed is skipped)
+ *
+ * Existing local DBs already seeded earlier keep their rows; this only runs
+ * when no station named "mimo" exists yet.
+ */
 function seedDefaultStation(db: Database.Database): void {
   const existing = db.prepare('SELECT id FROM stations WHERE name = ?').get('mimo');
-  if (!existing) {
-    const { v4: uuidv4 } = require('uuid');
-    const now = new Date().toISOString();
-    const stationId = uuidv4();
-    db.prepare(`
-      INSERT INTO stations (id, name, base_url, api_key, enabled, health_status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, 1, 'unknown', ?, ?)
-    `).run(stationId, 'mimo', 'https://token-plan-ams.xiaomimimo.com/v1', 'tp-ezxquyluif0136bh28ke2j9k2131q1nce4ywsg70znqkdeuh', now, now);
+  if (existing) return;
 
-    // Seed known models
-    const models = [
-      'mimo-v2-omni', 'mimo-v2-pro', 'mimo-v2-tts',
-      'mimo-v2.5', 'mimo-v2.5-asr', 'mimo-v2.5-pro',
-      'mimo-v2.5-tts', 'mimo-v2.5-tts-voiceclone', 'mimo-v2.5-tts-voicedesign',
-    ];
-    const insert = db.prepare(
-      'INSERT INTO station_models (id, station_id, model_id, display_name, capabilities, enabled, created_at) VALUES (?, ?, ?, ?, ?, 1, ?)'
-    );
-    for (const modelId of models) {
-      insert.run(uuidv4(), stationId, modelId, modelId, '["text"]', now);
-    }
-
-    // Mark as healthy since we pre-seeded the models
-    db.prepare('UPDATE stations SET health_status = ?, last_health_check = ? WHERE id = ?')
-      .run('healthy', now, stationId);
-
-    console.log('🌐 Default mimo station seeded with ' + models.length + ' models');
+  const apiKey = (process.env.MIMO_API_KEY || '').trim();
+  if (!apiKey) {
+    // Clean install without secrets: admin adds stations via Settings UI.
+    return;
   }
+
+  const { v4: uuidv4 } = require('uuid');
+  const now = new Date().toISOString();
+  const stationId = uuidv4();
+  const baseUrl = (process.env.MIMO_BASE_URL || 'https://token-plan-ams.xiaomimimo.com/v1').trim();
+
+  db.prepare(`
+    INSERT INTO stations (id, name, base_url, api_key, enabled, health_status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, 1, 'unknown', ?, ?)
+  `).run(stationId, 'mimo', baseUrl, apiKey, now, now);
+
+  // Seed known models (ids only — no secrets)
+  const models = [
+    'mimo-v2-omni', 'mimo-v2-pro', 'mimo-v2-tts',
+    'mimo-v2.5', 'mimo-v2.5-asr', 'mimo-v2.5-pro',
+    'mimo-v2.5-tts', 'mimo-v2.5-tts-voiceclone', 'mimo-v2.5-tts-voicedesign',
+  ];
+  const insert = db.prepare(
+    'INSERT INTO station_models (id, station_id, model_id, display_name, capabilities, enabled, created_at) VALUES (?, ?, ?, ?, ?, 1, ?)'
+  );
+  for (const modelId of models) {
+    insert.run(uuidv4(), stationId, modelId, modelId, '["text"]', now);
+  }
+
+  db.prepare('UPDATE stations SET health_status = ?, last_health_check = ? WHERE id = ?')
+    .run('healthy', now, stationId);
+
+  console.log('🌐 Default mimo station seeded with ' + models.length + ' models (key from MIMO_API_KEY env)');
 }
 
 export function closeDb(): void {

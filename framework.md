@@ -14,9 +14,11 @@
 <!-- > **Last Updated**: 2026-07-17 (v0.7.8 — P2 start: vitest harness + pure unit tests for roundRobin + normalizeModelName; see §12 change log) -->
 <!-- > **Version**: 0.7.9 -->
 <!-- > **Last Updated**: 2026-07-17 (v0.7.9 — P2: getErrorMessage helper + eliminate all catch (err: any); see §12 change log) -->
-> **Version**: 0.7.10
+<!-- > **Version**: 0.7.10 -->
+<!-- > **Last Updated**: 2026-07-17 (v0.7.10 — P2: route-level React.lazy code-split secondary pages; see §12 change log) -->
+> **Version**: 0.7.11
 > **Created**: 2026-06-15
-> **Last Updated**: 2026-07-17 (v0.7.10 — P2: route-level React.lazy code-split secondary pages; see §12 change log)
+> **Last Updated**: 2026-07-17 (v0.7.11 — security: remove hardcoded MIMO API key from seed; see §12 change log)
 <!-- > **Last Updated**: 2026-07-12 (v0.7.2 — bug/breakpoint sweep across shipped work; wired the already-built group-chat UI (§10.6) into the app; fixed 4 real bugs; see §12 change log) -->
 > **Rule**: This file must be kept in sync with every development step. Content is NEVER deleted, only commented out with `<!-- ... -->` when superseded. Other files may be freely modified.
 
@@ -846,6 +848,7 @@ settings:
 | 2026-07-17 | 0.7.8 | P2 start: server test harness + pure unit tests. Added `vitest@^4` (`server` devDep), `vitest.config.ts` (node env, `src/**/*.test.ts`, forks pool), scripts `test` / `test:watch`; `tsconfig` excludes `**/*.test.ts` from `tsc` emit. Extracted `normalizeModelName` to `server/src/services/normalizeModelName.ts` (behaviour unchanged; `routes/models.ts` re-exports; callers in chat/media/prefs/arena/modelInvocation point at the pure module). New suites: `loadBalancer.test.ts` (empty/single/rotate/failover-full-list/independent-keys/no-mutate) + `normalizeModelName.test.ts` (12 table-driven cases). `npm test` → 18 passed; `tsc --noEmit` clean. **Not in this drop:** failover integration, memory search, occupancy FSM, client tests, bundle split, `any` cleanup. | Claude |
 | 2026-07-17 | 0.7.9 | P2 type-safety: eliminate all `catch (err: any)`. New `getErrorMessage` + `isAbortError` helpers (`server/src/utils/errors.ts`, `client/src/utils/errors.ts`) with vitest coverage. Bulk-converted every catch-any on client+server to `unknown` and routed `.message` through the helper; special abort/timeout branches in stations/memories/modelInvocation use `isAbortError`. Also typed 6× `db: any` params as `Database.Database` (chat/embeddings/mcpClient). Server `npm test` 24 passed; server+client `tsc` clean. Remaining `any` is mostly SQLite row casts / domain shapes — deferred. | Claude |
 | 2026-07-17 | 0.7.10 | P2 bundle: route-level code-splitting. `Layout.tsx` swaps static imports of Settings/UserManagement/UsageLogs/Memory/Files/Arena/Rooms/Guide for `React.lazy` + named-export `.then(m => ({default: m.X}))`; secondary pages render inside `Suspense` with a small Loading fallback (Guide uses null fallback). Chat/Sidebar stay eager. `vite build`: main chunk **487.6 KB / 144.8 KB gz** (was single ~667 KB / ~169 KB gz); 8 lazy page chunks. Client `tsc -b` clean. | Claude |
+| 2026-07-17 | 0.7.11 | **Security:** removed hardcoded MIMO relay API key from `seedDefaultStation` in `server/src/database.ts` (present since initial commit). Seed now only runs when `MIMO_API_KEY` env is set (`MIMO_BASE_URL` optional). **Note:** key remains in git history on public + private remotes until history rewrite or key rotation; rotate the relay key at the provider. | Claude |
 
 ---
 
