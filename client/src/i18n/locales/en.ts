@@ -82,6 +82,10 @@ const en = {
   'sidebar.importFailed': 'Import failed: invalid file format',
   'sidebar.importDone': 'Imported {convs} conversations, {msgs} messages',
 
+  // Theme toggle
+  'theme.switchToLight': 'Switch to light mode',
+  'theme.switchToDark': 'Switch to dark mode',
+
   // Chat Area
   'chat.browseMode': 'Browse Mode',
   'chat.howCanIHelp': 'How can I help you today?',

@@ -249,7 +249,7 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
         <div className="flex items-center gap-3">
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
+            className="p-1.5 rounded-lg hover:bg-[var(--overlay-5)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
           >
             <ArrowLeft size={20} />
           </button>
@@ -267,7 +267,7 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
           {/* New Folder button */}
           <button
             onClick={() => setShowCreateFolder(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--color-border-light)] hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-secondary)] text-sm font-medium transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--color-border-light)] hover:bg-[var(--overlay-5)] text-[var(--color-text-secondary)] text-sm font-medium transition-colors"
           >
             <FolderPlus size={15} />
             {t('files.newFolder')}
@@ -277,7 +277,7 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
           <button
             onClick={() => folderInputRef.current?.click()}
             disabled={uploading}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--color-border-light)] hover:bg-[rgba(255,255,255,0.05)] disabled:opacity-50 text-[var(--color-text-secondary)] text-sm font-medium transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--color-border-light)] hover:bg-[var(--overlay-5)] disabled:opacity-50 text-[var(--color-text-secondary)] text-sm font-medium transition-colors"
           >
             <FolderOpen size={15} />
             {t('files.uploadFolder')}
@@ -326,7 +326,7 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
       <div className="flex items-center gap-1 px-5 py-2 border-b border-[var(--color-border-light)] bg-[var(--color-bg-secondary)] flex-shrink-0 text-sm">
         <button
           onClick={() => navigateToFolder(null)}
-          className={`flex items-center gap-1 px-2 py-1 rounded hover:bg-[rgba(255,255,255,0.05)] transition-colors ${
+          className={`flex items-center gap-1 px-2 py-1 rounded hover:bg-[var(--overlay-5)] transition-colors ${
             !currentFolderId ? 'text-[var(--color-text-primary)] font-medium' : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
           }`}
         >
@@ -338,7 +338,7 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
             <ChevronRight size={14} className="text-[var(--color-text-tertiary)]" />
             <button
               onClick={() => navigateToFolder(item.id)}
-              className={`px-2 py-1 rounded hover:bg-[rgba(255,255,255,0.05)] transition-colors ${
+              className={`px-2 py-1 rounded hover:bg-[var(--overlay-5)] transition-colors ${
                 idx === breadcrumb.length - 1 ? 'text-[var(--color-text-primary)] font-medium' : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
               }`}
             >
@@ -424,7 +424,7 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
               </button>
               <button
                 onClick={() => { setShowCreateFolder(false); setNewFolderName(''); }}
-                className="p-1 rounded hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-tertiary)]"
+                className="p-1 rounded hover:bg-[var(--overlay-5)] text-[var(--color-text-tertiary)]"
               >
                 <X size={16} />
               </button>
@@ -450,7 +450,7 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setShowCreateFolder(true)}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-[var(--color-border-light)] hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-secondary)] text-sm font-medium transition-colors"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-[var(--color-border-light)] hover:bg-[var(--overlay-5)] text-[var(--color-text-secondary)] text-sm font-medium transition-colors"
               >
                 <FolderPlus size={16} />
                 {t('files.newFolder')}

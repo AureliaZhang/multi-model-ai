@@ -62,7 +62,7 @@ export function DailyModelModal() {
   };
 
   const selectCls =
-    'w-full rounded-xl bg-[rgba(255,255,255,0.04)] border border-[var(--color-border-light)] px-3 py-2 text-sm text-[var(--color-text-primary)]';
+    'w-full rounded-xl bg-[var(--overlay-4)] border border-[var(--color-border-light)] px-3 py-2 text-sm text-[var(--color-text-primary)]';
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4">
@@ -70,7 +70,7 @@ export function DailyModelModal() {
         <button
           type="button"
           onClick={onSkipToday}
-          className="absolute top-3 right-3 p-1.5 rounded-lg text-[var(--color-text-tertiary)] hover:bg-[rgba(255,255,255,0.06)]"
+          className="absolute top-3 right-3 p-1.5 rounded-lg text-[var(--color-text-tertiary)] hover:bg-[var(--overlay-6)]"
         >
           <X size={16} />
         </button>

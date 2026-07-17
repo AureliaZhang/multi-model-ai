@@ -82,6 +82,10 @@ const zh = {
   'sidebar.importFailed': '导入失败：文件格式无效',
   'sidebar.importDone': '已导入 {convs} 个对话、{msgs} 条消息',
 
+  // Theme toggle
+  'theme.switchToLight': '切换到亮色模式',
+  'theme.switchToDark': '切换到暗色模式',
+
   // 聊天区域
   'chat.browseMode': '浏览模式',
   'chat.howCanIHelp': '有什么可以帮您的？',

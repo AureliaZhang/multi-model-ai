@@ -177,7 +177,7 @@ function CreateRoomModal({ onClose, onCreated }: { onClose: () => void; onCreate
         <div className="flex items-center justify-end gap-2">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-[13px] text-[var(--color-text-secondary)] rounded-lg hover:bg-[rgba(255,255,255,0.05)]"
+            className="px-3 py-1.5 text-[13px] text-[var(--color-text-secondary)] rounded-lg hover:bg-[var(--overlay-5)]"
           >
             {t('room.cancel')}
           </button>

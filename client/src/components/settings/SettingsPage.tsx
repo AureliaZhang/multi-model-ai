@@ -34,7 +34,7 @@ function capColor(cap: string): string {
     case 'code': return 'bg-[rgba(34,197,94,0.15)] text-[#4ade80]';
     case 'tts': return 'bg-[rgba(251,146,60,0.15)] text-[#fb923c]';
     case 'embedding': return 'bg-[rgba(148,163,184,0.15)] text-[#94a3b8]';
-    default: return 'bg-[rgba(255,255,255,0.06)] text-[var(--color-text-tertiary)]';
+    default: return 'bg-[var(--overlay-6)] text-[var(--color-text-tertiary)]';
   }
 }
 
@@ -227,7 +227,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
       <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--color-border-light)]">
         <button
           onClick={onClose}
-          className="p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-secondary)] transition-colors"
+          className="p-1.5 rounded-lg hover:bg-[var(--overlay-5)] text-[var(--color-text-secondary)] transition-colors"
         >
           <ArrowLeft size={20} />
         </button>
@@ -333,7 +333,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                               ? 'bg-[var(--color-surface-success)] text-[var(--color-text-success)]'
                               : station.healthStatus === 'unhealthy'
                               ? 'bg-[var(--color-surface-error)] text-[var(--color-text-error)]'
-                              : 'bg-[rgba(255,255,255,0.05)] text-[var(--color-text-tertiary)]'
+                              : 'bg-[var(--overlay-5)] text-[var(--color-text-tertiary)]'
                           }`}>
                             {station.healthStatus}
                           </span>
@@ -358,7 +358,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                       <button
                         onClick={() => handlePullModels(station.id)}
                         disabled={actionLoading === `pull-${station.id}`}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.08)] text-xs text-[var(--color-text-secondary)] transition-colors disabled:opacity-40 font-medium"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--overlay-5)] hover:bg-[var(--overlay-8)] text-xs text-[var(--color-text-secondary)] transition-colors disabled:opacity-40 font-medium"
                       >
                         <Download size={13} />
                         {actionLoading === `pull-${station.id}` ? t('settings.pulling') : t('settings.pullModels')}
@@ -366,14 +366,14 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                       <button
                         onClick={() => handleHealthCheck(station.id)}
                         disabled={actionLoading === `health-${station.id}`}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.08)] text-xs text-[var(--color-text-secondary)] transition-colors disabled:opacity-40 font-medium"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--overlay-5)] hover:bg-[var(--overlay-8)] text-xs text-[var(--color-text-secondary)] transition-colors disabled:opacity-40 font-medium"
                       >
                         <Activity size={13} />
                         {actionLoading === `health-${station.id}` ? t('settings.checking') : t('settings.healthCheck')}
                       </button>
                       <button
                         onClick={() => toggleExpand(station.id)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.08)] text-xs text-[var(--color-text-secondary)] transition-colors font-medium"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--overlay-5)] hover:bg-[var(--overlay-8)] text-xs text-[var(--color-text-secondary)] transition-colors font-medium"
                       >
                         {isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                         {t('settings.manageModels')}
@@ -411,16 +411,16 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                         {models.length > 0 && (
                           <>
                             <div className="flex flex-wrap gap-2 mb-2">
-                              <button type="button" onClick={() => handleBulk(station.id, { adminEnabled: true })} className="text-[11px] px-2 py-1 rounded-md border border-[var(--color-border-light)] hover:bg-[rgba(255,255,255,0.04)]">
+                              <button type="button" onClick={() => handleBulk(station.id, { adminEnabled: true })} className="text-[11px] px-2 py-1 rounded-md border border-[var(--color-border-light)] hover:bg-[var(--overlay-4)]">
                                 {t('settings.selectAllAdmin')}
                               </button>
-                              <button type="button" onClick={() => handleBulk(station.id, { adminEnabled: false, enabled: false })} className="text-[11px] px-2 py-1 rounded-md border border-[var(--color-border-light)] hover:bg-[rgba(255,255,255,0.04)]">
+                              <button type="button" onClick={() => handleBulk(station.id, { adminEnabled: false, enabled: false })} className="text-[11px] px-2 py-1 rounded-md border border-[var(--color-border-light)] hover:bg-[var(--overlay-4)]">
                                 {t('settings.clearAllAdmin')}
                               </button>
-                              <button type="button" onClick={() => handleBulk(station.id, { enabled: true, adminEnabled: true })} className="text-[11px] px-2 py-1 rounded-md border border-[var(--color-border-light)] hover:bg-[rgba(255,255,255,0.04)]">
+                              <button type="button" onClick={() => handleBulk(station.id, { enabled: true, adminEnabled: true })} className="text-[11px] px-2 py-1 rounded-md border border-[var(--color-border-light)] hover:bg-[var(--overlay-4)]">
                                 {t('settings.publicAll')}
                               </button>
-                              <button type="button" onClick={() => handleBulk(station.id, { enabled: false })} className="text-[11px] px-2 py-1 rounded-md border border-[var(--color-border-light)] hover:bg-[rgba(255,255,255,0.04)]">
+                              <button type="button" onClick={() => handleBulk(station.id, { enabled: false })} className="text-[11px] px-2 py-1 rounded-md border border-[var(--color-border-light)] hover:bg-[var(--overlay-4)]">
                                 {t('settings.unpublicAll')}
                               </button>
                             </div>
@@ -493,7 +493,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                                         <button
                                           type="button"
                                           onClick={() => startRename(m)}
-                                          className="flex-shrink-0 p-1 rounded-md text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[rgba(255,255,255,0.06)]"
+                                          className="flex-shrink-0 p-1 rounded-md text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--overlay-6)]"
                                           title={t('settings.renameModel')}
                                         >
                                           <Pencil size={12} />
@@ -522,7 +522,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                                           {t('settings.publicPool')}
                                         </span>
                                       ) : (
-                                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[rgba(255,255,255,0.05)] text-[var(--color-text-tertiary)]">
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--overlay-5)] text-[var(--color-text-tertiary)]">
                                           {t('settings.notPublic')}
                                         </span>
                                       )}

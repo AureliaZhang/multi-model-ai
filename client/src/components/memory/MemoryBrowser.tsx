@@ -153,7 +153,7 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
         <div className="flex items-center gap-3">
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
+            className="p-1.5 rounded-lg hover:bg-[var(--overlay-5)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
           >
             <ArrowLeft size={20} />
           </button>
@@ -168,7 +168,7 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
         <div className="flex items-center gap-2">
           <button
             onClick={handleBackfill}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--color-border-light)] hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-secondary)] text-sm font-medium transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--color-border-light)] hover:bg-[var(--overlay-5)] text-[var(--color-text-secondary)] text-sm font-medium transition-colors"
             title="Regenerate embeddings for all entries"
           >
             <RefreshCw size={14} />
@@ -179,7 +179,7 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border transition-colors ${
               showSettings
                 ? 'border-[var(--color-accent-main)] bg-[var(--color-accent-main)]/10 text-[var(--color-accent-main)]'
-                : 'border-[var(--color-border-light)] hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-secondary)]'
+                : 'border-[var(--color-border-light)] hover:bg-[var(--overlay-5)] text-[var(--color-text-secondary)]'
             } text-sm font-medium`}
           >
             <Settings size={14} />
@@ -262,7 +262,7 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
                 <button
                   onClick={handleFetchEmbeddingModels}
                   disabled={embFetching || !embBaseUrl.trim() || !embApiKey.trim()}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-[var(--color-border-light)] hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-secondary)] text-sm font-medium transition-colors disabled:opacity-40"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-[var(--color-border-light)] hover:bg-[var(--overlay-5)] text-[var(--color-text-secondary)] text-sm font-medium transition-colors disabled:opacity-40"
                 >
                   {embFetching ? <Loader size={13} className="animate-spin" /> : <RefreshCw size={13} />}
                   {t('memory.fetchModels')}

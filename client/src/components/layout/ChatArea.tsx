@@ -70,7 +70,7 @@ export function ChatArea({ isGuest = false, onSignIn, sidebarCollapsed = false, 
           <button
             type="button"
             onClick={onOpenSidebar}
-            className="flex-shrink-0 p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+            className="flex-shrink-0 p-1.5 rounded-lg hover:bg-[var(--overlay-5)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
             title={t('layout.openSidebar')}
             aria-label={t('layout.openSidebar')}
           >
@@ -104,7 +104,7 @@ export function ChatArea({ isGuest = false, onSignIn, sidebarCollapsed = false, 
               <div className="flex justify-center py-3">
                 <button
                   onClick={handleLoadMore}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[rgba(255,255,255,0.05)] transition-colors"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--overlay-5)] transition-colors"
                 >
                   <ChevronUp size={14} />
                   {t('chat.loadMore', { count: String(Math.min(PAGE_SIZE, messages.length - visibleCount)) })}

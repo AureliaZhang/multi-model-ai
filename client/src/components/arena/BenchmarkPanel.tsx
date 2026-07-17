@@ -245,7 +245,7 @@ export function BenchmarkPanel() {
             key={r.id}
             type="button"
             onClick={() => loadBenchmark(r.id)}
-            className="w-full text-left text-[13px] rounded-lg border border-[var(--color-border-light)] px-3 py-2 hover:bg-[rgba(255,255,255,0.03)]"
+            className="w-full text-left text-[13px] rounded-lg border border-[var(--color-border-light)] px-3 py-2 hover:bg-[var(--overlay-3)]"
           >
             {r.name || r.setName} · {r.status} · {r.doneCount ?? 0}/{r.caseCount ?? 0}
           </button>

@@ -21,11 +21,11 @@ export function ToolCallBlock({ toolCall }: ToolCallBlockProps) {
   const displayName = toolCall.name.replace(/^mcp_[a-f0-9]+_/, '');
 
   return (
-    <div className="my-2 rounded-lg border border-[var(--color-border-light)] bg-[rgba(255,255,255,0.03)] overflow-hidden">
+    <div className="my-2 rounded-lg border border-[var(--color-border-light)] bg-[var(--overlay-3)] overflow-hidden">
       {/* Header */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[rgba(255,255,255,0.02)] transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[var(--overlay-2)] transition-colors"
       >
         <Wrench size={14} className="text-[var(--color-text-tertiary)] flex-shrink-0" />
         {statusIcon}

@@ -190,14 +190,14 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
                 <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-all duration-150 ml-1">
                   <button
                     onClick={(e) => handleToggleVisibility(e, conv.id, conv.visibility)}
-                    className="p-1 rounded-md hover:bg-[rgba(255,255,255,0.08)] text-[var(--color-text-tertiary)] transition-all duration-150"
+                    className="p-1 rounded-md hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)] transition-all duration-150"
                     title={conv.visibility === 'private' ? t('conversation.public') : t('conversation.private')}
                   >
                     {conv.visibility === 'private' ? <Globe size={13} /> : <Lock size={13} />}
                   </button>
                   <button
                     onClick={(e) => handleToggleSelfReview(e, conv.id, conv.selfReview)}
-                    className="p-1 rounded-md hover:bg-[rgba(255,255,255,0.08)] text-[var(--color-text-tertiary)] transition-all duration-150"
+                    className="p-1 rounded-md hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)] transition-all duration-150"
                     title={t('conversation.toggleSelfReview')}
                   >
                     {conv.selfReview ? <Eye size={13} /> : <EyeOff size={13} />}
@@ -207,7 +207,7 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
                     className={`p-1 rounded-md transition-all duration-150 ${
                       deleteConfirmId === conv.id
                         ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-                        : 'hover:bg-[rgba(255,255,255,0.08)] text-[var(--color-text-tertiary)]'
+                        : 'hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)]'
                     }`}
                     title={deleteConfirmId === conv.id ? t('common.confirm') : t('sidebar.deleteChat')}
                   >

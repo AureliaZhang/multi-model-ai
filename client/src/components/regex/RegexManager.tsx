@@ -238,7 +238,7 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
         </div>
       </div>
       <div className="flex items-center gap-2 justify-end pt-2">
-        <button onClick={onCancel} className="px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] rounded-lg hover:bg-[rgba(255,255,255,0.05)] transition-colors">
+        <button onClick={onCancel} className="px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] rounded-lg hover:bg-[var(--overlay-5)] transition-colors">
           {t('common.cancel')}
         </button>
         <button onClick={onSave} className="px-4 py-1.5 text-sm bg-[var(--color-accent)] text-white rounded-lg hover:opacity-90 transition-opacity flex items-center gap-1.5">
@@ -264,7 +264,7 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors ${
               tab === item.key
                 ? 'bg-[var(--color-accent)] text-white'
-                : 'text-[var(--color-text-secondary)] hover:bg-[rgba(255,255,255,0.05)]'
+                : 'text-[var(--color-text-secondary)] hover:bg-[var(--overlay-5)]'
             }`}
           >
             <item.icon size={14} />
@@ -355,7 +355,7 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
                           </div>
                         </div>
                         <div className="flex items-center gap-1 flex-shrink-0">
-                          <button onClick={() => setEditingScript({ ...script })} className="p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-secondary)] transition-colors">
+                          <button onClick={() => setEditingScript({ ...script })} className="p-1.5 rounded-lg hover:bg-[var(--overlay-5)] text-[var(--color-text-secondary)] transition-colors">
                             <Edit3 size={14} />
                           </button>
                           <button onClick={() => deleteScript(script.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-[var(--color-text-secondary)] hover:text-red-400 transition-colors">
@@ -381,7 +381,7 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setShowImport(!showImport)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-lg hover:bg-[rgba(255,255,255,0.05)] transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-lg hover:bg-[var(--overlay-5)] transition-colors"
                 >
                   <Upload size={14} />
                   {t('regex.import')}
@@ -407,7 +407,7 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
                   placeholder='{ "version": 1, "preset": {...}, "scripts": [...] }'
                 />
                 <div className="flex gap-2 justify-end">
-                  <button onClick={() => { setShowImport(false); setImportJson(''); }} className="px-3 py-1.5 text-sm text-[var(--color-text-secondary)] rounded-lg hover:bg-[rgba(255,255,255,0.05)]">
+                  <button onClick={() => { setShowImport(false); setImportJson(''); }} className="px-3 py-1.5 text-sm text-[var(--color-text-secondary)] rounded-lg hover:bg-[var(--overlay-5)]">
                     {t('common.cancel')}
                   </button>
                   <button onClick={handleImport} className="px-4 py-1.5 text-sm bg-[var(--color-accent)] text-white rounded-lg hover:opacity-90">
@@ -444,7 +444,7 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
                   <label className="text-xs text-[var(--color-text-secondary)] mb-1 block">{t('regex.selectScripts')}</label>
                   <div className="space-y-1 max-h-32 overflow-y-auto">
                     {scripts.map(s => (
-                      <label key={s.id} className="flex items-center gap-2 cursor-pointer p-1 hover:bg-[rgba(255,255,255,0.03)] rounded">
+                      <label key={s.id} className="flex items-center gap-2 cursor-pointer p-1 hover:bg-[var(--overlay-3)] rounded">
                         <input
                           type="checkbox"
                           checked={presetScriptIds.includes(s.id)}
@@ -466,7 +466,7 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
                   </div>
                 </div>
                 <div className="flex gap-2 justify-end pt-2">
-                  <button onClick={() => { setShowNewPreset(false); setPresetName(''); setPresetDesc(''); setPresetScriptIds([]); }} className="px-3 py-1.5 text-sm text-[var(--color-text-secondary)] rounded-lg hover:bg-[rgba(255,255,255,0.05)]">
+                  <button onClick={() => { setShowNewPreset(false); setPresetName(''); setPresetDesc(''); setPresetScriptIds([]); }} className="px-3 py-1.5 text-sm text-[var(--color-text-secondary)] rounded-lg hover:bg-[var(--overlay-5)]">
                     {t('common.cancel')}
                   </button>
                   <button onClick={handleCreatePreset} className="px-4 py-1.5 text-sm bg-[var(--color-accent)] text-white rounded-lg hover:opacity-90 flex items-center gap-1.5">
@@ -507,7 +507,7 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
                         <label className="text-xs text-[var(--color-text-secondary)] mb-1 block">{t('regex.selectScripts')}</label>
                         <div className="space-y-1 max-h-32 overflow-y-auto">
                           {scripts.map(s => (
-                            <label key={s.id} className="flex items-center gap-2 cursor-pointer p-1 hover:bg-[rgba(255,255,255,0.03)] rounded">
+                            <label key={s.id} className="flex items-center gap-2 cursor-pointer p-1 hover:bg-[var(--overlay-3)] rounded">
                               <input
                                 type="checkbox"
                                 checked={presetScriptIds.includes(s.id)}
@@ -534,7 +534,7 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
                         </label>
                       </div>
                       <div className="flex gap-2 justify-end">
-                        <button onClick={() => { setEditingPreset(null); setPresetScriptIds([]); }} className="px-3 py-1.5 text-sm text-[var(--color-text-secondary)] rounded-lg hover:bg-[rgba(255,255,255,0.05)]">
+                        <button onClick={() => { setEditingPreset(null); setPresetScriptIds([]); }} className="px-3 py-1.5 text-sm text-[var(--color-text-secondary)] rounded-lg hover:bg-[var(--overlay-5)]">
                           {t('common.cancel')}
                         </button>
                         <button onClick={handleUpdatePreset} className="px-4 py-1.5 text-sm bg-[var(--color-accent)] text-white rounded-lg hover:opacity-90 flex items-center gap-1.5">
@@ -559,10 +559,10 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
                           </span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <button onClick={() => handleExportPreset(preset.id)} className="p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-secondary)] transition-colors" title={t('regex.export')}>
+                          <button onClick={() => handleExportPreset(preset.id)} className="p-1.5 rounded-lg hover:bg-[var(--overlay-5)] text-[var(--color-text-secondary)] transition-colors" title={t('regex.export')}>
                             <Download size={14} />
                           </button>
-                          <button onClick={() => handleEditPreset(preset)} className="p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-secondary)] transition-colors">
+                          <button onClick={() => handleEditPreset(preset)} className="p-1.5 rounded-lg hover:bg-[var(--overlay-5)] text-[var(--color-text-secondary)] transition-colors">
                             <Edit3 size={14} />
                           </button>
                           <button onClick={() => deletePreset(preset.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-[var(--color-text-secondary)] hover:text-red-400 transition-colors">
@@ -576,7 +576,7 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
                       {preset.scripts && preset.scripts.length > 0 && (
                         <div className="mt-2 ml-6 flex flex-wrap gap-1">
                           {preset.scripts.map(s => (
-                            <span key={s.id} className="text-[10px] px-2 py-0.5 rounded-full bg-[rgba(255,255,255,0.05)] text-[var(--color-text-secondary)]">
+                            <span key={s.id} className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--overlay-5)] text-[var(--color-text-secondary)]">
                               {s.name}
                             </span>
                           ))}
@@ -678,7 +678,7 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border-light)]">
         <div className="flex items-center gap-3">
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-secondary)] transition-colors">
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[var(--overlay-5)] text-[var(--color-text-secondary)] transition-colors">
             <ArrowLeft size={20} />
           </button>
           <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">{t('regex.title')}</h1>

@@ -68,21 +68,21 @@ export function GroupChatLayout({ roomId }: GroupChatLayoutProps) {
         <div className="flex-1" />
         {/* mobile pane toggle */}
         <button
-          className="md:hidden p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.06)] text-[var(--color-text-secondary)]"
+          className="md:hidden p-1.5 rounded-lg hover:bg-[var(--overlay-6)] text-[var(--color-text-secondary)]"
           onClick={() => setMobilePane(mobilePane === 'human' ? 'ai' : 'human')}
           title={mobilePane === 'human' ? t('room.toAi') : t('room.toHuman')}
         >
           {mobilePane === 'human' ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
         </button>
         <button
-          className="p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.06)] text-[var(--color-text-secondary)]"
+          className="p-1.5 rounded-lg hover:bg-[var(--overlay-6)] text-[var(--color-text-secondary)]"
           onClick={() => setShowModels(true)}
           title={t('room.modelSettings')}
         >
           <Settings2 size={16} />
         </button>
         <button
-          className="p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.06)] text-[var(--color-text-secondary)]"
+          className="p-1.5 rounded-lg hover:bg-[var(--overlay-6)] text-[var(--color-text-secondary)]"
           onClick={() => setShowManage(true)}
           title={t('room.manage')}
         >
@@ -426,7 +426,7 @@ function AiPane({
               placeholder={t('room.aiPlaceholder')}
               className="flex-1 resize-none bg-[var(--composer-bg)] border border-[var(--color-accent-main)] rounded-xl px-3 py-2 text-[13px] outline-none max-h-40"
             />
-            <button onClick={handleRenewNo} className="p-2 rounded-xl hover:bg-[rgba(255,255,255,0.06)] text-[var(--color-text-tertiary)]" title={t('room.cancel')}>
+            <button onClick={handleRenewNo} className="p-2 rounded-xl hover:bg-[var(--overlay-6)] text-[var(--color-text-tertiary)]" title={t('room.cancel')}>
               <X size={16} />
             </button>
             <button

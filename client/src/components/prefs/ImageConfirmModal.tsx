@@ -81,7 +81,7 @@ export function ImageConfirmModal() {
           </h2>
         </div>
         <p className="text-sm text-[var(--color-text-secondary)] mb-2">{t('prefs.imageConfirmDesc')}</p>
-        <div className="text-[13px] rounded-xl border border-[var(--color-border-light)] bg-[rgba(255,255,255,0.03)] p-3 mb-4 max-h-28 overflow-y-auto whitespace-pre-wrap text-[var(--color-text-primary)]">
+        <div className="text-[13px] rounded-xl border border-[var(--color-border-light)] bg-[var(--overlay-3)] p-3 mb-4 max-h-28 overflow-y-auto whitespace-pre-wrap text-[var(--color-text-primary)]">
           {imageConfirm.prompt}
         </div>
         {error && <p className="text-sm text-red-400 mb-2">{error}</p>}

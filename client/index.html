@@ -5,6 +5,21 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>client</title>
+    <!--
+      Theme bootstrap: runs before first paint to set .dark on <html> from the
+      saved preference (localStorage['theme']) or the OS setting, avoiding a
+      light/dark flash on reload. Kept in sync by ThemeToggle at runtime.
+    -->
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('theme');
+          var dark = saved ? saved === 'dark'
+            : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) { /* localStorage blocked — default to light */ }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

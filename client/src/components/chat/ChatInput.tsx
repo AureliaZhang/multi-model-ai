@@ -378,7 +378,7 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
               <div className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${
                 input.trim() || attachments.length > 0
                   ? 'bg-white hover:bg-gray-200'
-                  : 'bg-[rgba(255,255,255,0.1)]'
+                  : 'bg-[var(--overlay-10)]'
               }`}>
                 <Send size={14} className={input.trim() || attachments.length > 0 ? 'text-[#212121]' : 'text-[var(--color-text-tertiary)]'} />
               </div>

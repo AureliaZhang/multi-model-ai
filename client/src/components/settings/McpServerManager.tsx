@@ -105,7 +105,7 @@ export function McpServerManager() {
     switch (status) {
       case 'connected': return 'bg-[var(--color-surface-success)] text-[var(--color-text-success)]';
       case 'error': return 'bg-[var(--color-surface-error)] text-[var(--color-text-error)]';
-      default: return 'bg-[rgba(255,255,255,0.05)] text-[var(--color-text-tertiary)]';
+      default: return 'bg-[var(--overlay-5)] text-[var(--color-text-tertiary)]';
     }
   };
 
@@ -165,7 +165,7 @@ export function McpServerManager() {
             <div className="flex gap-2.5 justify-end pt-1">
               <button
                 onClick={() => { setShowAdd(false); setError(''); }}
-                className="px-4 py-2 rounded-lg text-[13px] text-[var(--color-text-secondary)] hover:bg-[rgba(255,255,255,0.05)] transition-colors font-medium"
+                className="px-4 py-2 rounded-lg text-[13px] text-[var(--color-text-secondary)] hover:bg-[var(--overlay-5)] transition-colors font-medium"
               >
                 {t('common.cancel')}
               </button>
@@ -210,7 +210,7 @@ export function McpServerManager() {
                         {statusIcon(server.status)}
                         {server.status}
                       </span>
-                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-[rgba(255,255,255,0.05)] text-[var(--color-text-tertiary)]">
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-[var(--overlay-5)] text-[var(--color-text-tertiary)]">
                         {t('mcp.tools', { count: server.toolCount || 0 })}
                       </span>
                     </div>
@@ -239,7 +239,7 @@ export function McpServerManager() {
                   <button
                     onClick={() => handleConnect(server.id)}
                     disabled={actionLoading === `connect-${server.id}`}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.08)] text-xs text-[var(--color-text-secondary)] transition-colors disabled:opacity-40 font-medium"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--overlay-5)] hover:bg-[var(--overlay-8)] text-xs text-[var(--color-text-secondary)] transition-colors disabled:opacity-40 font-medium"
                   >
                     {actionLoading === `connect-${server.id}` ? (
                       <RefreshCw size={13} className="animate-spin" />
@@ -250,7 +250,7 @@ export function McpServerManager() {
                   </button>
                   <button
                     onClick={() => selectServer(selectedServerId === server.id ? null : server.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.08)] text-xs text-[var(--color-text-secondary)] transition-colors font-medium"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--overlay-5)] hover:bg-[var(--overlay-8)] text-xs text-[var(--color-text-secondary)] transition-colors font-medium"
                   >
                     <Wrench size={13} />
                     {selectedServerId === server.id ? t('mcp.hideTools') : t('mcp.viewTools')}
@@ -286,7 +286,7 @@ export function McpServerManager() {
                       {tools.map(tool => (
                         <div
                           key={tool.id}
-                          className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-[rgba(255,255,255,0.02)] transition-colors"
+                          className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-[var(--overlay-2)] transition-colors"
                         >
                           <div className="flex-1 min-w-0 mr-3">
                             <div className="flex items-center gap-2">

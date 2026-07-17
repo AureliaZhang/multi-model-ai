@@ -2,7 +2,81 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Theme tokens. :root is the LIGHT theme (default); .dark overrides to the
+ * original dark palette. Components reference these vars only — the two
+ * --overlay-* scales below replace the ~114 hardcoded rgba(255,255,255,x)
+ * surface tints that used to assume a dark background (see framework §10.7 P1).
+ */
 :root {
+  /* Main surfaces */
+  --color-main-surface-primary: #ffffff;
+  --color-main-surface-secondary: #f9f9f9;
+  --color-main-surface-tertiary: #f0f0f0;
+
+  /* Sidebar */
+  --color-sidebar-surface: #f9f9f9;
+  --color-sidebar-surface-hover: #ececec;
+  --color-sidebar-surface-active: #e3e3e3;
+
+  /* Text */
+  --color-text-primary: #0d0d0d;
+  --color-text-secondary: #4d4d4d;
+  --color-text-tertiary: #8e8e8e;
+  --color-text-placeholder: #a0a0a0;
+
+  /* Borders */
+  --color-border-light: rgba(0,0,0,0.1);
+  --color-border-medium: rgba(0,0,0,0.15);
+
+  /* Accent (shared across themes — green reads on both) */
+  --color-accent-main: #10a37f;
+  --color-accent-hover: #0e8c6d;
+
+  /* Semantic */
+  --color-surface-error: rgba(239,68,68,0.1);
+  --color-text-error: #dc2626;
+  --color-surface-success: rgba(34,197,94,0.1);
+  --color-text-success: #16a34a;
+  --color-surface-warning: rgba(245,158,11,0.12);
+  --color-text-warning: #d97706;
+
+  /* Composer */
+  --composer-bg: #f4f4f4;
+  --composer-border: transparent;
+  --composer-shadow: 0 0 15px rgba(0,0,0,0.08);
+
+  /* Buttons */
+  --button-primary-bg: #10a37f;
+  --button-primary-hover: #0e8c6d;
+  --button-secondary-bg: #ececec;
+  --button-secondary-hover: #e3e3e3;
+  --button-ghost-hover: rgba(0,0,0,0.05);
+
+  /* Code block background (markdown <pre>) */
+  --code-block-bg: #f4f4f4;
+
+  /*
+   * Overlay scale — subtle surface tints layered on the current background.
+   * LIGHT: black at low alpha (darkens). DARK (below): white at low alpha
+   * (lightens). 1:1 mapping to the alpha values the components already used,
+   * so the substitution is exact.
+   */
+  --overlay-2: rgba(0,0,0,0.02);
+  --overlay-3: rgba(0,0,0,0.03);
+  --overlay-4: rgba(0,0,0,0.04);
+  --overlay-5: rgba(0,0,0,0.05);
+  --overlay-6: rgba(0,0,0,0.06);
+  --overlay-7: rgba(0,0,0,0.07);
+  --overlay-8: rgba(0,0,0,0.08);
+  --overlay-10: rgba(0,0,0,0.1);
+  --overlay-12: rgba(0,0,0,0.12);
+  --overlay-15: rgba(0,0,0,0.15);
+  --overlay-20: rgba(0,0,0,0.2);
+  --overlay-25: rgba(0,0,0,0.25);
+}
+
+.dark {
   /* Main surfaces */
   --color-main-surface-primary: #212121;
   --color-main-surface-secondary: #171717;
@@ -46,6 +120,23 @@
   --button-secondary-bg: #2f2f2f;
   --button-secondary-hover: #3a3a3a;
   --button-ghost-hover: rgba(255,255,255,0.05);
+
+  /* Code block background (markdown <pre>) */
+  --code-block-bg: #1e1e1e;
+
+  /* Overlay scale — white at low alpha on dark backgrounds */
+  --overlay-2: rgba(255,255,255,0.02);
+  --overlay-3: rgba(255,255,255,0.03);
+  --overlay-4: rgba(255,255,255,0.04);
+  --overlay-5: rgba(255,255,255,0.05);
+  --overlay-6: rgba(255,255,255,0.06);
+  --overlay-7: rgba(255,255,255,0.07);
+  --overlay-8: rgba(255,255,255,0.08);
+  --overlay-10: rgba(255,255,255,0.1);
+  --overlay-12: rgba(255,255,255,0.12);
+  --overlay-15: rgba(255,255,255,0.15);
+  --overlay-20: rgba(255,255,255,0.2);
+  --overlay-25: rgba(255,255,255,0.25);
 }
 
 html, body, #root {
@@ -67,8 +158,8 @@ body {
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,0.15); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background-color: rgba(255,255,255,0.25); }
+::-webkit-scrollbar-thumb { background-color: var(--overlay-15); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background-color: var(--overlay-25); }
 
 /* Markdown content */
 .markdown-content {
@@ -79,14 +170,14 @@ body {
 .markdown-content p { margin-bottom: 0.625rem; }
 .markdown-content p:last-child { margin-bottom: 0; }
 .markdown-content code {
-  background-color: rgba(255,255,255,0.08);
+  background-color: var(--overlay-8);
   padding: 0.125rem 0.375rem;
   border-radius: 4px;
   font-size: 0.875em;
   font-family: 'Söhne Mono', 'Fira Code', 'Consolas', monospace;
 }
 .markdown-content pre {
-  background-color: #1e1e1e;
+  background-color: var(--code-block-bg);
   border-radius: 8px;
   padding: 1rem;
   overflow-x: auto;
@@ -111,7 +202,7 @@ body {
 .markdown-content h2 { font-size: 1.25rem; }
 .markdown-content h3 { font-size: 1.125rem; }
 .markdown-content blockquote {
-  border-left: 3px solid rgba(255,255,255,0.2);
+  border-left: 3px solid var(--overlay-20);
   padding-left: 1rem;
   margin-bottom: 0.625rem;
   color: var(--color-text-secondary);
@@ -134,14 +225,14 @@ body {
   min-width: 0;
 }
 .markdown-content th, .markdown-content td {
-  border: 1px solid rgba(255,255,255,0.12);
+  border: 1px solid var(--overlay-12);
   padding: 0.4rem 0.75rem;
   text-align: left;
   white-space: normal;
   word-break: break-word;
 }
 .markdown-content th {
-  background-color: rgba(255,255,255,0.06);
+  background-color: var(--overlay-6);
   font-weight: 600;
   color: var(--color-text-primary);
 }
@@ -149,10 +240,10 @@ body {
   color: var(--color-text-secondary);
 }
 .markdown-content tr:nth-child(even) td {
-  background-color: rgba(255,255,255,0.02);
+  background-color: var(--overlay-2);
 }
 .markdown-content tr:hover td {
-  background-color: rgba(255,255,255,0.04);
+  background-color: var(--overlay-4);
 }
 
 /* Typing animation */
@@ -183,7 +274,7 @@ body {
 
 /* ChatGPT-style input focus ring */
 .composer-focus-ring:focus-within {
-  box-shadow: 0 0 0 2px var(--color-main-surface-primary), 0 0 0 4px rgba(255,255,255,0.15);
+  box-shadow: 0 0 0 2px var(--color-main-surface-primary), 0 0 0 4px var(--overlay-15);
 }
 
 /* Smooth transitions for interactive elements */

@@ -10,6 +10,7 @@ import { ArenaLayout } from '../arena/ArenaLayout';
 import { RoomsPage } from '../rooms/RoomsPage';
 import { GuideOverlay } from '../guide/GuideOverlay';
 import { LanguageToggle } from './LanguageToggle';
+import { ThemeToggle } from './ThemeToggle';
 import { DailyModelModal } from '../prefs/DailyModelModal';
 import { ImageConfirmModal } from '../prefs/ImageConfirmModal';
 import { useModelStore } from '../../stores/modelStore';
@@ -50,6 +51,7 @@ export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
 
   const withLang = (node: ReactNode) => (
     <>
+      <ThemeToggle />
       <LanguageToggle />
       {!isGuest && <DailyModelModal />}
       {!isGuest && <ImageConfirmModal />}

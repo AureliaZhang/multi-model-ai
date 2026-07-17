@@ -72,14 +72,14 @@ export function PromptLabPanel() {
             <button
               type="button"
               onClick={() => exportExperiment(currentExperiment.id).catch((e) => alert(e.message))}
-              className="inline-flex items-center gap-1 text-[13px] px-3 py-1.5 rounded-lg border border-[var(--color-border-light)] hover:bg-[rgba(255,255,255,0.04)]"
+              className="inline-flex items-center gap-1 text-[13px] px-3 py-1.5 rounded-lg border border-[var(--color-border-light)] hover:bg-[var(--overlay-4)]"
             >
               <Download size={12} /> CSV
             </button>
             <button
               type="button"
               onClick={clearExperiment}
-              className="text-[13px] px-3 py-1.5 rounded-lg border border-[var(--color-border-light)] hover:bg-[rgba(255,255,255,0.04)]"
+              className="text-[13px] px-3 py-1.5 rounded-lg border border-[var(--color-border-light)] hover:bg-[var(--overlay-4)]"
             >
               {t('arena.newExperiment')}
             </button>
@@ -97,7 +97,7 @@ export function PromptLabPanel() {
               className={`rounded-xl border p-3 min-h-[160px] flex flex-col ${
                 c.selected
                   ? 'border-[var(--color-accent-main)] bg-[rgba(16,163,127,0.08)]'
-                  : 'border-[var(--color-border-light)] bg-[rgba(255,255,255,0.02)]'
+                  : 'border-[var(--color-border-light)] bg-[var(--overlay-2)]'
               }`}
             >
               <div className="text-[12px] text-[var(--color-text-tertiary)] mb-1 flex justify-between gap-2">
@@ -116,7 +116,7 @@ export function PromptLabPanel() {
                 <button
                   type="button"
                   onClick={() => selectExperimentCell(c.id)}
-                  className="mt-2 w-full py-1.5 rounded-lg text-[12px] border border-[var(--color-border-light)] hover:bg-[rgba(255,255,255,0.04)]"
+                  className="mt-2 w-full py-1.5 rounded-lg text-[12px] border border-[var(--color-border-light)] hover:bg-[var(--overlay-4)]"
                 >
                   {t('arena.preferThis')}
                 </button>
@@ -147,13 +147,13 @@ export function PromptLabPanel() {
         onChange={(e) => setPromptBody(e.target.value)}
         rows={4}
         placeholder={t('arena.questionPlaceholder')}
-        className="w-full rounded-xl bg-[rgba(255,255,255,0.03)] border border-[var(--color-border-light)] px-3 py-2.5 text-sm outline-none focus:border-[var(--color-accent-main)]"
+        className="w-full rounded-xl bg-[var(--overlay-3)] border border-[var(--color-border-light)] px-3 py-2.5 text-sm outline-none focus:border-[var(--color-accent-main)]"
       />
       <input
         value={systemPrompt}
         onChange={(e) => setSystemPrompt(e.target.value)}
         placeholder={t('arena.systemOptional')}
-        className="w-full rounded-xl bg-[rgba(255,255,255,0.03)] border border-[var(--color-border-light)] px-3 py-2 text-sm outline-none"
+        className="w-full rounded-xl bg-[var(--overlay-3)] border border-[var(--color-border-light)] px-3 py-2 text-sm outline-none"
       />
 
       <div>
@@ -222,7 +222,7 @@ export function PromptLabPanel() {
                 setLibBody('');
               }
             }}
-            className="inline-flex items-center justify-center gap-1 rounded-lg border border-[var(--color-border-light)] text-sm py-1.5 hover:bg-[rgba(255,255,255,0.04)]"
+            className="inline-flex items-center justify-center gap-1 rounded-lg border border-[var(--color-border-light)] text-sm py-1.5 hover:bg-[var(--overlay-4)]"
           >
             <Plus size={14} /> {t('arena.savePrompt')}
           </button>
@@ -267,7 +267,7 @@ export function PromptLabPanel() {
               key={e.id}
               type="button"
               onClick={() => loadExperiment(e.id)}
-              className="w-full text-left text-[13px] rounded-lg border border-[var(--color-border-light)] px-3 py-2 hover:bg-[rgba(255,255,255,0.03)]"
+              className="w-full text-left text-[13px] rounded-lg border border-[var(--color-border-light)] px-3 py-2 hover:bg-[var(--overlay-3)]"
             >
               {e.title || e.id.slice(0, 8)} · {e.status}
             </button>

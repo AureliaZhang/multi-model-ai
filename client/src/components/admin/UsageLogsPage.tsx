@@ -60,7 +60,7 @@ export function UsageLogsPage({ onBack }: Props) {
         <button
           type="button"
           onClick={onBack}
-          className="p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-secondary)]"
+          className="p-1.5 rounded-lg hover:bg-[var(--overlay-5)] text-[var(--color-text-secondary)]"
         >
           <ArrowLeft size={20} />
         </button>
@@ -71,7 +71,7 @@ export function UsageLogsPage({ onBack }: Props) {
         <button
           type="button"
           onClick={() => load(offset)}
-          className="p-2 rounded-lg hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-secondary)]"
+          className="p-2 rounded-lg hover:bg-[var(--overlay-5)] text-[var(--color-text-secondary)]"
           title={t('common.loading')}
         >
           <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
@@ -82,7 +82,7 @@ export function UsageLogsPage({ onBack }: Props) {
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value)}
-          className="px-2 py-1.5 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[var(--color-border-light)] text-xs"
+          className="px-2 py-1.5 rounded-lg bg-[var(--overlay-4)] border border-[var(--color-border-light)] text-xs"
         >
           <option value="">{t('usage.allStatus')}</option>
           <option value="ok">ok</option>
@@ -93,7 +93,7 @@ export function UsageLogsPage({ onBack }: Props) {
         <select
           value={kind}
           onChange={(e) => setKind(e.target.value)}
-          className="px-2 py-1.5 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[var(--color-border-light)] text-xs"
+          className="px-2 py-1.5 rounded-lg bg-[var(--overlay-4)] border border-[var(--color-border-light)] text-xs"
         >
           <option value="">{t('usage.allKind')}</option>
           <option value="chat">chat</option>
@@ -104,7 +104,7 @@ export function UsageLogsPage({ onBack }: Props) {
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           placeholder={t('usage.username')}
-          className="px-2 py-1.5 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[var(--color-border-light)] text-xs"
+          className="px-2 py-1.5 rounded-lg bg-[var(--overlay-4)] border border-[var(--color-border-light)] text-xs"
         />
         <button
           type="button"
@@ -136,7 +136,7 @@ export function UsageLogsPage({ onBack }: Props) {
           </thead>
           <tbody>
             {items.map((row) => (
-              <tr key={row.id} className="border-t border-[var(--color-border-light)]/50 hover:bg-[rgba(255,255,255,0.03)]">
+              <tr key={row.id} className="border-t border-[var(--color-border-light)]/50 hover:bg-[var(--overlay-3)]">
                 <td className="py-2 px-2 whitespace-nowrap text-[var(--color-text-secondary)]">
                   {new Date(row.createdAt).toLocaleString()}
                 </td>

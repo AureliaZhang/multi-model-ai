@@ -54,7 +54,7 @@ export function ArenaLayout({ onClose }: ArenaLayoutProps) {
       <header className="flex items-center gap-3 px-4 py-3 border-b border-[var(--color-border-light)]">
         <button
           onClick={onClose}
-          className="p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-secondary)]"
+          className="p-1.5 rounded-lg hover:bg-[var(--overlay-5)] text-[var(--color-text-secondary)]"
           title={t('arena.backToChat')}
         >
           <ArrowLeft size={18} />
@@ -74,8 +74,8 @@ export function ArenaLayout({ onClose }: ArenaLayoutProps) {
             onClick={() => setTab(id)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] whitespace-nowrap transition-colors ${
               tab === id
-                ? 'bg-[rgba(255,255,255,0.08)] text-[var(--color-text-primary)]'
-                : 'text-[var(--color-text-secondary)] hover:bg-[rgba(255,255,255,0.04)]'
+                ? 'bg-[var(--overlay-8)] text-[var(--color-text-primary)]'
+                : 'text-[var(--color-text-secondary)] hover:bg-[var(--overlay-4)]'
             }`}
           >
             <Icon size={14} strokeWidth={1.5} />
@@ -157,7 +157,7 @@ function BattlePanel() {
           onChange={(e) => setQuestion(e.target.value)}
           rows={4}
           placeholder={t('arena.questionPlaceholder')}
-          className="w-full rounded-xl bg-[rgba(255,255,255,0.03)] border border-[var(--color-border-light)] px-3 py-2.5 text-sm outline-none focus:border-[var(--color-accent-main)] resize-y min-h-[100px]"
+          className="w-full rounded-xl bg-[var(--overlay-3)] border border-[var(--color-border-light)] px-3 py-2.5 text-sm outline-none focus:border-[var(--color-accent-main)] resize-y min-h-[100px]"
         />
       </section>
 
@@ -190,7 +190,7 @@ function BattlePanel() {
                   className={`px-3 py-1.5 rounded-full text-[12px] border transition-colors ${
                     on
                       ? 'border-[var(--color-accent-main)] bg-[rgba(16,163,127,0.15)] text-[var(--color-text-primary)]'
-                      : 'border-[var(--color-border-light)] text-[var(--color-text-secondary)] hover:bg-[rgba(255,255,255,0.04)]'
+                      : 'border-[var(--color-border-light)] text-[var(--color-text-secondary)] hover:bg-[var(--overlay-4)]'
                   }`}
                 >
                   {m.displayName}
@@ -254,7 +254,7 @@ function BattleResultView({
         </div>
         <button
           onClick={onNew}
-          className="text-[13px] px-3 py-1.5 rounded-lg border border-[var(--color-border-light)] hover:bg-[rgba(255,255,255,0.04)] shrink-0"
+          className="text-[13px] px-3 py-1.5 rounded-lg border border-[var(--color-border-light)] hover:bg-[var(--overlay-4)] shrink-0"
         >
           {t('arena.newBattle')}
         </button>
@@ -309,7 +309,7 @@ function CandidateCard({
       className={`rounded-xl border p-3 flex flex-col min-h-[180px] ${
         selected
           ? 'border-[var(--color-accent-main)] bg-[rgba(16,163,127,0.08)]'
-          : 'border-[var(--color-border-light)] bg-[rgba(255,255,255,0.02)]'
+          : 'border-[var(--color-border-light)] bg-[var(--overlay-2)]'
       }`}
     >
       <div className="flex items-center justify-between gap-2 mb-2">
@@ -370,7 +370,7 @@ function HistoryPanel() {
         <button
           type="button"
           onClick={() => exportBattles().catch((e) => alert(e.message))}
-          className="inline-flex items-center gap-1 text-[12px] px-2.5 py-1 rounded-lg border border-[var(--color-border-light)] hover:bg-[rgba(255,255,255,0.04)]"
+          className="inline-flex items-center gap-1 text-[12px] px-2.5 py-1 rounded-lg border border-[var(--color-border-light)] hover:bg-[var(--overlay-4)]"
         >
           <Download size={12} /> CSV
         </button>
@@ -380,7 +380,7 @@ function HistoryPanel() {
           key={h.id}
           type="button"
           onClick={() => loadBattle(h.id)}
-          className="w-full text-left rounded-xl border border-[var(--color-border-light)] px-3 py-2.5 hover:bg-[rgba(255,255,255,0.03)] transition-colors"
+          className="w-full text-left rounded-xl border border-[var(--color-border-light)] px-3 py-2.5 hover:bg-[var(--overlay-3)] transition-colors"
         >
           <div className="flex items-center justify-between gap-2 mb-1">
             <span className="text-[11px] text-[var(--color-text-tertiary)]">
@@ -422,7 +422,7 @@ function LeaderboardPanel() {
         <button
           type="button"
           onClick={() => exportLeaderboard().catch((e) => alert(e.message))}
-          className="inline-flex items-center gap-1 text-[12px] px-2.5 py-1 rounded-lg border border-[var(--color-border-light)] hover:bg-[rgba(255,255,255,0.04)] shrink-0"
+          className="inline-flex items-center gap-1 text-[12px] px-2.5 py-1 rounded-lg border border-[var(--color-border-light)] hover:bg-[var(--overlay-4)] shrink-0"
         >
           <Download size={12} /> CSV
         </button>
@@ -526,7 +526,7 @@ function StatsPanel() {
         {cards.map((c) => (
           <div
             key={c.label}
-            className="rounded-xl border border-[var(--color-border-light)] bg-[rgba(255,255,255,0.02)] px-3 py-3"
+            className="rounded-xl border border-[var(--color-border-light)] bg-[var(--overlay-2)] px-3 py-3"
           >
             <div className="text-[11px] text-[var(--color-text-tertiary)] mb-1">{c.label}</div>
             <div className="text-xl font-semibold">{c.value}</div>

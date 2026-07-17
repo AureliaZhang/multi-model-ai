@@ -69,7 +69,7 @@ export function GuideOverlay({ onClose }: GuideOverlayProps) {
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.08)] text-[var(--color-text-tertiary)] transition-colors"
+          className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)] transition-colors"
         >
           <X size={16} />
         </button>
@@ -77,7 +77,7 @@ export function GuideOverlay({ onClose }: GuideOverlayProps) {
         {/* Content */}
         <div className="px-8 pt-8 pb-6 text-center">
           {/* Icon */}
-          <div className="w-16 h-16 rounded-2xl bg-[rgba(255,255,255,0.05)] border border-[var(--color-border-light)] flex items-center justify-center mx-auto mb-5">
+          <div className="w-16 h-16 rounded-2xl bg-[var(--overlay-5)] border border-[var(--color-border-light)] flex items-center justify-center mx-auto mb-5">
             {step.icon}
           </div>
 
@@ -98,11 +98,11 @@ export function GuideOverlay({ onClose }: GuideOverlayProps) {
         </div>
 
         {/* Navigation */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-[var(--color-border-light)] bg-[rgba(255,255,255,0.02)]">
+        <div className="flex items-center justify-between px-6 py-4 border-t border-[var(--color-border-light)] bg-[var(--overlay-2)]">
           <button
             onClick={() => setCurrentStep(prev => prev - 1)}
             disabled={isFirst}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--color-text-secondary)] hover:bg-[rgba(255,255,255,0.05)] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--color-text-secondary)] hover:bg-[var(--overlay-5)] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
           >
             <ChevronLeft size={14} />
             {t('guide.prev')}
@@ -133,7 +133,7 @@ export function GuideOverlay({ onClose }: GuideOverlayProps) {
           ) : (
             <button
               onClick={() => setCurrentStep(prev => prev + 1)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--color-accent-main)] hover:bg-[rgba(255,255,255,0.05)] transition-all"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--color-accent-main)] hover:bg-[var(--overlay-5)] transition-all"
             >
               {t('guide.next')}
               <ChevronRight size={14} />

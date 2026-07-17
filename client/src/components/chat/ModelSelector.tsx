@@ -65,14 +65,14 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[rgba(255,255,255,0.05)] text-[var(--color-text-primary)] text-base font-medium transition-colors duration-150"
+        className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[var(--overlay-5)] text-[var(--color-text-primary)] text-base font-medium transition-colors duration-150"
       >
         <span>{selectedModel?.displayName || t('model.select')}</span>
         <ChevronDown size={18} className={`text-[var(--color-text-tertiary)] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 w-80 max-h-[420px] overflow-y-auto bg-[#2f2f2f] border border-[var(--color-border-medium)] rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] z-50 py-1.5 dropdown-enter">
+        <div className="absolute top-full left-0 mt-1 w-80 max-h-[420px] overflow-y-auto bg-[var(--color-main-surface-tertiary)] border border-[var(--color-border-medium)] rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] z-50 py-1.5 dropdown-enter">
           {models.length === 0 ? (
             <div className="px-4 py-8 text-center text-[var(--color-text-tertiary)] text-sm">
               <Sparkles size={24} className="mx-auto mb-2 text-[var(--color-text-tertiary)]" />
@@ -84,8 +84,8 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
               <button
                 key={model.normalizedName}
                 onClick={() => handleSelect(model.normalizedName)}
-                className={`w-full text-left px-4 py-2.5 hover:bg-[rgba(255,255,255,0.05)] transition-colors duration-100 flex items-center justify-between rounded-lg mx-0.5 ${
-                  selected === model.normalizedName ? 'bg-[rgba(255,255,255,0.07)]' : ''
+                className={`w-full text-left px-4 py-2.5 hover:bg-[var(--overlay-5)] transition-colors duration-100 flex items-center justify-between rounded-lg mx-0.5 ${
+                  selected === model.normalizedName ? 'bg-[var(--overlay-7)]' : ''
                 }`}
                 style={{ width: 'calc(100% - 4px)' }}
               >
@@ -103,7 +103,7 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
                     .map(cap => (
                       <span
                         key={cap}
-                        className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-md bg-[rgba(255,255,255,0.06)] text-[var(--color-text-tertiary)]"
+                        className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--overlay-6)] text-[var(--color-text-tertiary)]"
                         title={capabilityLabels[cap]}
                       >
                         {capabilityIcons[cap]}
