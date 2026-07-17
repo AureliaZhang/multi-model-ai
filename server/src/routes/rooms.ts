@@ -20,6 +20,7 @@ import { getDb } from '../database';
 import { requireAuth } from '../middleware/auth';
 import { invokeModel } from '../services/modelInvocation';
 import { logApiUsage } from '../services/usageLog';
+import { broadcast, closeRoom as closeRoomSockets, disconnectUser } from '../services/roomHub';
 import type { AuthRequest, ApiResponse } from '../types';
 
 const router = Router();
@@ -186,6 +187,9 @@ router.delete('/:id', (req: AuthRequest, res: Response) => {
       return res.status(403).json({ success: false, error: 'Only the group owner can disband' });
     }
     getDb().prepare('DELETE FROM rooms WHERE id = ?').run(room.id);
+    // Tell everyone the room is gone, then drop all its sockets.
+    broadcast(room.id, { type: 'disband' });
+    closeRoomSockets(room.id);
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -215,6 +219,7 @@ router.post('/:id/members', (req: AuthRequest, res: Response) => {
     const add = db.prepare(`INSERT OR IGNORE INTO room_members (room_id, user_id, role, joined_at) VALUES (?, ?, 'member', ?)`);
     for (const v of valid) add.run(room.id, v.id, nowIso());
     db.prepare('UPDATE rooms SET updated_at = ? WHERE id = ?').run(nowIso(), room.id);
+    broadcast(room.id, { type: 'members' });
     res.json({ success: true, data: memberInfo(room.id) });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -233,6 +238,9 @@ router.delete('/:id/members/:userId', (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, error: 'Owner cannot be removed; disband instead' });
     }
     getDb().prepare('DELETE FROM room_members WHERE room_id = ? AND user_id = ?').run(room.id, req.params.userId);
+    // Kick the removed user's live socket(s), then tell the rest membership changed.
+    disconnectUser(room.id, req.params.userId);
+    broadcast(room.id, { type: 'members' });
     res.json({ success: true, data: memberInfo(room.id) });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -291,18 +299,18 @@ router.post('/:id/messages', (req: AuthRequest, res: Response) => {
        VALUES (?, ?, ?, 'text', ?, ?, ?)`
     ).run(id, room.id, req.user!.id, text, JSON.stringify(atts), now);
     db.prepare('UPDATE rooms SET updated_at = ? WHERE id = ?').run(now, room.id);
-    res.status(201).json({
-      success: true,
-      data: {
-        id,
-        userId: req.user!.id,
-        username: req.user!.username,
-        kind: 'text',
-        content: text,
-        attachments: atts,
-        createdAt: now,
-      },
-    });
+    const message = {
+      id,
+      userId: req.user!.id,
+      username: req.user!.username,
+      kind: 'text',
+      content: text,
+      attachments: atts,
+      createdAt: now,
+    };
+    // Push the new human message to everyone in the room (replaces polling).
+    broadcast(room.id, { type: 'message', message });
+    res.status(201).json({ success: true, data: message });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -374,7 +382,9 @@ router.put('/:id/models', (req: AuthRequest, res: Response) => {
         nowIso(),
         room.id
       );
-    res.json({ success: true, data: serializeRoom(getRoom(room.id)) });
+    const updated = serializeRoom(getRoom(room.id));
+    broadcast(room.id, { type: 'room', room: updated });
+    res.json({ success: true, data: updated });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -403,7 +413,9 @@ router.post('/:id/occupancy/claim', (req: AuthRequest, res: Response) => {
         `UPDATE rooms SET ai_state = 'occupying_input', occupant_user_id = ?, occupancy_until = ?, updated_at = ? WHERE id = ?`
       )
       .run(req.user!.id, until, nowIso(), room.id);
-    res.json({ success: true, data: serializeRoom(getRoom(room.id)) });
+    const updated = serializeRoom(getRoom(room.id));
+    broadcast(room.id, { type: 'room', room: updated });
+    res.json({ success: true, data: updated });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -419,7 +431,9 @@ router.post('/:id/occupancy/renew', (req: AuthRequest, res: Response) => {
     }
     const until = new Date(Date.now() + OCCUPANCY_MS).toISOString();
     getDb().prepare('UPDATE rooms SET occupancy_until = ?, updated_at = ? WHERE id = ?').run(until, nowIso(), room.id);
-    res.json({ success: true, data: serializeRoom(getRoom(room.id)) });
+    const updated = serializeRoom(getRoom(room.id));
+    broadcast(room.id, { type: 'room', room: updated });
+    res.json({ success: true, data: updated });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -437,7 +451,9 @@ router.post('/:id/occupancy/release', (req: AuthRequest, res: Response) => {
         )
         .run(nowIso(), room.id);
     }
-    res.json({ success: true, data: serializeRoom(getRoom(room.id)) });
+    const updated = serializeRoom(getRoom(room.id));
+    broadcast(room.id, { type: 'room', room: updated });
+    res.json({ success: true, data: updated });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -499,10 +515,40 @@ router.post('/:id/ai/ask', async (req: AuthRequest, res: Response) => {
 
     // Left-track stub so humans see "X asked AI ..." (no long answer on the left)
     const stubText = content.length > 60 ? content.slice(0, 60) + '…' : content;
+    const stubId = uuidv4();
+    const stubNow = nowIso();
     db.prepare(
       `INSERT INTO room_messages (id, room_id, user_id, kind, content, ai_message_id, created_at)
        VALUES (?, ?, ?, 'ai_stub', ?, ?, ?)`
-    ).run(uuidv4(), room.id, req.user!.id, stubText, asstId, nowIso());
+    ).run(stubId, room.id, req.user!.id, stubText, asstId, stubNow);
+
+    // Push the "AI is thinking" state to everyone in the room immediately: the
+    // delivered question (right track), the thinking placeholder (right track,
+    // drives the typing animation), the left-track stub, and ai_running state.
+    broadcast(room.id, {
+      type: 'ai',
+      message: {
+        id: userMsgId, role: 'user', content, authorId: req.user!.id,
+        authorName: req.user!.displayName || req.user!.username,
+        status: 'done', modelUsed: null, errorMessage: null,
+        fileIds, createdAt: now,
+      },
+    });
+    broadcast(room.id, {
+      type: 'ai',
+      message: {
+        id: asstId, role: 'assistant', content: '', authorId: null, authorName: null,
+        status: 'thinking', modelUsed: null, errorMessage: null, fileIds: [], createdAt: nowIso(),
+      },
+    });
+    broadcast(room.id, {
+      type: 'message',
+      message: {
+        id: stubId, userId: req.user!.id, username: req.user!.username,
+        kind: 'ai_stub', content: stubText, aiMessageId: asstId, attachments: [], createdAt: stubNow,
+      },
+    });
+    broadcast(room.id, { type: 'room', room: serializeRoom(getRoom(room.id)) });
 
     // Build the model context from the RIGHT track only (AI never sees left chat).
     const history = db
@@ -581,11 +627,21 @@ router.post('/:id/ai/ask', async (req: AuthRequest, res: Response) => {
          FROM room_ai_messages WHERE id = ?`
       )
       .get(asstId);
+
+    // Fan out the finished (or errored) answer — replaces the thinking bubble
+    // for everyone — and the room's return to idle so locks/countdowns clear.
+    broadcast(room.id, { type: 'ai', message: { ...(asst as object), fileIds: [] } });
+    broadcast(room.id, { type: 'room', room: serializeRoom(getRoom(room.id)) });
+
     res.json({ success: true, data: { userMessageId: userMsgId, assistant: asst } });
   } catch (err: any) {
     // Best-effort unlock so the room never stays stuck in ai_running
     try {
-      if (room) db.prepare(`UPDATE rooms SET ai_state = 'idle', updated_at = ? WHERE id = ?`).run(nowIso(), room.id);
+      if (room) {
+        db.prepare(`UPDATE rooms SET ai_state = 'idle', updated_at = ? WHERE id = ?`).run(nowIso(), room.id);
+        // Tell everyone the room is idle again so no client is stuck on "AI running".
+        broadcast(room.id, { type: 'room', room: serializeRoom(getRoom(room.id)) });
+      }
     } catch {
       /* ignore */
     }

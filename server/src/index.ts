@@ -1,4 +1,5 @@
 import express from 'express';
+import http from 'http';
 import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -19,6 +20,7 @@ import mediaRoutes from './routes/media';
 import roomRoutes from './routes/rooms';
 import usageRoutes from './routes/usage';
 import { startHealthCheckJob, stopHealthCheckJob } from './services/healthCheck';
+import { attachRoomHub } from './services/roomHub';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -83,9 +85,14 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   res.status(500).json({ success: false, error: err.message });
 });
 
-// Start server
-app.listen(PORT, () => {
+// Start server. We wrap the express app in an explicit http.Server so the
+// WebSocket hub (§10.6 realtime) can share the same port via the HTTP upgrade
+// handshake — ws needs the raw server, not the express app.
+const server = http.createServer(app);
+attachRoomHub(server);
+server.listen(PORT, () => {
   console.log(`🚀 Multi-Model AI Server running on http://localhost:${PORT} (env: ${isProduction ? 'production' : 'development'})`);
+  console.log(`🔌 Room WebSocket hub listening on ws://localhost:${PORT}/ws/rooms`);
   // Begin periodic station health checks so unhealthy stations are auto-detected
   // and auto-recovered without a manual check (§8.3).
   startHealthCheckJob();

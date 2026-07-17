@@ -1,11 +1,13 @@
 import { create } from 'zustand';
 import { roomApi } from '../services/api';
+import { roomSocket, type RoomSocketEvent, type RoomSocketStatus } from '../services/roomSocket';
 import type { Room, RoomMessage, RoomAiMessage, RoomFile } from '../types';
 
 /**
  * §10.6 Group chat store.
  * - Left track (human) + right track (AI) are kept separate.
- * - While a room is open we poll for updates (until WebSocket lands in P2).
+ * - While a room is open we prefer a WebSocket for live updates; if the
+ *   socket drops we fall back to 3s polling until it reconnects.
  * - Occupancy (@AI input lock) state comes from the room object itself.
  */
 
@@ -19,6 +21,7 @@ interface RoomState {
   loadingRoom: boolean;
   error: string | null;
   asking: boolean; // an @AI request is in flight from THIS client
+  socketStatus: RoomSocketStatus | 'idle';
   _pollTimer: ReturnType<typeof setInterval> | null;
 
   fetchRooms: () => Promise<void>;
@@ -45,6 +48,75 @@ interface RoomState {
   deleteFile: (fileId: string) => Promise<void>;
 }
 
+function upsertById<T extends { id: string }>(list: T[], item: T): T[] {
+  const idx = list.findIndex((x) => x.id === item.id);
+  if (idx === -1) return [...list, item];
+  const next = list.slice();
+  next[idx] = { ...list[idx], ...item };
+  return next;
+}
+
+function applySocketEvent(
+  set: (partial: Partial<RoomState> | ((s: RoomState) => Partial<RoomState>)) => void,
+  get: () => RoomState,
+  event: RoomSocketEvent,
+): void {
+  switch (event.type) {
+    case 'message': {
+      const message = event.message as RoomMessage;
+      if (!message?.id) return;
+      set({ messages: upsertById(get().messages, message) });
+      break;
+    }
+    case 'ai': {
+      const message = event.message as RoomAiMessage;
+      if (!message?.id) return;
+      set({ aiMessages: upsertById(get().aiMessages, message) });
+      break;
+    }
+    case 'room': {
+      const room = event.room as Room;
+      if (!room?.id) return;
+      // Only update if this is still the open room
+      if (get().currentRoom?.id === room.id) {
+        set({ currentRoom: { ...get().currentRoom!, ...room } });
+      }
+      break;
+    }
+    case 'members': {
+      // Cheap refresh of room (includes members when backend returns them)
+      void get().refreshRoom();
+      break;
+    }
+    case 'disband': {
+      get().closeRoom();
+      void get().fetchRooms();
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+function startFallbackPoll(set: (p: Partial<RoomState>) => void, get: () => RoomState, roomId: string): void {
+  const prev = get()._pollTimer;
+  if (prev) clearInterval(prev);
+  const timer = setInterval(() => {
+    const cur = get().currentRoom;
+    if (!cur || cur.id !== roomId) return;
+    // Only poll when the socket is not open
+    if (get().socketStatus === 'open') return;
+    void get().refreshRoom();
+  }, 3000);
+  set({ _pollTimer: timer });
+}
+
+function stopFallbackPoll(set: (p: Partial<RoomState>) => void, get: () => RoomState): void {
+  const timer = get()._pollTimer;
+  if (timer) clearInterval(timer);
+  set({ _pollTimer: null });
+}
+
 export const useRoomStore = create<RoomState>((set, get) => ({
   rooms: [],
   roomsLoading: false,
@@ -55,6 +127,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   loadingRoom: false,
   error: null,
   asking: false,
+  socketStatus: 'idle',
   _pollTimer: null,
 
   fetchRooms: async () => {
@@ -78,11 +151,18 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   },
 
   openRoom: async (id) => {
-    // stop any previous polling
-    const prev = get()._pollTimer;
-    if (prev) clearInterval(prev);
+    stopFallbackPoll(set, get);
+    roomSocket.disconnect();
 
-    set({ loadingRoom: true, currentRoom: null, messages: [], aiMessages: [], files: [], error: null });
+    set({
+      loadingRoom: true,
+      currentRoom: null,
+      messages: [],
+      aiMessages: [],
+      files: [],
+      error: null,
+      socketStatus: 'connecting',
+    });
 
     const [roomRes, msgRes, aiRes] = await Promise.all([
       roomApi.get(id),
@@ -91,7 +171,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
     ]);
 
     if (!roomRes.success || !roomRes.data) {
-      set({ loadingRoom: false, error: roomRes.error || 'Failed to open group' });
+      set({ loadingRoom: false, error: roomRes.error || 'Failed to open group', socketStatus: 'idle' });
       return;
     }
 
@@ -104,19 +184,30 @@ export const useRoomStore = create<RoomState>((set, get) => ({
 
     get().fetchFiles();
 
-    // Poll every 3s while this room is open (P2 replaces with WebSocket).
-    const timer = setInterval(() => {
-      const cur = get().currentRoom;
-      if (!cur || cur.id !== id) return;
-      get().refreshRoom();
-    }, 3000);
-    set({ _pollTimer: timer });
+    // Live updates via WebSocket; fall back to polling only while disconnected.
+    roomSocket.connect(
+      id,
+      (event) => applySocketEvent(set, get, event),
+      (status) => {
+        // Ignore status updates for a room we already left
+        if (get().currentRoom?.id !== id && status !== 'closed') return;
+        set({ socketStatus: status });
+      },
+    );
+    startFallbackPoll(set, get, id);
   },
 
   closeRoom: () => {
-    const timer = get()._pollTimer;
-    if (timer) clearInterval(timer);
-    set({ currentRoom: null, messages: [], aiMessages: [], files: [], _pollTimer: null });
+    stopFallbackPoll(set, get);
+    roomSocket.disconnect();
+    set({
+      currentRoom: null,
+      messages: [],
+      aiMessages: [],
+      files: [],
+      _pollTimer: null,
+      socketStatus: 'idle',
+    });
   },
 
   refreshRoom: async () => {
@@ -141,7 +232,8 @@ export const useRoomStore = create<RoomState>((set, get) => ({
     if (!cur) return;
     const res = await roomApi.sendMessage(cur.id, content, attachments);
     if (res.success && res.data) {
-      set({ messages: [...get().messages, res.data] });
+      // Optimistic local insert; WS echo will upsert by id (no duplicate).
+      set({ messages: upsertById(get().messages, res.data) });
     } else {
       set({ error: res.error || 'Failed to send' });
     }
@@ -182,7 +274,8 @@ export const useRoomStore = create<RoomState>((set, get) => ({
     if (!res.success) {
       set({ error: res.error || 'AI request failed' });
     }
-    // Pull fresh right/left tracks + room state regardless.
+    // WS should have already pushed thinking → done; this is a safety net
+    // for the case where the socket was briefly down during the request.
     await get().refreshRoom();
   },
 

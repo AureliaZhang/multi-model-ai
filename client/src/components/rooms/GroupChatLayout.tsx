@@ -357,8 +357,13 @@ function AiPane({
                 {m.modelUsed ? ` · ${m.modelUsed}` : ''}
               </div>
               {m.status === 'thinking' ? (
-                <div className="text-[13px] text-[var(--color-text-tertiary)] flex items-center gap-1.5">
-                  <Loader2 size={13} className="animate-spin" /> {t('room.thinking')}
+                <div className="text-[13px] text-[var(--color-text-tertiary)] flex items-center gap-2">
+                  <span className="typing-dots" aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                  <span>{t('room.thinking')}</span>
                 </div>
               ) : m.status === 'error' ? (
                 <div className="text-[13px] text-red-400">{m.errorMessage || t('room.aiError')}</div>

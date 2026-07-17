@@ -514,7 +514,7 @@ const en = {
   'room.aiEmpty': 'No AI conversation yet. Take the @AI slot to start.',
   'room.aiError': 'AI request failed',
   'room.aiRunning': 'AI is working…',
-  'room.thinking': 'Thinking…',
+  'room.thinking': 'Typing…',
   'room.atAiButton': '@AI',
   'room.atAiHint': 'Take the @AI slot to send a prompt to the group AI',
   'room.someoneTyping': '{name} is typing…',

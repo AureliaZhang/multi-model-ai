@@ -11,6 +11,12 @@ export default defineConfig({
         target: 'http://localhost:3001',
         changeOrigin: true,
       },
+      // §10.6 room realtime — upgrade path is /ws/rooms (not under /api)
+      '/ws': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        ws: true,
+      },
     },
   },
 })

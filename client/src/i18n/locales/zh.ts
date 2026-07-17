@@ -514,7 +514,7 @@ const zh = {
   'room.aiEmpty': '还没有 AI 对话。占用 @AI 名额即可开始。',
   'room.aiError': 'AI 请求失败',
   'room.aiRunning': 'AI 正在处理…',
-  'room.thinking': '思考中…',
+  'room.thinking': '正在输入中…',
   'room.atAiButton': '@AI',
   'room.atAiHint': '占用 @AI 名额，向群 AI 发送提示词',
   'room.someoneTyping': '{name} 正在输入…',
