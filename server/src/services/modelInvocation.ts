@@ -4,7 +4,7 @@
  */
 
 import { getDb } from '../database';
-import { normalizeModelName } from '../routes/models';
+import { normalizeModelName } from './normalizeModelName';
 import { roundRobin } from './loadBalancer';
 
 export interface ChatMessage {

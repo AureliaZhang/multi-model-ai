@@ -5,7 +5,7 @@
 import { Router, Response } from 'express';
 import { getDb } from '../database';
 import { requireAuth } from '../middleware/auth';
-import { normalizeModelName } from './models';
+import { normalizeModelName } from '../services/normalizeModelName';
 import { detectCapabilities } from './stations';
 import type { AuthRequest, ApiResponse } from '../types';
 

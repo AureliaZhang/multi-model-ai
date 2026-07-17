@@ -2,6 +2,10 @@ import { Router, Request, Response } from 'express';
 import { getDb } from '../database';
 import { optionalAuth } from '../middleware/auth';
 import { AggregatedModel, ModelCapability, ApiResponse, AuthRequest } from '../types';
+import { normalizeModelName } from '../services/normalizeModelName';
+
+// Re-export so existing `from './models'` importers keep working.
+export { normalizeModelName } from '../services/normalizeModelName';
 
 const router = Router();
 
@@ -114,16 +118,5 @@ router.get('/:normalizedName/stations', optionalAuth, (req: AuthRequest, res: Re
     res.status(500).json({ success: false, error: err.message });
   }
 });
-
-// Normalize model name for deduplication
-export function normalizeModelName(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/[\s_]+/g, '-')
-    .replace(/[^a-z0-9-]/g, '')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-}
 
 export default router;

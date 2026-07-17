@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string; numpages: number; numrender: number; info: any; metadata: any; version: string }>;
 import { getDb } from '../database';
-import { normalizeModelName } from './models';
+import { normalizeModelName } from '../services/normalizeModelName';
 import { ApiResponse } from '../types';
 import { loadEnabledMcpTools, resolveToolCall, executeToolCall } from '../services/mcpClient';
 import { generateEmbedding, serializeEmbedding, vectorSearch } from '../services/embeddings';

@@ -5,7 +5,7 @@
 import { Router, Response } from 'express';
 import { requireAuth } from '../middleware/auth';
 import { getStationsForModel } from '../services/modelInvocation';
-import { normalizeModelName } from './models';
+import { normalizeModelName } from '../services/normalizeModelName';
 import { logApiUsage } from '../services/usageLog';
 import type { AuthRequest } from '../types';
 

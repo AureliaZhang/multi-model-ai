@@ -7,7 +7,7 @@ import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../database';
 import { requireAuth, requireRole } from '../middleware/auth';
-import { normalizeModelName } from './models';
+import { normalizeModelName } from '../services/normalizeModelName';
 import { invokeModel } from '../services/modelInvocation';
 import { arenaConcurrency, mapPool } from '../utils/asyncPool';
 import { sendCsv, toCsv } from '../utils/csv';
