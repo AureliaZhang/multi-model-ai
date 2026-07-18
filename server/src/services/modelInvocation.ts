@@ -1,12 +1,16 @@
 /**
  * Shared model invocation for Arena / eval (clean completion, no MCP / memory / regex).
  * Chat route keeps its own streaming path for now; Arena uses this service.
+ *
+ * Optional `deps` lets unit tests inject station list + fetch + health callbacks
+ * without spinning up SQLite or a real network.
  */
 
 import { getDb } from '../database';
 import { normalizeModelName } from './normalizeModelName';
 import { roundRobin } from './loadBalancer';
 import { getErrorMessage, isAbortError } from '../utils/errors';
+import type { StationModelJoinRow } from '../dbRows';
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -42,7 +46,7 @@ export interface InvokeModelFailure {
 
 export type InvokeModelResult = InvokeModelSuccess | InvokeModelFailure;
 
-interface StationPick {
+export interface StationPick {
   station: {
     id: string;
     name: string;
@@ -53,23 +57,21 @@ interface StationPick {
   modelId: string;
 }
 
-export function getStationsForModel(
-  normalizedName: string,
-  opts?: { adminPool?: boolean }
+/** Injectable seams for unit tests (defaults = production DB + global fetch). */
+export interface InvokeModelDeps {
+  getStations?: (normalizedName: string, opts?: { adminPool?: boolean }) => StationPick[];
+  fetchImpl?: typeof fetch;
+  markStationHealth?: (stationId: string, status: 'healthy' | 'unhealthy') => void;
+}
+
+/**
+ * Pure: from station_models ⨝ stations rows, keep matches for `normalizedName`,
+ * prefer healthy/unknown over unhealthy. Does NOT round-robin (caller may).
+ */
+export function filterStationsForModel(
+  rows: StationModelJoinRow[],
+  normalizedName: string
 ): StationPick[] {
-  const db = getDb();
-  // adminPool: allow admin-selected models; otherwise only public (enabled)
-  const poolFilter = opts?.adminPool
-    ? 'COALESCE(sm.admin_enabled, 1) = 1'
-    : 'sm.enabled = 1';
-
-  const rows = db.prepare(`
-    SELECT sm.model_id, s.id, s.name, s.base_url, s.api_key, s.health_status, s.enabled
-    FROM station_models sm
-    JOIN stations s ON sm.station_id = s.id
-    WHERE ${poolFilter} AND s.enabled = 1
-  `).all() as any[];
-
   const healthy: StationPick[] = [];
   const unhealthy: StationPick[] = [];
 
@@ -89,20 +91,58 @@ export function getStationsForModel(
     else healthy.push(pick);
   }
 
-  // Prefer healthy / unknown; fall back to unhealthy if nothing else
-  const pool = healthy.length > 0 ? healthy : unhealthy;
+  return healthy.length > 0 ? healthy : unhealthy;
+}
+
+export function getStationsForModel(
+  normalizedName: string,
+  opts?: { adminPool?: boolean }
+): StationPick[] {
+  const db = getDb();
+  // adminPool: allow admin-selected models; otherwise only public (enabled)
+  const poolFilter = opts?.adminPool
+    ? 'COALESCE(sm.admin_enabled, 1) = 1'
+    : 'sm.enabled = 1';
+
+  const rows = db.prepare(`
+    SELECT sm.model_id, s.id, s.name, s.base_url, s.api_key, s.health_status, s.enabled
+    FROM station_models sm
+    JOIN stations s ON sm.station_id = s.id
+    WHERE ${poolFilter} AND s.enabled = 1
+  `).all() as StationModelJoinRow[];
+
+  const pool = filterStationsForModel(rows, normalizedName);
   // Round-robin across stations for this model (even spread, keeps failover order)
   return roundRobin(normalizedName, pool);
+}
+
+function defaultMarkStationHealth(stationId: string, status: 'healthy' | 'unhealthy'): void {
+  const db = getDb();
+  const now = new Date().toISOString();
+  if (status === 'healthy') {
+    db.prepare('UPDATE stations SET health_status = ?, last_health_check = ?, updated_at = ? WHERE id = ?')
+      .run('healthy', now, now, stationId);
+  } else {
+    db.prepare('UPDATE stations SET health_status = ?, updated_at = ? WHERE id = ?')
+      .run('unhealthy', now, stationId);
+  }
 }
 
 /**
  * Non-streaming chat completion with station failover.
  * Does not attach MCP tools, memory, or regex — suitable for comparable evals.
  */
-export async function invokeModel(options: InvokeModelOptions): Promise<InvokeModelResult> {
+export async function invokeModel(
+  options: InvokeModelOptions,
+  deps: InvokeModelDeps = {}
+): Promise<InvokeModelResult> {
   const started = Date.now();
   const normalized = normalizeModelName(options.modelNormalizedName);
-  const stations = getStationsForModel(normalized, { adminPool: options.adminPool });
+  const getStations = deps.getStations ?? getStationsForModel;
+  const fetchImpl = deps.fetchImpl ?? fetch;
+  const markHealth = deps.markStationHealth ?? defaultMarkStationHealth;
+
+  const stations = getStations(normalized, { adminPool: options.adminPool });
   const timeoutMs = options.timeoutMs ?? 120_000;
 
   if (stations.length === 0) {
@@ -114,7 +154,6 @@ export async function invokeModel(options: InvokeModelOptions): Promise<InvokeMo
     };
   }
 
-  const db = getDb();
   const errors: string[] = [];
 
   for (const s of stations) {
@@ -130,7 +169,7 @@ export async function invokeModel(options: InvokeModelOptions): Promise<InvokeMo
         body.temperature = options.temperature;
       }
 
-      const response = await fetch(`${s.station.baseUrl}/chat/completions`, {
+      const response = await fetchImpl(`${s.station.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${s.station.apiKey}`,
@@ -143,12 +182,15 @@ export async function invokeModel(options: InvokeModelOptions): Promise<InvokeMo
       if (!response.ok) {
         const text = await response.text().catch(() => '');
         errors.push(`${s.station.name}: HTTP ${response.status} ${text.slice(0, 200)}`);
-        db.prepare('UPDATE stations SET health_status = ?, updated_at = ? WHERE id = ?')
-          .run('unhealthy', new Date().toISOString(), s.station.id);
+        try {
+          markHealth(s.station.id, 'unhealthy');
+        } catch {
+          /* ignore */
+        }
         continue;
       }
 
-      const data = (await response.json()) as any;
+      const data = (await response.json()) as { choices?: Array<{ message?: { content?: string }; text?: string }> };
       const content: string =
         data.choices?.[0]?.message?.content ??
         data.choices?.[0]?.text ??
@@ -160,8 +202,11 @@ export async function invokeModel(options: InvokeModelOptions): Promise<InvokeMo
       }
 
       // Mark healthy on success
-      db.prepare('UPDATE stations SET health_status = ?, last_health_check = ?, updated_at = ? WHERE id = ?')
-        .run('healthy', new Date().toISOString(), new Date().toISOString(), s.station.id);
+      try {
+        markHealth(s.station.id, 'healthy');
+      } catch {
+        /* ignore */
+      }
 
       return {
         ok: true,
@@ -176,8 +221,7 @@ export async function invokeModel(options: InvokeModelOptions): Promise<InvokeMo
       const msg = isAbortError(err) ? 'timeout' : getErrorMessage(err);
       errors.push(`${s.station.name}: ${msg}`);
       try {
-        db.prepare('UPDATE stations SET health_status = ?, updated_at = ? WHERE id = ?')
-          .run('unhealthy', new Date().toISOString(), s.station.id);
+        markHealth(s.station.id, 'unhealthy');
       } catch {
         /* ignore */
       }

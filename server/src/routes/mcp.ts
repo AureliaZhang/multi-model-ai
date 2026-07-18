@@ -16,6 +16,7 @@ import { getDb } from '../database';
 import { connectAndDiscoverTools } from '../services/mcpClient';
 import { requireAuth, requireRole } from '../middleware/auth';
 import type { AuthRequest, McpServer, McpTool } from '../types';
+import type { McpServerRow, McpToolRow } from '../dbRows';
 import { getErrorMessage } from '../utils/errors';
 
 const router = Router();
@@ -34,15 +35,15 @@ router.get('/servers', (req: AuthRequest, res: Response) => {
       LEFT JOIN mcp_tools mt ON mt.server_id = ms.id
       GROUP BY ms.id
       ORDER BY ms.created_at DESC
-    `).all() as any[];
+    `).all() as Array<McpServerRow & { tool_count: number }>;
 
-    const servers: (McpServer & { toolCount: number })[] = rows.map((r: any) => ({
+    const servers: (McpServer & { toolCount: number })[] = rows.map((r) => ({
       id: r.id,
       name: r.name,
       url: r.url,
       description: r.description,
       enabled: Boolean(r.enabled),
-      status: r.status,
+      status: r.status as McpServer['status'],
       lastConnected: r.last_connected,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
@@ -71,7 +72,7 @@ router.post('/servers', (req: AuthRequest, res: Response) => {
       'INSERT INTO mcp_servers (id, name, url, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
     ).run(id, name, url, description || null, now, now);
 
-    const server = db.prepare('SELECT * FROM mcp_servers WHERE id = ?').get(id) as any;
+    const server = db.prepare('SELECT * FROM mcp_servers WHERE id = ?').get(id) as McpServerRow;
     res.status(201).json({
       success: true,
       data: {
@@ -80,7 +81,7 @@ router.post('/servers', (req: AuthRequest, res: Response) => {
         url: server.url,
         description: server.description,
         enabled: Boolean(server.enabled),
-        status: server.status,
+        status: server.status as McpServer['status'],
         lastConnected: server.last_connected,
         createdAt: server.created_at,
         updatedAt: server.updated_at,
@@ -124,7 +125,10 @@ router.put('/servers/:id', (req: AuthRequest, res: Response) => {
       LEFT JOIN mcp_tools mt ON mt.server_id = ms.id
       WHERE ms.id = ?
       GROUP BY ms.id
-    `).get(id) as any;
+    `).get(id) as (McpServerRow & { tool_count: number }) | undefined;
+    if (!server) {
+      return res.status(404).json({ success: false, error: 'MCP server not found' });
+    }
 
     res.json({
       success: true,
@@ -134,7 +138,7 @@ router.put('/servers/:id', (req: AuthRequest, res: Response) => {
         url: server.url,
         description: server.description,
         enabled: Boolean(server.enabled),
-        status: server.status,
+        status: server.status as McpServer['status'],
         lastConnected: server.last_connected,
         createdAt: server.created_at,
         updatedAt: server.updated_at,
@@ -196,9 +200,9 @@ router.get('/servers/:id/tools', (req: AuthRequest, res: Response) => {
 
     const rows = db.prepare(
       'SELECT * FROM mcp_tools WHERE server_id = ? ORDER BY name'
-    ).all(id) as any[];
+    ).all(id) as McpToolRow[];
 
-    const tools: McpTool[] = rows.map((r: any) => ({
+    const tools: McpTool[] = rows.map((r) => ({
       id: r.id,
       serverId: r.server_id,
       name: r.name,

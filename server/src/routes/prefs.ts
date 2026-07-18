@@ -8,6 +8,7 @@ import { requireAuth } from '../middleware/auth';
 import { normalizeModelName } from '../services/normalizeModelName';
 import { detectCapabilities } from './stations';
 import type { AuthRequest, ApiResponse } from '../types';
+import type { AggregatedModelSourceRow, UserModelPrefsRow } from '../dbRows';
 import { getErrorMessage } from '../utils/errors';
 
 const router = Router();
@@ -31,7 +32,7 @@ function listModelsByCapability(
     FROM station_models sm
     JOIN stations s ON sm.station_id = s.id
     WHERE ${pool} AND s.enabled = 1
-  `).all() as any[];
+  `).all() as Array<Pick<AggregatedModelSourceRow, 'model_id' | 'display_name' | 'capabilities' | 'station_id' | 'station_name'>>;
 
   const map = new Map<string, {
     normalizedName: string;
@@ -83,7 +84,7 @@ function getPrefsRow(userId: string) {
            tts_model as ttsModel, skip_daily_modal as skipDailyModal,
            last_modal_date as lastModalDate, auto_tts as autoTts, updated_at as updatedAt
     FROM user_model_prefs WHERE user_id = ?
-  `).get(userId) as any;
+  `).get(userId) as UserModelPrefsRow | undefined;
 }
 
 router.get('/', (req: AuthRequest, res: Response) => {
@@ -172,7 +173,7 @@ router.put('/', (req: AuthRequest, res: Response) => {
       );
     }
 
-    const row = getPrefsRow(userId);
+    const row = getPrefsRow(userId)!;
     res.json({
       success: true,
       data: {

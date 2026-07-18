@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { getDb } from '../database';
 import { optionalAuth } from '../middleware/auth';
 import { AggregatedModel, ModelCapability, ApiResponse, AuthRequest } from '../types';
+import type { AggregatedModelSourceRow } from '../dbRows';
 import { normalizeModelName } from '../services/normalizeModelName';
 import { getErrorMessage } from '../utils/errors';
 
@@ -34,7 +35,7 @@ router.get('/', optionalAuth, (req: AuthRequest, res: Response) => {
       FROM station_models sm
       JOIN stations s ON sm.station_id = s.id
       ${where}
-    `).all() as any[];
+    `).all() as AggregatedModelSourceRow[];
 
     const modelMap = new Map<string, AggregatedModel & { publicEnabled?: boolean; adminEnabled?: boolean }>();
 
@@ -59,8 +60,8 @@ router.get('/', optionalAuth, (req: AuthRequest, res: Response) => {
       }
 
       const agg = modelMap.get(normalized)!;
-      if (row.enabled === 1) (agg as any).publicEnabled = true;
-      if (row.admin_enabled === 1) (agg as any).adminEnabled = true;
+      if (row.enabled === 1) agg.publicEnabled = true;
+      if (row.admin_enabled === 1) agg.adminEnabled = true;
       // Prefer a nicer custom display name if present
       if (row.display_name && row.display_name !== row.model_id) {
         agg.displayName = row.display_name;
@@ -103,7 +104,7 @@ router.get('/:normalizedName/stations', optionalAuth, (req: AuthRequest, res: Re
       FROM station_models sm
       JOIN stations s ON sm.station_id = s.id
       ${where}
-    `).all() as any[];
+    `).all() as Array<Pick<AggregatedModelSourceRow, 'model_id' | 'display_name' | 'capabilities' | 'station_id' | 'station_name' | 'health_status'> & { base_url: string }>;
 
     const stations = rows
       .filter(r => normalizeModelName(r.model_id) === normalizedName)

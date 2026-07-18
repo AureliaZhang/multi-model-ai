@@ -16,9 +16,23 @@
 <!-- > **Last Updated**: 2026-07-17 (v0.7.9 — P2: getErrorMessage helper + eliminate all catch (err: any); see §12 change log) -->
 <!-- > **Version**: 0.7.10 -->
 <!-- > **Last Updated**: 2026-07-17 (v0.7.10 — P2: route-level React.lazy code-split secondary pages; see §12 change log) -->
-> **Version**: 0.7.11
+<!-- > **Version**: 0.7.11 -->
+<!-- > **Last Updated**: 2026-07-17 (v0.7.11 — security: remove hardcoded MIMO API key from seed; see §12 change log) -->
+<!-- > **Version**: 0.7.12 -->
+<!-- > **Last Updated**: 2026-07-18 (v0.7.12 — P2: occupancy pure FSM + cosineSimilarity tests; see §12 change log) -->
+<!-- > **Version**: 0.7.13 -->
+<!-- > **Last Updated**: 2026-07-18 (v0.7.13 — P2: SQLite row types for conversations/stations/rooms; see §12 change log) -->
+<!-- > **Version**: 0.7.14 -->
+<!-- > **Last Updated**: 2026-07-18 (v0.7.14 — P2: SQLite row types for memories/files/regex; see §12 change log) -->
+<!-- > **Version**: 0.7.15 -->
+<!-- > **Last Updated**: 2026-07-18 (v0.7.15 — P2: SQLite row types for rooms residual + chat/mcp/embeddings/modelInvocation; see §12 change log) -->
+<!-- > **Version**: 0.7.16 -->
+<!-- > **Last Updated**: 2026-07-18 (v0.7.16 — P2: SQLite row types for models/users/usage/prefs/media/auth + fileProcessor; see §12 change log) -->
+<!-- > **Version**: 0.7.17 -->
+<!-- > **Last Updated**: 2026-07-18 (v0.7.17 — P2: SQLite row types for arena (last route `as any` zero); see §12 change log) -->
+> **Version**: 0.7.18
 > **Created**: 2026-06-15
-> **Last Updated**: 2026-07-17 (v0.7.11 — security: remove hardcoded MIMO API key from seed; see §12 change log)
+> **Last Updated**: 2026-07-18 (v0.7.18 — P2 closeout: invokeModel failover tests + vectorSearch harness + client vitest + README; see §12 change log)
 <!-- > **Last Updated**: 2026-07-12 (v0.7.2 — bug/breakpoint sweep across shipped work; wired the already-built group-chat UI (§10.6) into the app; fixed 4 real bugs; see §12 change log) -->
 > **Rule**: This file must be kept in sync with every development step. Content is NEVER deleted, only commented out with `<!-- ... -->` when superseded. Other files may be freely modified.
 
@@ -586,11 +600,11 @@ Steps:
 - [x] Memory export/import — /api/memories/export, /api/memories/import
 
 ### Phase 6: Polish
-- [ ] Performance optimization — client bundle is one 660 KB chunk; consider route-level code-splitting
-- [ ] Comprehensive error messages
-- [ ] Documentation
-- [x] Testing (unit + integration) — **partial (v0.7.8)**: server `vitest` harness + pure tests for `roundRobin` / `normalizeModelName` (18 cases). Failover / memory / occupancy / client still open. Root `npm test` remains a placeholder (app tests live under `server/`).
-- [ ] Type-safety cleanup — remove ~80 `any` (mostly `catch (err: any)`; a few `as any` casts). See §10.7 for priority. Not a runtime bug; reduces future-proofing.
+- [x] Testing (unit + integration) — **P2 closeout (v0.7.18)**: server vitest **72** tests (roundRobin, normalize, errors, cosine/serdes, occupancy FSM, **invokeModel failover** with injectable deps, **vectorSearch** in-memory SQLite, asyncPool). Client vitest harness + **9** pure tests (`getErrorMessage`, `normalizeMarkdown`). Root `npm test` still a placeholder; run under `server/` and `client/`.
+- [x] Type-safety cleanup — catch-path `any` done (v0.7.9); **SQLite row `as any` zeroed (v0.7.17)** via `dbRows.ts`. Domain request-body `any` in chat still optional. See §10.7.
+- [x] Documentation — root `README.md` (v0.7.18) points at framework + quick start; framework remains SoT.
+- [ ] Comprehensive error messages — optional product copy polish (not blocking).
+- [x] Performance optimization — route-level lazy done (v0.7.10); optional vendor `manualChunks` later
 
 ### Phase 7: Arena — Model Battle & Eval (管理员)
 - [x] Shared `ModelInvocation` service (non-stream completion + station failover) — `server/src/services/modelInvocation.ts`
@@ -789,10 +803,10 @@ Suggested building blocks (for later implementation; not started):
 
 | Item | Note |
 |------|------|
-| Remove ~80 `any` — **partial** | ✅ **Catch-path done (v0.7.9).** Added `getErrorMessage` / `isAbortError` in `server/src/utils/errors.ts` + `client/src/utils/errors.ts` (with unit tests). Converted **all** `catch (…: any)` → `catch (…: unknown)` (~231) and replaced `.message` reads with the helper; typed 6× `db: any` → `Database.Database`. **Still open:** SQLite row `as any` (~158), param/return `any`, domain shapes in chat/rooms/arena. Rough remaining explicit-`any` tokens ~250 (down from ~484). |
-| ~~Test suite (unit + integration)~~ — **partial** | ✅ **Harness + first pure suite (v0.7.8).** Server: `vitest` (`npm test` / `npm run test:watch`), `vitest.config.ts`, `tsconfig` excludes `**/*.test.ts`. Tests: `loadBalancer.roundRobin` (6 cases, uses `_resetRoundRobin`) + `normalizeModelName` (12 table-driven; extracted to `services/normalizeModelName.ts` so tests don't load Express/DB; routes re-export for compat) + `getErrorMessage`/`isAbortError` (v0.7.9). **Still open:** station failover (`invokeModel` needs fetch+DB mocks or extract), memory search (SQLite harness; free follow-up: `cosineSimilarity`), room occupancy FSM (private helpers + DB + clock — extract pure reducer first). Client has no test runner yet. |
-| Bundle code-splitting | ✅ **Done (v0.7.10).** `Layout.tsx` lazy-loads secondary pages (Settings/Users/Usage/Memory/Files/Arena/Rooms + GuideOverlay) via `React.lazy` + `Suspense`; chat shell stays eager. Main JS **~488 KB raw / ~145 KB gz** (was ~667 / ~169). Per-page chunks 4–57 KB. No React Router migration (`react-router-dom` still unused). Optional later: vendor `manualChunks` for react-markdown. |
-| Comprehensive error messages + docs | Phase 6 polish. |
+| Remove ~80 `any` — **done for row casts** | ✅ Catch-path (v0.7.9) + SQLite row `as any` = **0** on routes/services (v0.7.17). Optional: chat domain request-body `any` variables. |
+| ~~Test suite (unit + integration)~~ | ✅ **P2 closeout (v0.7.18).** Server **72** tests incl. `invokeModel` failover (injectable `getStations`/`fetch`/`markStationHealth`), `filterStationsForModel`, vectorSearch SQLite harness, asyncPool. Client vitest + errors/markdown pure tests (**9**). |
+| Bundle code-splitting | ✅ **Done (v0.7.10).** Optional later: vendor `manualChunks`. |
+| Comprehensive error messages + docs | ✅ **Docs (v0.7.18):** root `README.md`. Error *copy* polish still optional / non-blocking. |
 
 ### Done in the 2026-07-12 sweep (for reference)
 
@@ -849,6 +863,13 @@ settings:
 | 2026-07-17 | 0.7.9 | P2 type-safety: eliminate all `catch (err: any)`. New `getErrorMessage` + `isAbortError` helpers (`server/src/utils/errors.ts`, `client/src/utils/errors.ts`) with vitest coverage. Bulk-converted every catch-any on client+server to `unknown` and routed `.message` through the helper; special abort/timeout branches in stations/memories/modelInvocation use `isAbortError`. Also typed 6× `db: any` params as `Database.Database` (chat/embeddings/mcpClient). Server `npm test` 24 passed; server+client `tsc` clean. Remaining `any` is mostly SQLite row casts / domain shapes — deferred. | Claude |
 | 2026-07-17 | 0.7.10 | P2 bundle: route-level code-splitting. `Layout.tsx` swaps static imports of Settings/UserManagement/UsageLogs/Memory/Files/Arena/Rooms/Guide for `React.lazy` + named-export `.then(m => ({default: m.X}))`; secondary pages render inside `Suspense` with a small Loading fallback (Guide uses null fallback). Chat/Sidebar stay eager. `vite build`: main chunk **487.6 KB / 144.8 KB gz** (was single ~667 KB / ~169 KB gz); 8 lazy page chunks. Client `tsc -b` clean. | Claude |
 | 2026-07-17 | 0.7.11 | **Security:** removed hardcoded MIMO relay API key from `seedDefaultStation` in `server/src/database.ts` (present since initial commit). Seed now only runs when `MIMO_API_KEY` env is set (`MIMO_BASE_URL` optional). **Note:** key remains in git history on public + private remotes until history rewrite or key rotation; rotate the relay key at the provider. | Claude |
+| 2026-07-18 | 0.7.12 | P2 tests + pure occupancy FSM. (1) `embeddings.pure.test.ts`: cosineSimilarity (identical/orthogonal/opposite/len-mismatch/zero/symmetric/rank) + serializeEmbedding/deserializeEmbedding round-trip & invalid inputs — free pure coverage noted as follow-up in v0.7.8. (2) New `server/src/services/occupancy.ts` pure reducer (`reconcile` / `claim` / `renew` / `release` / `beginAiTask` / `finishAiTask`, injectable clock + `OCCUPANCY_MS`); `occupancy.test.ts` covers expire, re-claim, 409 paths, full claim→renew→begin→finish cycle. (3) `rooms.ts` occupancy + `ai/ask` paths call the pure module and persist via `applyOccupancy` (behaviour-preserving: renew checks holder only, not wall-clock expiry; finish clears occupant fields already null after begin). Server `npm test` **55 passed**; `tsc --noEmit` clean. **Not in this drop:** SQLite row `as any` sweep, invokeModel failover mocks, client vitest, docs polish. | Claude |
+| 2026-07-18 | 0.7.13 | P2 type-safety row bite #1. New `server/src/dbRows.ts` with snake_case SQLite shapes: `ConversationRow`/`MessageRow`/`StationRow`/`StationModelRow`/`RoomRow`/`RoomListRow`/`RoomMemberInfoRow` + import payload types. Wired: `conversations.ts` (all `.get`/`.all` + mappers; 0 `as any`), `stations.ts` (CRUD/models/pull/health; 0 `as any`), `rooms.ts` (`getRoom`/`roomToSnap`/`serializeRoom`/`memberInfo`/list + count). Residual 4× `as any` in rooms message/AI/file list queries deferred. Server `npm test` 55 passed; `tsc --noEmit` clean. No runtime behaviour change. | Claude |
+| 2026-07-18 | 0.7.14 | P2 type-safety row bite #2. Extended `dbRows.ts` with `MemoryEntryRow` (join alias `user_username`), `MemoryTagRow`, `MemoryConfigRow`, `FileFolderRow`, `FileLibraryRow`, `FileChunkListRow`, `RegexScriptRow`/`RegexPresetRow`/`ConversationPresetRow`. Wired: `memories.ts` (0 `as any`), `files.ts` (0), `regex.ts` + `regexEngine.ts` (0). Server `npm test` 55 passed; `tsc --noEmit` clean. Remaining routes+services `as any` **~88**. No runtime behaviour change. | Claude |
+| 2026-07-18 | 0.7.15 | P2 type-safety row bite #3. Extended `dbRows.ts` with room list projections (`RoomMessageListRow`/`RoomAiMessageListRow`/`RoomFileRow`/`InviteUserRow`), `McpServerRow`/`McpToolRow`, `StationModelJoinRow`. Wired: `rooms.ts` residual lists (0 `as any`), `chat.ts` conversation/history/memory_config/station-join row casts (0 `as any`; domain request-body `any` left), `mcp.ts`+`mcpClient.ts` (0), `embeddings.ts`+`modelInvocation.ts` (0). Server `npm test` 55 passed; `tsc --noEmit` clean. Remaining `as any` **~61** (arena ~45). No runtime behaviour change. | Claude |
+| 2026-07-18 | 0.7.16 | P2 type-safety row bite #4 (small files). Extended `dbRows.ts` with `UserPublicRow`, `UserModelPrefsRow`, `UsageLogListRow`, `AggregatedModelSourceRow`, `FileChunkSearchRow`. Wired: `models.ts`, `users.ts`, `auth.ts`, `prefs.ts`, `usage.ts`, `media.ts` (image API json shape), `fileProcessor.ts` — all **0 `as any`**. Server `npm test` 55 passed; `tsc --noEmit` clean. Remaining routes+services `as any` **~45, all in arena.ts**. No runtime behaviour change. | Claude |
+| 2026-07-18 | 0.7.17 | P2 type-safety row bite #5 (**arena closeout**). Extended `dbRows.ts` with full arena family (`ArenaBattle*`, `ArenaModelProfileRow`, `ArenaPrompt*`, `ArenaExperiment*`, `ArenaBenchmark*`, `CountRow`, `LeaderboardAppearanceRow`, `SelectionCountRow`). Wired entire `routes/arena.ts` (battle/leaderboard/prompts/sets/experiments/benchmarks/export) — **0 `as any`**. Routes+services explicit-`as any` total **0** (was ~176 at start of row sweep). Server `npm test` 55 passed; `tsc --noEmit` clean. No runtime behaviour change. | Claude |
+| 2026-07-18 | 0.7.18 | **P2 test/docs closeout.** (1) `invokeModel` gains optional `deps` (`getStations` / `fetchImpl` / `markStationHealth`) + pure `filterStationsForModel`; production path unchanged. `modelInvocation.test.ts`: no-station / HTTP failover+health marks / empty-content skip / all-fail combined errors / AbortError continue. (2) `embeddings.vectorSearch.test.ts` in-memory SQLite harness (rank/limit/threshold/bad JSON/importance tie-break). (3) `asyncPool.test.ts` (order, concurrency cap, env clamp). (4) Client: `vitest` + `errors.test.ts` + `markdown.test.ts` (9). (5) Root `README.md` quick start. Server **72** / client **9** tests green; `tsc` clean. P2 row+test+docs items closed; optional leftovers: chat domain `any` vars, error-copy polish, vendor manualChunks. | Claude |
 
 ---
 

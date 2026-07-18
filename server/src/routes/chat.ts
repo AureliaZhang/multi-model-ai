@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { optionalAuth } from '../middleware/auth';
 import { logApiUsage } from '../services/usageLog';
 import type { AuthRequest } from '../types';
+import type { ConversationRow, MessageRow, MemoryConfigRow, StationModelJoinRow } from '../dbRows';
 import { v4 as uuidv4 } from 'uuid';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string; numpages: number; numrender: number; info: any; metadata: any; version: string }>;
@@ -100,7 +101,7 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
     const chatStarted = Date.now();
 
     // Get conversation
-    const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(conversationId) as any;
+    const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(conversationId) as ConversationRow | undefined;
     if (!conv) {
       return res.status(404).json({ success: false, error: 'Conversation not found' });
     }
@@ -139,7 +140,7 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
     // Get conversation history for context
     const history = db.prepare(
       'SELECT id, role, content FROM messages WHERE conversation_id = ? ORDER BY created_at ASC'
-    ).all(conversationId) as any[];
+    ).all(conversationId) as Array<Pick<MessageRow, 'id' | 'role' | 'content'>>;
 
     // Resolve model to a station using round-robin + failover
     const resolved = resolveModel(db, modelNormalizedName);
@@ -196,7 +197,7 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
         // Check if this message has saved attachments
         const msgAttachments = db.prepare(
           'SELECT type, filename, mime_type, url FROM attachments WHERE message_id = ?'
-        ).all(m.id) as any[];
+        ).all(m.id) as Array<{ id: string; type: string; filename: string; mime_type: string; url: string }>;
         if (msgAttachments.length > 0) {
           const contentParts: any[] = [];
           let textContent = msgContent;
@@ -509,7 +510,7 @@ ${assistantContent}
         };
 
         // Find the station info for the review call
-        const reviewStation = stations.find((s: any) => `${s.modelId} @ ${s.station.name}` === usedStation);
+        const reviewStation = stations.find((s) => `${s.modelId} @ ${s.station.name}` === usedStation);
         if (reviewStation) {
           const reviewResponse = await fetch(`${reviewStation.station.baseUrl}/chat/completions`, {
             method: 'POST',
@@ -521,7 +522,7 @@ ${assistantContent}
           });
 
           if (reviewResponse.ok) {
-            const reviewData = await reviewResponse.json() as any;
+            const reviewData = await reviewResponse.json() as { choices?: Array<{ message?: { content?: string } }> };
             const reviewedContent = reviewData.choices?.[0]?.message?.content;
             if (reviewedContent && reviewedContent.trim()) {
               console.log(`[chat] Self-review complete. Original: ${assistantContent.length} chars, Reviewed: ${reviewedContent.length} chars`);
@@ -608,7 +609,7 @@ ${assistantContent}
 });
 
 // Resolve model to a single station using counter-based round-robin
-function resolveModel(db: Database.Database, normalizedName: string): { station: any; modelId: string } | null {
+function resolveModel(db: Database.Database, normalizedName: string): { station: { id: string; name: string; baseUrl: string; apiKey: string; healthStatus: string }; modelId: string } | null {
   const stations = getStationsForModel(db, normalizedName);
   if (stations.length === 0) return null;
 
@@ -618,7 +619,7 @@ function resolveModel(db: Database.Database, normalizedName: string): { station:
 }
 
 // Get all healthy stations for a normalized model name
-function getStationsForModel(db: Database.Database, normalizedName: string, adminPool = false): { station: any; modelId: string }[] {
+function getStationsForModel(db: Database.Database, normalizedName: string, adminPool = false): { station: { id: string; name: string; baseUrl: string; apiKey: string; healthStatus: string }; modelId: string }[] {
   const pool = adminPool
     ? 'COALESCE(sm.admin_enabled, 1) = 1'
     : 'sm.enabled = 1';
@@ -627,11 +628,11 @@ function getStationsForModel(db: Database.Database, normalizedName: string, admi
     FROM station_models sm
     JOIN stations s ON sm.station_id = s.id
     WHERE ${pool} AND s.enabled = 1
-  `).all() as any[];
+  `).all() as StationModelJoinRow[];
 
   return rows
-    .filter((r: any) => normalizeModelName(r.model_id) === normalizedName)
-    .map((r: any) => ({
+    .filter((r) => normalizeModelName(r.model_id) === normalizedName)
+    .map((r) => ({
       station: { id: r.id, name: r.name, baseUrl: r.base_url, apiKey: r.api_key, healthStatus: r.health_status },
       modelId: r.model_id,
     }));
@@ -648,7 +649,7 @@ async function autoSaveMemory(
   userId?: string | null
 ): Promise<void> {
   try {
-    const config = db.prepare('SELECT * FROM memory_config WHERE id = 1').get() as any;
+    const config = db.prepare('SELECT * FROM memory_config WHERE id = 1').get() as MemoryConfigRow | undefined;
     if (!config || !config.auto_save) return;
 
     const keywords = extractKeywords(content);
@@ -688,7 +689,7 @@ async function autoSaveMemory(
 // Retrieve relevant memories for context injection using vector similarity
 async function retrieveRelevantMemories(db: Database.Database, query: string, limit: number = 5): Promise<any[]> {
   try {
-    const config = db.prepare('SELECT * FROM memory_config WHERE id = 1').get() as any;
+    const config = db.prepare('SELECT * FROM memory_config WHERE id = 1').get() as MemoryConfigRow | undefined;
     if (!config || !config.context_injection) return [];
 
     const maxMemories = Math.min(limit, config.max_context_memories || 5);
@@ -696,7 +697,7 @@ async function retrieveRelevantMemories(db: Database.Database, query: string, li
     // Check if we have any embeddings stored
     const embeddingCount = db.prepare(
       'SELECT COUNT(*) as cnt FROM memory_entries WHERE embedding IS NOT NULL AND embedding != \'\''
-    ).get() as any;
+    ).get() as { cnt: number };
 
     if (embeddingCount && embeddingCount.cnt > 0) {
       // Use vector similarity search

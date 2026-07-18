@@ -12,6 +12,24 @@ import { invokeModel } from '../services/modelInvocation';
 import { arenaConcurrency, mapPool } from '../utils/asyncPool';
 import { sendCsv, toCsv } from '../utils/csv';
 import type { AuthRequest, ApiResponse } from '../types';
+import type {
+  AggregatedModelSourceRow,
+  ArenaBattleSessionRow,
+  ArenaBattleCandidateRow,
+  ArenaBattleSelectionRow,
+  ArenaModelProfileRow,
+  ArenaPromptRow,
+  ArenaPromptSetRow,
+  ArenaPromptSetItemJoinRow,
+  ArenaExperimentRow,
+  ArenaExperimentCellRow,
+  ArenaBenchmarkRunRow,
+  ArenaBenchmarkCaseRow,
+  CountRow,
+  LeaderboardModelRow,
+  LeaderboardAppearanceRow,
+  SelectionCountRow,
+} from '../dbRows';
 import { getErrorMessage } from '../utils/errors';
 
 const router = Router();
@@ -34,7 +52,7 @@ function listAggregatedModels(): {
     FROM station_models sm
     JOIN stations s ON sm.station_id = s.id
     WHERE sm.enabled = 1 AND s.enabled = 1
-  `).all() as any[];
+  `).all() as Array<Pick<AggregatedModelSourceRow, 'model_id' | 'display_name' | 'capabilities' | 'enabled' | 'station_id' | 'health_status'>>;
 
   const map = new Map<string, { displayName: string; normalizedName: string; capabilities: string[]; stationCount: number }>();
   for (const row of rows) {
@@ -59,7 +77,7 @@ function getBattleDetail(sessionId: string) {
            reveal_mode as revealMode, created_by as createdBy,
            created_at as createdAt, completed_at as completedAt
     FROM arena_battle_sessions WHERE id = ?
-  `).get(sessionId) as any;
+  `).get(sessionId) as ArenaBattleSessionRow | undefined;
   if (!session) return null;
 
   const candidates = db.prepare(`
@@ -69,14 +87,14 @@ function getBattleDetail(sessionId: string) {
     FROM arena_battle_candidates
     WHERE session_id = ?
     ORDER BY position ASC
-  `).all(sessionId) as any[];
+  `).all(sessionId) as ArenaBattleCandidateRow[];
 
   const selection = db.prepare(`
     SELECT id, session_id as sessionId, selected_candidate_id as selectedCandidateId,
            selected_model_normalized_name as selectedModelNormalizedName,
            selector_user_id as selectorUserId, created_at as createdAt
     FROM arena_battle_selections WHERE session_id = ?
-  `).get(sessionId) as any || null;
+  `).get(sessionId) as ArenaBattleSelectionRow | null;
 
   // Hide model names until pick if configured and not yet selected
   let viewCandidates = candidates;
@@ -124,7 +142,7 @@ async function runBattleCandidates(sessionId: string, question: string): Promise
 
   const doneCount = (db.prepare(
     `SELECT COUNT(*) as n FROM arena_battle_candidates WHERE session_id = ? AND status = 'done'`
-  ).get(sessionId) as any).n;
+  ).get(sessionId) as CountRow).n;
 
   if (doneCount === 0) {
     db.prepare(`UPDATE arena_battle_sessions SET status = 'failed' WHERE id = ?`).run(sessionId);
@@ -146,7 +164,7 @@ router.get('/models', (_req: AuthRequest, res: Response) => {
              tags_json as tagsJson, notes, is_active as isActive, sort_order as sortOrder,
              created_at as createdAt, updated_at as updatedAt
       FROM arena_model_profiles
-    `).all() as any[];
+    `).all() as ArenaModelProfileRow[];
 
     const profileMap = new Map(profiles.map((p) => [p.modelNormalizedName, p]));
 
@@ -195,7 +213,7 @@ router.put('/models/:normalizedName', (req: AuthRequest, res: Response) => {
     const db = getDb();
     const existing = db.prepare(
       'SELECT id FROM arena_model_profiles WHERE model_normalized_name = ?'
-    ).get(normalizedName) as any;
+    ).get(normalizedName) as { id: string } | undefined;
 
     const now = new Date().toISOString();
     if (existing) {
@@ -247,7 +265,7 @@ router.put('/models/:normalizedName', (req: AuthRequest, res: Response) => {
              eligible_battle as eligibleBattle, eligible_benchmark as eligibleBenchmark,
              tags_json as tagsJson, notes, is_active as isActive, sort_order as sortOrder
       FROM arena_model_profiles WHERE model_normalized_name = ?
-    `).get(normalizedName) as any;
+    `).get(normalizedName) as ArenaModelProfileRow;
 
     res.json({
       success: true,
@@ -338,7 +356,7 @@ router.post('/battles/:id/run', async (req: AuthRequest, res: Response) => {
     const db = getDb();
     const session = db.prepare(
       'SELECT id, question_text, status FROM arena_battle_sessions WHERE id = ?'
-    ).get(req.params.id) as any;
+    ).get(req.params.id) as { id: string; question_text: string; status: string } | undefined;
     if (!session) {
       res.status(404).json({ success: false, error: 'Battle not found' });
       return;
@@ -392,7 +410,7 @@ router.get('/battles', (req: AuthRequest, res: Response) => {
       LIMIT ? OFFSET ?
     `).all(limit, offset);
 
-    const total = (db.prepare('SELECT COUNT(*) as n FROM arena_battle_sessions').get() as any).n;
+    const total = (db.prepare('SELECT COUNT(*) as n FROM arena_battle_sessions').get() as CountRow).n;
     res.json({ success: true, data: { items: rows, total, limit, offset } });
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: getErrorMessage(err) });
@@ -414,7 +432,7 @@ router.post('/battles/:id/select', (req: AuthRequest, res: Response) => {
     const db = getDb();
     const session = db.prepare(
       'SELECT id, status FROM arena_battle_sessions WHERE id = ?'
-    ).get(req.params.id) as any;
+    ).get(req.params.id) as { id: string; status: string } | undefined;
     if (!session) {
       res.status(404).json({ success: false, error: 'Battle not found' });
       return;
@@ -427,7 +445,7 @@ router.post('/battles/:id/select', (req: AuthRequest, res: Response) => {
       // allow select only when at least one done
       const done = (db.prepare(
         `SELECT COUNT(*) as n FROM arena_battle_candidates WHERE session_id = ? AND status = 'done'`
-      ).get(session.id) as any).n;
+      ).get(session.id) as CountRow).n;
       if (!done) {
         res.status(400).json({ success: false, error: 'No successful answers to select' });
         return;
@@ -445,7 +463,7 @@ router.post('/battles/:id/select', (req: AuthRequest, res: Response) => {
     const candidate = db.prepare(`
       SELECT id, model_normalized_name, status FROM arena_battle_candidates
       WHERE id = ? AND session_id = ?
-    `).get(candidateId, session.id) as any;
+    `).get(candidateId, session.id) as { id: string; model_normalized_name: string; status: string } | undefined;
 
     if (!candidate) {
       res.status(400).json({ success: false, error: 'Candidate not in this battle' });
@@ -505,7 +523,7 @@ router.get('/leaderboard', (req: AuthRequest, res: Response) => {
       JOIN arena_battle_sessions s ON s.id = c.session_id
       WHERE s.status = 'completed' ${dateFilterSessions}
       GROUP BY c.model_normalized_name
-    `).all(...params) as any[];
+    `).all(...params) as LeaderboardAppearanceRow[];
 
     let selFilter = '';
     const selParams: any[] = [];
@@ -523,7 +541,7 @@ router.get('/leaderboard', (req: AuthRequest, res: Response) => {
       FROM arena_battle_selections sel
       WHERE 1=1 ${selFilter}
       GROUP BY sel.selected_model_normalized_name
-    `).all(...selParams) as any[];
+    `).all(...selParams) as SelectionCountRow[];
 
     const selMap = new Map(selections.map((r) => [r.model, r.selections as number]));
 
@@ -554,14 +572,14 @@ router.get('/leaderboard', (req: AuthRequest, res: Response) => {
 router.get('/stats/summary', (_req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const totalBattles = (db.prepare('SELECT COUNT(*) as n FROM arena_battle_sessions').get() as any).n;
+    const totalBattles = (db.prepare('SELECT COUNT(*) as n FROM arena_battle_sessions').get() as CountRow).n;
     const completedBattles = (db.prepare(
       `SELECT COUNT(*) as n FROM arena_battle_sessions WHERE status = 'completed'`
-    ).get() as any).n;
+    ).get() as CountRow).n;
     const awaiting = (db.prepare(
       `SELECT COUNT(*) as n FROM arena_battle_sessions WHERE status = 'awaiting_selection'`
-    ).get() as any).n;
-    const totalSelections = (db.prepare('SELECT COUNT(*) as n FROM arena_battle_selections').get() as any).n;
+    ).get() as CountRow).n;
+    const totalSelections = (db.prepare('SELECT COUNT(*) as n FROM arena_battle_selections').get() as CountRow).n;
 
     const top = db.prepare(`
       SELECT selected_model_normalized_name as model, COUNT(*) as selections
@@ -574,12 +592,12 @@ router.get('/stats/summary', (_req: AuthRequest, res: Response) => {
     const today = new Date().toISOString().slice(0, 10);
     const battlesToday = (db.prepare(
       `SELECT COUNT(*) as n FROM arena_battle_sessions WHERE created_at >= ?`
-    ).get(today) as any).n;
+    ).get(today) as CountRow).n;
 
-    const promptCount = (db.prepare('SELECT COUNT(*) as n FROM arena_prompts').get() as any).n;
-    const setCount = (db.prepare('SELECT COUNT(*) as n FROM arena_prompt_sets').get() as any).n;
-    const expCount = (db.prepare('SELECT COUNT(*) as n FROM arena_prompt_experiments').get() as any).n;
-    const benchCount = (db.prepare('SELECT COUNT(*) as n FROM arena_benchmark_runs').get() as any).n;
+    const promptCount = (db.prepare('SELECT COUNT(*) as n FROM arena_prompts').get() as CountRow).n;
+    const setCount = (db.prepare('SELECT COUNT(*) as n FROM arena_prompt_sets').get() as CountRow).n;
+    const expCount = (db.prepare('SELECT COUNT(*) as n FROM arena_prompt_experiments').get() as CountRow).n;
+    const benchCount = (db.prepare('SELECT COUNT(*) as n FROM arena_benchmark_runs').get() as CountRow).n;
 
     res.json({
       success: true,
@@ -603,16 +621,18 @@ router.get('/stats/summary', (_req: AuthRequest, res: Response) => {
 
 // ---------- Prompt library ----------
 
-function mapPrompt(row: any) {
+function mapPrompt(row: ArenaPromptRow | ArenaPromptSetItemJoinRow) {
+  const full = row as ArenaPromptRow;
   return {
     id: row.id,
     title: row.title,
     body: row.body,
-    systemPrompt: row.system_prompt ?? row.systemPrompt ?? null,
-    tags: JSON.parse(row.tags_json || row.tagsJson || '[]'),
-    createdBy: row.created_by ?? row.createdBy ?? null,
-    createdAt: row.created_at ?? row.createdAt,
-    updatedAt: row.updated_at ?? row.updatedAt,
+    systemPrompt: full.system_prompt ?? full.systemPrompt ?? null,
+    tags: JSON.parse(full.tags_json || full.tagsJson || '[]'),
+    createdBy: full.created_by ?? full.createdBy ?? null,
+    createdAt: full.created_at ?? full.createdAt,
+    updatedAt: full.updated_at ?? full.updatedAt,
+    position: 'position' in row ? row.position : undefined,
   };
 }
 
@@ -622,7 +642,7 @@ router.get('/prompts', (_req: AuthRequest, res: Response) => {
     const rows = db.prepare(`
       SELECT id, title, body, system_prompt, tags_json, created_by, created_at, updated_at
       FROM arena_prompts ORDER BY updated_at DESC
-    `).all();
+    `).all() as ArenaPromptRow[];
     res.json({ success: true, data: rows.map(mapPrompt) });
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: getErrorMessage(err) });
@@ -652,7 +672,7 @@ router.post('/prompts', (req: AuthRequest, res: Response) => {
       now,
       now
     );
-    const row = db.prepare('SELECT * FROM arena_prompts WHERE id = ?').get(id);
+    const row = db.prepare('SELECT * FROM arena_prompts WHERE id = ?').get(id) as ArenaPromptRow;
     res.status(201).json({ success: true, data: mapPrompt(row) });
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: getErrorMessage(err) });
@@ -662,7 +682,7 @@ router.post('/prompts', (req: AuthRequest, res: Response) => {
 router.put('/prompts/:id', (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const existing = db.prepare('SELECT * FROM arena_prompts WHERE id = ?').get(req.params.id) as any;
+    const existing = db.prepare('SELECT * FROM arena_prompts WHERE id = ?').get(req.params.id) as ArenaPromptRow | undefined;
     if (!existing) {
       res.status(404).json({ success: false, error: 'Prompt not found' });
       return;
@@ -685,7 +705,7 @@ router.put('/prompts/:id', (req: AuthRequest, res: Response) => {
       now,
       req.params.id
     );
-    res.json({ success: true, data: mapPrompt(db.prepare('SELECT * FROM arena_prompts WHERE id = ?').get(req.params.id)) });
+    res.json({ success: true, data: mapPrompt(db.prepare('SELECT * FROM arena_prompts WHERE id = ?').get(req.params.id) as ArenaPromptRow) });
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
@@ -712,7 +732,7 @@ function getPromptSetDetail(setId: string) {
   const set = db.prepare(`
     SELECT id, name, description, created_by as createdBy, created_at as createdAt
     FROM arena_prompt_sets WHERE id = ?
-  `).get(setId) as any;
+  `).get(setId) as ArenaPromptSetRow | undefined;
   if (!set) return null;
   const items = db.prepare(`
     SELECT p.id, p.title, p.body, p.system_prompt, p.tags_json, i.position
@@ -720,7 +740,7 @@ function getPromptSetDetail(setId: string) {
     JOIN arena_prompts p ON p.id = i.prompt_id
     WHERE i.set_id = ?
     ORDER BY i.position ASC
-  `).all(setId) as any[];
+  `).all(setId) as ArenaPromptSetItemJoinRow[];
   return {
     ...set,
     prompts: items.map((p) => ({
@@ -855,7 +875,7 @@ function getExperimentDetail(id: string) {
     SELECT id, mode, title, status, created_by as createdBy,
            created_at as createdAt, completed_at as completedAt
     FROM arena_prompt_experiments WHERE id = ?
-  `).get(id) as any;
+  `).get(id) as ArenaExperimentRow | undefined;
   if (!exp) return null;
   const cells = db.prepare(`
     SELECT id, experiment_id as experimentId, prompt_body as promptBody,
@@ -865,7 +885,7 @@ function getExperimentDetail(id: string) {
     FROM arena_prompt_experiment_cells
     WHERE experiment_id = ?
     ORDER BY rowid ASC
-  `).all(id) as any[];
+  `).all(id) as ArenaExperimentCellRow[];
   return {
     ...exp,
     cells: cells.map((c) => ({ ...c, selected: Boolean(c.selected) })),
@@ -877,7 +897,7 @@ async function runExperimentCells(experimentId: string): Promise<void> {
   db.prepare(`UPDATE arena_prompt_experiments SET status = 'running' WHERE id = ?`).run(experimentId);
   const cells = db.prepare(
     `SELECT id, prompt_body, system_prompt, model_normalized_name FROM arena_prompt_experiment_cells WHERE experiment_id = ? AND status = 'pending'`
-  ).all(experimentId) as any[];
+  ).all(experimentId) as Array<{ id: string; prompt_body: string; system_prompt: string | null; model_normalized_name: string }>;
 
   // Limited concurrency for relay friendliness
   await mapPool(cells, arenaConcurrency(3), async (cell) => {
@@ -908,10 +928,10 @@ async function runExperimentCells(experimentId: string): Promise<void> {
 
   const pending = (db.prepare(
     `SELECT COUNT(*) as n FROM arena_prompt_experiment_cells WHERE experiment_id = ? AND status = 'pending'`
-  ).get(experimentId) as any).n;
+  ).get(experimentId) as CountRow).n;
   const done = (db.prepare(
     `SELECT COUNT(*) as n FROM arena_prompt_experiment_cells WHERE experiment_id = ? AND status = 'done'`
-  ).get(experimentId) as any).n;
+  ).get(experimentId) as CountRow).n;
 
   const status = pending > 0 ? 'running' : done > 0 ? 'completed' : 'failed';
   db.prepare(`
@@ -1042,7 +1062,7 @@ router.post('/prompt-experiments/:id/select-cell', (req: AuthRequest, res: Respo
     const db = getDb();
     const cell = db.prepare(
       `SELECT id, status FROM arena_prompt_experiment_cells WHERE id = ? AND experiment_id = ?`
-    ).get(cellId, req.params.id) as any;
+    ).get(cellId, req.params.id) as { id: string; status: string } | undefined;
     if (!cell) {
       res.status(404).json({ success: false, error: 'Cell not found' });
       return;
@@ -1071,7 +1091,7 @@ function getBenchmarkRunDetail(runId: string) {
     FROM arena_benchmark_runs r
     LEFT JOIN arena_prompt_sets s ON s.id = r.set_id
     WHERE r.id = ?
-  `).get(runId) as any;
+  `).get(runId) as (ArenaBenchmarkRunRow & { setName: string | null }) | undefined;
   if (!run) return null;
 
   const results = db.prepare(`
@@ -1083,7 +1103,7 @@ function getBenchmarkRunDetail(runId: string) {
     LEFT JOIN arena_prompts p ON p.id = c.prompt_id
     WHERE c.run_id = ?
     ORDER BY p.title, c.model_normalized_name
-  `).all(runId) as any[];
+  `).all(runId) as Array<ArenaBenchmarkCaseRow & { promptTitle: string | null; promptBody: string | null }>;
 
   const summary = {
     total: results.length,
@@ -1110,13 +1130,13 @@ async function executeBenchmarkRun(runId: string): Promise<void> {
   const pending = db.prepare(`
     SELECT id, prompt_id, model_normalized_name FROM arena_benchmark_case_results
     WHERE run_id = ? AND status = 'pending'
-  `).all(runId) as any[];
+  `).all(runId) as Array<{ id: string; prompt_id: string; model_normalized_name: string }>;
 
   // Look up prompt bodies
   const promptCache = new Map<string, { body: string; system: string | null }>();
   const getPrompt = (pid: string) => {
     if (!promptCache.has(pid)) {
-      const p = db.prepare('SELECT body, system_prompt FROM arena_prompts WHERE id = ?').get(pid) as any;
+      const p = db.prepare('SELECT body, system_prompt FROM arena_prompts WHERE id = ?').get(pid) as Pick<ArenaPromptRow, 'body' | 'system_prompt'> | undefined;
       promptCache.set(pid, p ? { body: p.body, system: p.system_prompt } : { body: '', system: null });
     }
     return promptCache.get(pid)!;
@@ -1158,10 +1178,10 @@ async function executeBenchmarkRun(runId: string): Promise<void> {
 
   const left = (db.prepare(
     `SELECT COUNT(*) as n FROM arena_benchmark_case_results WHERE run_id = ? AND status = 'pending'`
-  ).get(runId) as any).n;
+  ).get(runId) as CountRow).n;
   const done = (db.prepare(
     `SELECT COUNT(*) as n FROM arena_benchmark_case_results WHERE run_id = ? AND status = 'done'`
-  ).get(runId) as any).n;
+  ).get(runId) as CountRow).n;
 
   const status = left > 0 ? 'running' : done > 0 ? 'completed' : 'failed';
   db.prepare(`
@@ -1183,7 +1203,7 @@ router.post('/benchmarks/runs', async (req: AuthRequest, res: Response) => {
     }
 
     const db = getDb();
-    const set = db.prepare('SELECT id, name FROM arena_prompt_sets WHERE id = ?').get(setId) as any;
+    const set = db.prepare('SELECT id, name FROM arena_prompt_sets WHERE id = ?').get(setId) as { id: string; name: string } | undefined;
     if (!set) {
       res.status(404).json({ success: false, error: 'Prompt set not found' });
       return;
@@ -1300,7 +1320,7 @@ router.patch('/benchmarks/results/:id', (req: AuthRequest, res: Response) => {
       return;
     }
     const db = getDb();
-    const row = db.prepare('SELECT id, run_id FROM arena_benchmark_case_results WHERE id = ?').get(req.params.id) as any;
+    const row = db.prepare('SELECT id, run_id FROM arena_benchmark_case_results WHERE id = ?').get(req.params.id) as { id: string; run_id: string } | undefined;
     if (!row) {
       res.status(404).json({ success: false, error: 'Result not found' });
       return;
@@ -1342,7 +1362,7 @@ router.get('/export/leaderboard.csv', (req: AuthRequest, res: Response) => {
       JOIN arena_battle_sessions s ON s.id = c.session_id
       WHERE s.status = 'completed' ${dateFilterSessions}
       GROUP BY c.model_normalized_name
-    `).all(...params) as any[];
+    `).all(...params) as LeaderboardAppearanceRow[];
 
     let selFilter = '';
     const selParams: any[] = [];
@@ -1359,7 +1379,7 @@ router.get('/export/leaderboard.csv', (req: AuthRequest, res: Response) => {
       FROM arena_battle_selections sel
       WHERE 1=1 ${selFilter}
       GROUP BY sel.selected_model_normalized_name
-    `).all(...selParams) as any[];
+    `).all(...selParams) as SelectionCountRow[];
     const selMap = new Map(selections.map((r) => [r.model, r.selections as number]));
 
     const rows = appearances
@@ -1402,7 +1422,7 @@ router.get('/export/battles.csv', (_req: AuthRequest, res: Response) => {
       LEFT JOIN arena_battle_selections sel ON sel.session_id = s.id
       ORDER BY s.created_at DESC
       LIMIT 2000
-    `).all() as any[];
+    `).all() as Array<Record<string, unknown>>;
 
     const candStmt = db.prepare(`
       SELECT model_normalized_name, status, latency_ms, substr(content, 1, 500) as content_preview
@@ -1411,7 +1431,7 @@ router.get('/export/battles.csv', (_req: AuthRequest, res: Response) => {
 
     const rows: unknown[][] = [];
     for (const s of sessions) {
-      const cands = candStmt.all(s.id) as any[];
+      const cands = candStmt.all(s.id) as Array<Record<string, unknown>>;
       if (cands.length === 0) {
         rows.push([s.id, s.created_at, s.status, s.question_text, s.selected_model || '', '', '', '', '']);
         continue;

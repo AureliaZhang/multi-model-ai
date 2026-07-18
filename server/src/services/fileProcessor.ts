@@ -10,6 +10,7 @@ import path from 'path';
 import { getDb } from '../database';
 import { generateEmbedding, serializeEmbedding, cosineSimilarity } from './embeddings';
 import { getErrorMessage } from '../utils/errors';
+import type { FileChunkSearchRow } from '../dbRows';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string; numpages: number }>;
@@ -234,7 +235,7 @@ export function searchFileChunks(
     FROM file_chunks fc
     JOIN file_library fl ON fc.file_id = fl.id
     WHERE fc.file_id IN (${placeholders}) AND fc.embedding IS NOT NULL AND fc.embedding != ''
-  `).all(...fileIds) as any[];
+  `).all(...fileIds) as FileChunkSearchRow[];
 
   if (rows.length === 0) return [];
 
@@ -242,7 +243,7 @@ export function searchFileChunks(
 
   for (const row of rows) {
     try {
-      const entryEmbedding = JSON.parse(row.embedding) as number[];
+      const entryEmbedding = JSON.parse(row.embedding || '[]') as number[];
       const similarity = cosineSimilarity(queryEmbedding, entryEmbedding);
 
       if (similarity >= threshold) {

@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../database';
 import { requireAuth, optionalAuth } from '../middleware/auth';
 import type { AuthRequest } from '../types';
+import type { RegexScriptRow, RegexPresetRow } from '../dbRows';
 import { testRegex } from '../services/regexEngine';
 import { getErrorMessage } from '../utils/errors';
 
@@ -19,21 +20,21 @@ router.get('/scripts', requireAuth, (req: AuthRequest, res: Response) => {
     const userId = req.user!.id;
 
     // Admin can see all scripts; users see only their own
-    let rows;
+    let rows: RegexScriptRow[];
     if (req.user!.role === 'admin') {
       rows = db.prepare(`
         SELECT rs.*, u.username as owner_username
         FROM regex_scripts rs
         LEFT JOIN users u ON u.id = rs.user_id
         ORDER BY rs.user_id, rs.script_order ASC
-      `).all();
+      `).all() as RegexScriptRow[];
     } else {
       rows = db.prepare(`
         SELECT * FROM regex_scripts WHERE user_id = ? ORDER BY script_order ASC
-      `).all(userId);
+      `).all(userId) as RegexScriptRow[];
     }
 
-    const scripts = rows.map((r: any) => ({
+    const scripts = rows.map((r) => ({
       id: r.id,
       name: r.name,
       findPattern: r.find_pattern,
@@ -80,7 +81,7 @@ router.post('/scripts', requireAuth, (req: AuthRequest, res: Response) => {
     if (scriptOrder === undefined) {
       const maxRow = db.prepare(
         'SELECT MAX(script_order) as max_order FROM regex_scripts WHERE user_id = ?'
-      ).get(userId) as any;
+      ).get(userId) as { max_order: number | null } | undefined;
       scriptOrder = (maxRow?.max_order ?? -1) + 1;
     }
 
@@ -106,7 +107,7 @@ router.put('/scripts/:id', requireAuth, (req: AuthRequest, res: Response) => {
     const { id } = req.params;
 
     // Check ownership or admin
-    const existing = db.prepare('SELECT * FROM regex_scripts WHERE id = ?').get(id) as any;
+    const existing = db.prepare('SELECT * FROM regex_scripts WHERE id = ?').get(id) as RegexScriptRow | undefined;
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Script not found' });
     }
@@ -156,7 +157,7 @@ router.delete('/scripts/:id', requireAuth, (req: AuthRequest, res: Response) => 
     const userId = req.user!.id;
     const { id } = req.params;
 
-    const existing = db.prepare('SELECT * FROM regex_scripts WHERE id = ?').get(id) as any;
+    const existing = db.prepare('SELECT * FROM regex_scripts WHERE id = ?').get(id) as RegexScriptRow | undefined;
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Script not found' });
     }
@@ -207,21 +208,31 @@ router.get('/presets', requireAuth, (req: AuthRequest, res: Response) => {
     const db = getDb();
     const userId = req.user!.id;
 
-    let presetRows;
+    let presetRows: RegexPresetRow[];
     if (req.user!.role === 'admin') {
       presetRows = db.prepare(`
         SELECT rp.*, u.username as owner_username
         FROM regex_presets rp
         LEFT JOIN users u ON u.id = rp.user_id
         ORDER BY rp.user_id, rp.created_at ASC
-      `).all();
+      `).all() as RegexPresetRow[];
     } else {
       presetRows = db.prepare(`
         SELECT * FROM regex_presets WHERE user_id = ? ORDER BY created_at ASC
-      `).all(userId);
+      `).all(userId) as RegexPresetRow[];
     }
 
-    const presets: any[] = (presetRows as any[]).map((r: any) => ({
+    const presets: Array<{
+      id: string;
+      name: string;
+      description: string | null;
+      userId: string;
+      ownerUsername: string | null;
+      isDefault: boolean;
+      createdAt: string;
+      updatedAt: string;
+      scripts?: Array<Record<string, unknown>>;
+    }> = presetRows.map((r) => ({
       id: r.id,
       name: r.name,
       description: r.description,
@@ -240,9 +251,9 @@ router.get('/presets', requireAuth, (req: AuthRequest, res: Response) => {
         JOIN preset_scripts ps ON ps.script_id = rs.id
         WHERE ps.preset_id = ?
         ORDER BY ps.script_order ASC
-      `).all(preset.id) as any[];
+      `).all(preset.id) as RegexScriptRow[];
 
-      preset.scripts = scriptRows.map((r: any) => ({
+      preset.scripts = scriptRows.map((r: RegexScriptRow) => ({
         id: r.id,
         name: r.name,
         findPattern: r.find_pattern,
@@ -308,7 +319,7 @@ router.put('/presets/:id', requireAuth, (req: AuthRequest, res: Response) => {
     const userId = req.user!.id;
     const { id } = req.params;
 
-    const existing = db.prepare('SELECT * FROM regex_presets WHERE id = ?').get(id) as any;
+    const existing = db.prepare('SELECT * FROM regex_presets WHERE id = ?').get(id) as RegexPresetRow | undefined;
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Preset not found' });
     }
@@ -349,7 +360,7 @@ router.delete('/presets/:id', requireAuth, (req: AuthRequest, res: Response) => 
     const userId = req.user!.id;
     const { id } = req.params;
 
-    const existing = db.prepare('SELECT * FROM regex_presets WHERE id = ?').get(id) as any;
+    const existing = db.prepare('SELECT * FROM regex_presets WHERE id = ?').get(id) as RegexPresetRow | undefined;
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Preset not found' });
     }
@@ -376,7 +387,7 @@ router.post('/presets/:id/scripts', requireAuth, (req: AuthRequest, res: Respons
       return res.status(400).json({ success: false, error: 'scriptIds must be an array' });
     }
 
-    const existing = db.prepare('SELECT * FROM regex_presets WHERE id = ?').get(id) as any;
+    const existing = db.prepare('SELECT * FROM regex_presets WHERE id = ?').get(id) as RegexPresetRow | undefined;
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Preset not found' });
     }
@@ -435,7 +446,7 @@ router.get('/presets/:id/export', requireAuth, (req: AuthRequest, res: Response)
     const db = getDb();
     const { id } = req.params;
 
-    const preset = db.prepare('SELECT * FROM regex_presets WHERE id = ?').get(id) as any;
+    const preset = db.prepare('SELECT * FROM regex_presets WHERE id = ?').get(id) as RegexPresetRow | undefined;
     if (!preset) {
       return res.status(404).json({ success: false, error: 'Preset not found' });
     }
@@ -446,7 +457,7 @@ router.get('/presets/:id/export', requireAuth, (req: AuthRequest, res: Response)
       JOIN preset_scripts ps ON ps.script_id = rs.id
       WHERE ps.preset_id = ?
       ORDER BY ps.script_order ASC
-    `).all(id) as any[];
+    `).all(id) as RegexScriptRow[];
 
     const exportData = {
       version: 1,
@@ -454,7 +465,7 @@ router.get('/presets/:id/export', requireAuth, (req: AuthRequest, res: Response)
         name: preset.name,
         description: preset.description,
       },
-      scripts: scriptRows.map((r: any) => ({
+      scripts: scriptRows.map((r: RegexScriptRow) => ({
         name: r.name,
         findPattern: r.find_pattern,
         replacement: r.replacement,

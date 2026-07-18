@@ -63,11 +63,11 @@ router.post('/images', async (req: AuthRequest, res: Response) => {
           });
           continue;
         }
-        const data = (await response.json()) as any;
-        const images: { url?: string; b64_json?: string }[] = data.data || [];
+        const data = (await response.json()) as { data?: Array<{ url?: string; b64_json?: string; revised_prompt?: string }> };
+        const images: { url?: string; b64_json?: string; revised_prompt?: string }[] = data.data || [];
         const normalizedImages = images.map((img) => ({
           url: img.url || (img.b64_json ? `data:image/png;base64,${img.b64_json}` : null),
-          revisedPrompt: (img as any).revised_prompt || null,
+          revisedPrompt: img.revised_prompt || null,
         })).filter((i) => i.url);
 
         if (!normalizedImages.length) {

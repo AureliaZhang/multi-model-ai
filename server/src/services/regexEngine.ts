@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import type { RegexScriptRow, RegexPresetRow, ConversationPresetRow } from '../dbRows';
 import { getErrorMessage } from '../utils/errors';
 
 // ============================================================
@@ -19,14 +20,14 @@ export interface RegexScript {
   updatedAt: string;
 }
 
-function rowToRegexScript(row: any): RegexScript {
+function rowToRegexScript(row: RegexScriptRow): RegexScript {
   return {
     id: row.id,
     name: row.name,
     findPattern: row.find_pattern,
     replacement: row.replacement,
     flags: row.flags,
-    placement: row.placement,
+    placement: row.placement as RegexScript['placement'],
     enabled: row.enabled === 1,
     order: row.script_order ?? row.order ?? 0,
     userId: row.user_id,
@@ -78,7 +79,7 @@ export function getActiveScripts(
   // 1. Check if conversation has an active preset
   const presetRow = db.prepare(
     'SELECT preset_id FROM conversation_preset WHERE conversation_id = ?'
-  ).get(conversationId) as any;
+  ).get(conversationId) as ConversationPresetRow | undefined;
 
   if (presetRow?.preset_id) {
     const rows = db.prepare(`
@@ -87,7 +88,7 @@ export function getActiveScripts(
       JOIN preset_scripts ps ON ps.script_id = rs.id
       WHERE ps.preset_id = ? AND rs.enabled = 1
       ORDER BY ps.script_order ASC
-    `).all(presetRow.preset_id) as any[];
+    `).all(presetRow.preset_id) as RegexScriptRow[];
     if (rows.length > 0) return rows.map(rowToRegexScript);
   }
 
@@ -95,7 +96,7 @@ export function getActiveScripts(
   if (userId) {
     const defaultPreset = db.prepare(
       'SELECT id FROM regex_presets WHERE user_id = ? AND is_default = 1'
-    ).get(userId) as any;
+    ).get(userId) as RegexPresetRow | undefined;
 
     if (defaultPreset) {
       const rows = db.prepare(`
@@ -104,7 +105,7 @@ export function getActiveScripts(
         JOIN preset_scripts ps ON ps.script_id = rs.id
         WHERE ps.preset_id = ? AND rs.enabled = 1
         ORDER BY ps.script_order ASC
-      `).all(defaultPreset.id) as any[];
+      `).all(defaultPreset.id) as RegexScriptRow[];
       if (rows.length > 0) return rows.map(rowToRegexScript);
     }
   }
@@ -115,7 +116,7 @@ export function getActiveScripts(
       SELECT * FROM regex_scripts
       WHERE user_id = ? AND enabled = 1
       ORDER BY script_order ASC
-    `).all(userId) as any[];
+    `).all(userId) as RegexScriptRow[];
     return rows.map(rowToRegexScript);
   }
 

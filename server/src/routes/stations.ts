@@ -4,12 +4,13 @@ import { getDb } from '../database';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { Station, CreateStationRequest, UpdateStationRequest, ApiResponse } from '../types';
 import type { AuthRequest } from '../types';
+import type { StationRow, StationModelRow } from '../dbRows';
 import { checkStationHealth } from '../services/healthCheck';
 import { getErrorMessage, isAbortError } from '../utils/errors';
 
 const router = Router();
 
-function mapStationModel(row: any) {
+function mapStationModel(row: StationModelRow) {
   let capabilities: string[] = [];
   try {
     capabilities = JSON.parse(row.capabilities || '[]');
@@ -26,7 +27,7 @@ function mapStationModel(row: any) {
     displayName: row.display_name,
     capabilities,
     /** Selected into admin pool (admin can use) */
-    adminEnabled: adminEnabled === 1 || adminEnabled === true,
+    adminEnabled: adminEnabled === 1,
     /** Public to end users (implies adminEnabled for sanity) */
     enabled: row.enabled === 1, // public
     publicEnabled: row.enabled === 1,
@@ -38,7 +39,7 @@ function mapStationModel(row: any) {
 router.get('/', (_req: Request, res: Response) => {
   try {
     const db = getDb();
-    const rows = db.prepare('SELECT * FROM stations ORDER BY created_at DESC').all() as any[];
+    const rows = db.prepare('SELECT * FROM stations ORDER BY created_at DESC').all() as StationRow[];
     const stations: Station[] = rows.map(rowToStation);
     res.json({ success: true, data: stations } as ApiResponse<Station[]>);
   } catch (err: unknown) {
@@ -60,7 +61,7 @@ router.post('/', (req: Request, res: Response) => {
       'INSERT INTO stations (id, name, base_url, api_key, enabled, health_status, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, ?)'
     ).run(id, name, baseUrl, apiKey, 'unknown', now, now);
 
-    const station = db.prepare('SELECT * FROM stations WHERE id = ?').get(id) as any;
+    const station = db.prepare('SELECT * FROM stations WHERE id = ?').get(id) as StationRow;
     res.status(201).json({ success: true, data: rowToStation(station) } as ApiResponse<Station>);
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: getErrorMessage(err) });
@@ -74,7 +75,7 @@ router.put('/:id', (req: Request, res: Response) => {
     const updates = req.body as UpdateStationRequest;
     const db = getDb();
 
-    const existing = db.prepare('SELECT * FROM stations WHERE id = ?').get(id) as any;
+    const existing = db.prepare('SELECT * FROM stations WHERE id = ?').get(id) as StationRow | undefined;
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Station not found' });
     }
@@ -89,7 +90,7 @@ router.put('/:id', (req: Request, res: Response) => {
       'UPDATE stations SET name = ?, base_url = ?, api_key = ?, enabled = ?, updated_at = ? WHERE id = ?'
     ).run(name, baseUrl, apiKey, enabled, now, id);
 
-    const station = db.prepare('SELECT * FROM stations WHERE id = ?').get(id) as any;
+    const station = db.prepare('SELECT * FROM stations WHERE id = ?').get(id) as StationRow;
     res.json({ success: true, data: rowToStation(station) } as ApiResponse<Station>);
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: getErrorMessage(err) });
@@ -125,7 +126,7 @@ router.get('/:id/models', requireAuth, requireRole('admin'), (req: AuthRequest, 
     }
     const rows = db.prepare(
       'SELECT * FROM station_models WHERE station_id = ? ORDER BY display_name ASC'
-    ).all(id) as any[];
+    ).all(id) as StationModelRow[];
     res.json({ success: true, data: rows.map(mapStationModel) });
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: getErrorMessage(err) });
@@ -143,7 +144,7 @@ router.put('/:id/models/:modelRowId', requireAuth, requireRole('admin'), (req: A
     const db = getDb();
     const row = db.prepare(
       'SELECT * FROM station_models WHERE id = ? AND station_id = ?'
-    ).get(modelRowId, id) as any;
+    ).get(modelRowId, id) as StationModelRow | undefined;
     if (!row) {
       return res.status(404).json({ success: false, error: 'Model not found on this station' });
     }
@@ -180,7 +181,7 @@ router.put('/:id/models/:modelRowId', requireAuth, requireRole('admin'), (req: A
       'UPDATE station_models SET enabled = ?, admin_enabled = ?, capabilities = ?, display_name = ? WHERE id = ?'
     ).run(nextPublic, nextAdmin, nextCaps, nextDisplay, modelRowId);
 
-    const updated = db.prepare('SELECT * FROM station_models WHERE id = ?').get(modelRowId);
+    const updated = db.prepare('SELECT * FROM station_models WHERE id = ?').get(modelRowId) as StationModelRow;
     res.json({ success: true, data: mapStationModel(updated) });
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: getErrorMessage(err) });
@@ -210,13 +211,13 @@ router.put('/:id/models-bulk', requireAuth, requireRole('admin'), (req: AuthRequ
 
     const ids: string[] = Array.isArray(modelRowIds) && modelRowIds.length > 0
       ? modelRowIds
-      : (db.prepare('SELECT id FROM station_models WHERE station_id = ?').all(id) as any[]).map((r) => r.id);
+      : (db.prepare('SELECT id FROM station_models WHERE station_id = ?').all(id) as { id: string }[]).map((r) => r.id);
 
     const upd = db.prepare(
       'UPDATE station_models SET admin_enabled = ?, enabled = ? WHERE station_id = ? AND id = ?'
     );
     for (const mid of ids) {
-      const row = db.prepare('SELECT enabled, admin_enabled FROM station_models WHERE id = ? AND station_id = ?').get(mid, id) as any;
+      const row = db.prepare('SELECT enabled, admin_enabled FROM station_models WHERE id = ? AND station_id = ?').get(mid, id) as Pick<StationModelRow, 'enabled' | 'admin_enabled'> | undefined;
       if (!row) continue;
       let nextAdmin = row.admin_enabled === undefined || row.admin_enabled === null ? 1 : row.admin_enabled;
       let nextPublic = row.enabled;
@@ -229,7 +230,7 @@ router.put('/:id/models-bulk', requireAuth, requireRole('admin'), (req: AuthRequ
 
     const rows = db.prepare(
       'SELECT * FROM station_models WHERE station_id = ? ORDER BY display_name ASC'
-    ).all(id);
+    ).all(id) as StationModelRow[];
     res.json({ success: true, data: rows.map(mapStationModel) });
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: getErrorMessage(err) });
@@ -241,7 +242,7 @@ router.post('/:id/pull-models', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const db = getDb();
-    const station = db.prepare('SELECT * FROM stations WHERE id = ?').get(id) as any;
+    const station = db.prepare('SELECT * FROM stations WHERE id = ?').get(id) as StationRow | undefined;
     if (!station) {
       return res.status(404).json({ success: false, error: 'Station not found' });
     }
@@ -249,7 +250,7 @@ router.post('/:id/pull-models', async (req: Request, res: Response) => {
     const baseUrl = station.base_url.replace(/\/+$/, '');
     const modelsUrl = `${baseUrl}/models`;
 
-    let response: any;
+    let response: Response | globalThis.Response;
     try {
       response = await fetch(modelsUrl, {
         headers: {
@@ -280,7 +281,7 @@ router.post('/:id/pull-models', async (req: Request, res: Response) => {
       );
     }
 
-    const data = (await response.json()) as any;
+    const data = (await response.json()) as { data?: Array<{ id?: string; name?: string }> };
     const models = data.data || [];
 
     if (models.length === 0) {
@@ -300,11 +301,11 @@ router.post('/:id/pull-models', async (req: Request, res: Response) => {
 
     // Remember previous exposure + custom display names before replace
     const existingCount = (
-      db.prepare('SELECT COUNT(*) as n FROM station_models WHERE station_id = ?').get(id) as any
-    ).n as number;
+      db.prepare('SELECT COUNT(*) as n FROM station_models WHERE station_id = ?').get(id) as { n: number }
+    ).n;
     const prevRows = db
       .prepare('SELECT model_id, display_name, enabled, admin_enabled FROM station_models WHERE station_id = ?')
-      .all(id) as { model_id: string; display_name: string; enabled: number; admin_enabled: number }[];
+      .all(id) as Pick<StationModelRow, 'model_id' | 'display_name' | 'enabled' | 'admin_enabled'>[];
     const prevMap = new Map(prevRows.map((r) => [r.model_id, r]));
     const isFirstPull = existingCount === 0;
 
@@ -317,7 +318,8 @@ router.post('/:id/pull-models', async (req: Request, res: Response) => {
     const now = new Date().toISOString();
     for (const model of models) {
       const modelId = model.id || model.name;
-      const apiName = model.name || model.id;
+      if (!modelId) continue;
+      const apiName = model.name || model.id || modelId;
       const prev = prevMap.get(modelId);
       const displayName = prev?.display_name?.trim() ? prev.display_name : apiName;
       const capabilities = detectCapabilities(modelId);
@@ -337,13 +339,13 @@ router.post('/:id/pull-models', async (req: Request, res: Response) => {
 
     const savedModels = db
       .prepare('SELECT * FROM station_models WHERE station_id = ? ORDER BY display_name ASC')
-      .all(id);
+      .all(id) as StationModelRow[];
     res.json({
       success: true,
       data: savedModels.map(mapStationModel),
       meta: {
         total: savedModels.length,
-        exposed: savedModels.filter((m: any) => m.enabled === 1 || m.enabled === true).length,
+        exposed: savedModels.filter((m) => m.enabled === 1).length,
         firstPull: isFirstPull,
       },
     });
@@ -357,14 +359,14 @@ router.post('/:id/health-check', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const db = getDb();
-    const station = db.prepare('SELECT * FROM stations WHERE id = ?').get(id) as any;
+    const station = db.prepare('SELECT * FROM stations WHERE id = ?').get(id) as StationRow | undefined;
     if (!station) {
       return res.status(404).json({ success: false, error: 'Station not found' });
     }
 
     // Reuse the same ping+persist logic the background sweep uses (§8.3).
     const { status, detail } = await checkStationHealth(db, station);
-    const updated = db.prepare('SELECT last_health_check FROM stations WHERE id = ?').get(id) as any;
+    const updated = db.prepare('SELECT last_health_check FROM stations WHERE id = ?').get(id) as Pick<StationRow, 'last_health_check'> | undefined;
 
     res.json({ success: true, data: { healthStatus: status, lastHealthCheck: updated?.last_health_check, detail } });
   } catch (err: unknown) {
@@ -372,14 +374,14 @@ router.post('/:id/health-check', async (req: Request, res: Response) => {
   }
 });
 
-function rowToStation(row: any): Station {
+function rowToStation(row: StationRow): Station {
   return {
     id: row.id,
     name: row.name,
     baseUrl: row.base_url,
     apiKey: row.api_key,
     enabled: row.enabled === 1,
-    healthStatus: row.health_status,
+    healthStatus: row.health_status as Station['healthStatus'],
     lastHealthCheck: row.last_health_check,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

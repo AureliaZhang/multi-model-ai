@@ -1,3 +1,4 @@
+import type { McpServerRow, McpToolRow } from '../dbRows';
 /**
  * MCP (Model Context Protocol) Client Service
  * 
@@ -125,7 +126,7 @@ async function parseSSEResponse(response: Response): Promise<unknown> {
  */
 export async function connectAndDiscoverTools(serverId: string): Promise<McpToolDefinition[]> {
   const db = getDb();
-  const server = db.prepare('SELECT * FROM mcp_servers WHERE id = ?').get(serverId) as any;
+  const server = db.prepare('SELECT * FROM mcp_servers WHERE id = ?').get(serverId) as McpServerRow | undefined;
   if (!server) throw new Error('MCP server not found');
 
   try {
@@ -186,7 +187,7 @@ export async function executeToolCall(
   args: Record<string, unknown>
 ): Promise<unknown> {
   const db = getDb();
-  const server = db.prepare('SELECT * FROM mcp_servers WHERE id = ?').get(serverId) as any;
+  const server = db.prepare('SELECT * FROM mcp_servers WHERE id = ?').get(serverId) as McpServerRow | undefined;
   if (!server) throw new Error('MCP server not found');
 
   const result = await sendJsonRpc(server.url, 'tools/call', {
@@ -214,7 +215,7 @@ export function loadEnabledMcpTools(db: Database.Database): Array<{
     FROM mcp_tools mt
     JOIN mcp_servers ms ON mt.server_id = ms.id
     WHERE mt.enabled = 1 AND ms.enabled = 1 AND ms.status = 'connected'
-  `).all() as any[];
+  `).all() as Array<McpToolRow & { server_name: string; server_url: string }>;
 
   return rows.map((row: any) => ({
     type: 'function' as const,
@@ -239,7 +240,7 @@ export function resolveToolCall(functionName: string): { serverId: string; toolN
   const toolName = match[2];
 
   // Find the server by ID prefix
-  const servers = db.prepare('SELECT id FROM mcp_servers WHERE enabled = 1').all() as any[];
+  const servers = db.prepare('SELECT id FROM mcp_servers WHERE enabled = 1').all() as { id: string }[];
   for (const s of servers) {
     if (s.id.startsWith(serverIdPrefix)) {
       return { serverId: s.id, toolName };

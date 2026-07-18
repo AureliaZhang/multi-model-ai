@@ -11,6 +11,7 @@
 import { getDb } from '../database';
 import { getErrorMessage } from '../utils/errors';
 import type Database from 'better-sqlite3';
+import type { MemoryConfigRow, MemoryEntryRow, StationRow } from '../dbRows';
 
 // Embedding dimension for local fallback (compact but effective)
 const LOCAL_EMBEDDING_DIM = 256;
@@ -45,7 +46,7 @@ async function generateApiEmbedding(text: string): Promise<number[] | null> {
     const db = getDb();
 
     // 1. Try dedicated embedding API config from memory_config first
-    const memConfig = db.prepare('SELECT embedding_api_base_url, embedding_api_key, embedding_model FROM memory_config WHERE id = 1').get() as any;
+    const memConfig = db.prepare('SELECT embedding_api_base_url, embedding_api_key, embedding_model FROM memory_config WHERE id = 1').get() as Pick<MemoryConfigRow, 'embedding_api_base_url' | 'embedding_api_key' | 'embedding_model'> | undefined;
     if (memConfig?.embedding_api_base_url && memConfig?.embedding_api_key) {
       const baseUrl = memConfig.embedding_api_base_url.replace(/\/+$/, '');
       const model = memConfig.embedding_model || 'text-embedding-3-small';
@@ -61,7 +62,7 @@ async function generateApiEmbedding(text: string): Promise<number[] | null> {
           signal: AbortSignal.timeout(15000),
         });
         if (response.ok) {
-          const data = await response.json() as any;
+          const data = await response.json() as { data?: Array<{ embedding?: number[] }> };
           const embedding = data.data?.[0]?.embedding;
           if (Array.isArray(embedding) && embedding.length > 0) {
             console.log(`[embeddings] API embedding generated via dedicated config (${model}), dim=${embedding.length}`);
@@ -78,7 +79,7 @@ async function generateApiEmbedding(text: string): Promise<number[] | null> {
     // 2. Fall back to stations
     const stations = db.prepare(
       'SELECT id, name, base_url, api_key, health_status FROM stations WHERE enabled = 1 AND health_status != ?'
-    ).all('unhealthy') as any[];
+    ).all('unhealthy') as StationRow[];
 
     for (const station of stations) {
       // Skip stations known to not support embeddings
@@ -110,7 +111,7 @@ async function generateApiEmbedding(text: string): Promise<number[] | null> {
           });
 
           if (response.ok) {
-            const data = await response.json() as any;
+            const data = await response.json() as { data?: Array<{ embedding?: number[] }> };
             const embedding = data.data?.[0]?.embedding;
             if (Array.isArray(embedding) && embedding.length > 0) {
               stationEmbeddingSupport.set(station.id, true);
@@ -243,22 +244,22 @@ export function vectorSearch(
   queryEmbedding: number[],
   limit: number = 5,
   threshold: number = 0.3
-): any[] {
+): Array<{ summary: string | null; content: string; keywords: string; created_at: string; role: string; importance: number }> {
   // Load all entries that have embeddings
   const rows = db.prepare(`
     SELECT id, summary, content, keywords, created_at, role, importance, embedding
     FROM memory_entries
     WHERE embedding IS NOT NULL AND embedding != ''
-  `).all() as any[];
+  `).all() as Array<Pick<MemoryEntryRow, 'id' | 'summary' | 'content' | 'keywords' | 'created_at' | 'role' | 'importance' | 'embedding'>>;
 
   if (rows.length === 0) return [];
 
   // Compute similarity for each entry
-  const scored: { row: any; similarity: number }[] = [];
+  const scored: { row: Pick<MemoryEntryRow, 'id' | 'summary' | 'content' | 'keywords' | 'created_at' | 'role' | 'importance' | 'embedding'>; similarity: number }[] = [];
 
   for (const row of rows) {
     try {
-      const entryEmbedding = JSON.parse(row.embedding) as number[];
+      const entryEmbedding = JSON.parse(row.embedding || '[]') as number[];
       const similarity = cosineSimilarity(queryEmbedding, entryEmbedding);
       
       if (similarity >= threshold) {

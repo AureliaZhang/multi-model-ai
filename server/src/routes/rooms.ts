@@ -21,13 +21,24 @@ import { requireAuth } from '../middleware/auth';
 import { invokeModel } from '../services/modelInvocation';
 import { logApiUsage } from '../services/usageLog';
 import { broadcast, closeRoom as closeRoomSockets, disconnectUser } from '../services/roomHub';
+import {
+  OCCUPANCY_MS,
+  reconcileOccupancy as pureReconcile,
+  claimOccupancy,
+  renewOccupancy,
+  releaseOccupancy,
+  beginAiTask,
+  finishAiTask,
+  type OccupancySnapshot,
+  type AiState,
+} from '../services/occupancy';
 import type { AuthRequest, ApiResponse } from '../types';
+import type { RoomRow, RoomListRow, RoomMemberInfoRow, RoomMessageListRow, RoomAiMessageListRow, RoomFileRow, InviteUserRow } from '../dbRows';
 import { getErrorMessage } from '../utils/errors';
 
 const router = Router();
 router.use(requireAuth);
 
-const OCCUPANCY_MS = 2 * 60 * 1000; // 2 minutes per @AI cycle (§10.6.4)
 const MODEL_COOLDOWN_MS = 5 * 60 * 1000; // shared 5-min model change cooldown (§10.6.8)
 const DEFAULT_CAP = 10;
 
@@ -45,26 +56,48 @@ function isMember(roomId: string, userId: string): { role: string } | null {
   return row || null;
 }
 
-function getRoom(roomId: string): any {
-  return getDb().prepare('SELECT * FROM rooms WHERE id = ?').get(roomId);
+function getRoom(roomId: string): RoomRow | undefined {
+  return getDb().prepare('SELECT * FROM rooms WHERE id = ?').get(roomId) as RoomRow | undefined;
+}
+
+/** After a write we know the row still exists; fall back only if SQLite is mid-delete. */
+function getRoomOr(room: RoomRow): RoomRow {
+  return getRoom(room.id) ?? room;
+}
+
+function roomToSnap(room: RoomRow): OccupancySnapshot {
+  return {
+    aiState: (room.ai_state as AiState) || 'idle',
+    occupantUserId: room.occupant_user_id ?? null,
+    occupancyUntil: room.occupancy_until ?? null,
+  };
+}
+
+/** Persist a pure occupancy snapshot onto the room row. */
+function applyOccupancy(roomId: string, next: OccupancySnapshot): void {
+  getDb()
+    .prepare(
+      `UPDATE rooms SET ai_state = ?, occupant_user_id = ?, occupancy_until = ?, updated_at = ? WHERE id = ?`
+    )
+    .run(next.aiState, next.occupantUserId, next.occupancyUntil, nowIso(), roomId);
 }
 
 /** Auto-release a stale input lock so the room never gets stuck. */
-function reconcileOccupancy(room: any): any {
-  if (room.ai_state === 'occupying_input' && room.occupancy_until) {
-    if (new Date(room.occupancy_until).getTime() < Date.now()) {
-      getDb()
-        .prepare(
-          `UPDATE rooms SET ai_state = 'idle', occupant_user_id = NULL, occupancy_until = NULL, updated_at = ? WHERE id = ?`
-        )
-        .run(nowIso(), room.id);
-      return getRoom(room.id);
-    }
+function reconcileOccupancy(room: RoomRow): RoomRow {
+  const next = pureReconcile(roomToSnap(room), Date.now());
+  const current = roomToSnap(room);
+  if (
+    next.aiState !== current.aiState ||
+    next.occupantUserId !== current.occupantUserId ||
+    next.occupancyUntil !== current.occupancyUntil
+  ) {
+    applyOccupancy(room.id, next);
+    return getRoomOr(room);
   }
   return room;
 }
 
-function memberInfo(roomId: string): { userId: string; role: string; username: string; displayName: string | null }[] {
+function memberInfo(roomId: string): RoomMemberInfoRow[] {
   const db = getDb();
   return db
     .prepare(
@@ -72,10 +105,10 @@ function memberInfo(roomId: string): { userId: string; role: string; username: s
        FROM room_members m JOIN users u ON u.id = m.user_id
        WHERE m.room_id = ? ORDER BY m.role = 'owner' DESC, m.joined_at ASC`
     )
-    .all(roomId) as any[];
+    .all(roomId) as RoomMemberInfoRow[];
 }
 
-function serializeRoom(room: any): any {
+function serializeRoom(room: RoomRow) {
   return {
     id: room.id,
     name: room.name,
@@ -107,7 +140,7 @@ router.get('/', (req: AuthRequest, res: Response) => {
          WHERE mm.user_id = ?
          ORDER BY r.updated_at DESC`
       )
-      .all(req.user!.id) as any[];
+      .all(req.user!.id) as RoomListRow[];
     const data = rows.map((r) => ({ ...serializeRoom(r), memberCount: r.memberCount }));
     res.json({ success: true, data } as ApiResponse);
   } catch (err: unknown) {
@@ -158,7 +191,7 @@ router.post('/', (req: AuthRequest, res: Response) => {
     addMember.run(roomId, req.user!.id, 'owner', now);
     for (const uid of validIds) addMember.run(roomId, uid, 'member', now);
 
-    res.status(201).json({ success: true, data: { ...serializeRoom(getRoom(roomId)), members: memberInfo(roomId) } });
+    res.status(201).json({ success: true, data: { ...serializeRoom(getRoom(roomId)!), members: memberInfo(roomId) } });
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
@@ -210,7 +243,7 @@ router.post('/:id/members', (req: AuthRequest, res: Response) => {
     if (ids.length === 0) return res.status(400).json({ success: false, error: 'userIds required' });
 
     const db = getDb();
-    const current = (db.prepare('SELECT COUNT(*) as n FROM room_members WHERE room_id = ?').get(room.id) as any).n;
+    const current = (db.prepare('SELECT COUNT(*) as n FROM room_members WHERE room_id = ?').get(room.id) as { n: number }).n;
     const valid = db
       .prepare(`SELECT id FROM users WHERE id IN (${ids.map(() => '?').join(',')}) AND is_active = 1`)
       .all(...ids) as { id: string }[];
@@ -266,7 +299,7 @@ router.get('/:id/messages', (req: AuthRequest, res: Response) => {
          FROM room_messages m LEFT JOIN users u ON u.id = m.user_id
          WHERE m.room_id = ? ORDER BY m.created_at ASC`
       )
-      .all(room.id) as any[];
+      .all(room.id) as RoomMessageListRow[];
     const data = rows.map((r) => ({
       ...r,
       attachments: JSON.parse(r.attachmentsJson || '[]'),
@@ -334,7 +367,7 @@ router.get('/:id/ai', (req: AuthRequest, res: Response) => {
                 file_ids_json as fileIdsJson, created_at as createdAt
          FROM room_ai_messages WHERE room_id = ? ORDER BY created_at ASC`
       )
-      .all(room.id) as any[];
+      .all(room.id) as RoomAiMessageListRow[];
     const data = rows.map((r) => ({ ...r, fileIds: JSON.parse(r.fileIdsJson || '[]'), fileIdsJson: undefined }));
     res.json({ success: true, data });
   } catch (err: unknown) {
@@ -383,7 +416,7 @@ router.put('/:id/models', (req: AuthRequest, res: Response) => {
         nowIso(),
         room.id
       );
-    const updated = serializeRoom(getRoom(room.id));
+    const updated = serializeRoom(getRoomOr(room));
     broadcast(room.id, { type: 'room', room: updated });
     res.json({ success: true, data: updated });
   } catch (err: unknown) {
@@ -396,25 +429,17 @@ router.put('/:id/models', (req: AuthRequest, res: Response) => {
 /** POST /api/rooms/:id/occupancy/claim — grab the @AI input lock */
 router.post('/:id/occupancy/claim', (req: AuthRequest, res: Response) => {
   try {
-    let room = getRoom(req.params.id);
+    const room = getRoom(req.params.id);
     if (!room) return res.status(404).json({ success: false, error: 'Room not found' });
     if (!isMember(room.id, req.user!.id)) {
       return res.status(403).json({ success: false, error: 'Not a member of this room' });
     }
-    room = reconcileOccupancy(room);
-    if (room.ai_state === 'ai_running') {
-      return res.status(409).json({ success: false, error: 'AI is replying; wait until it finishes' });
+    const decision = claimOccupancy(roomToSnap(room), req.user!.id, Date.now(), OCCUPANCY_MS);
+    if (!decision.ok) {
+      return res.status(decision.status).json({ success: false, error: decision.error });
     }
-    if (room.ai_state === 'occupying_input' && room.occupant_user_id !== req.user!.id) {
-      return res.status(409).json({ success: false, error: 'Someone else is composing an @AI message' });
-    }
-    const until = new Date(Date.now() + OCCUPANCY_MS).toISOString();
-    getDb()
-      .prepare(
-        `UPDATE rooms SET ai_state = 'occupying_input', occupant_user_id = ?, occupancy_until = ?, updated_at = ? WHERE id = ?`
-      )
-      .run(req.user!.id, until, nowIso(), room.id);
-    const updated = serializeRoom(getRoom(room.id));
+    applyOccupancy(room.id, decision.next);
+    const updated = serializeRoom(getRoomOr(room));
     broadcast(room.id, { type: 'room', room: updated });
     res.json({ success: true, data: updated });
   } catch (err: unknown) {
@@ -427,12 +452,12 @@ router.post('/:id/occupancy/renew', (req: AuthRequest, res: Response) => {
   try {
     const room = getRoom(req.params.id);
     if (!room) return res.status(404).json({ success: false, error: 'Room not found' });
-    if (room.ai_state !== 'occupying_input' || room.occupant_user_id !== req.user!.id) {
-      return res.status(409).json({ success: false, error: 'You do not hold the @AI lock' });
+    const decision = renewOccupancy(roomToSnap(room), req.user!.id, Date.now(), OCCUPANCY_MS);
+    if (!decision.ok) {
+      return res.status(decision.status).json({ success: false, error: decision.error });
     }
-    const until = new Date(Date.now() + OCCUPANCY_MS).toISOString();
-    getDb().prepare('UPDATE rooms SET occupancy_until = ?, updated_at = ? WHERE id = ?').run(until, nowIso(), room.id);
-    const updated = serializeRoom(getRoom(room.id));
+    applyOccupancy(room.id, decision.next);
+    const updated = serializeRoom(getRoomOr(room));
     broadcast(room.id, { type: 'room', room: updated });
     res.json({ success: true, data: updated });
   } catch (err: unknown) {
@@ -445,14 +470,16 @@ router.post('/:id/occupancy/release', (req: AuthRequest, res: Response) => {
   try {
     const room = getRoom(req.params.id);
     if (!room) return res.status(404).json({ success: false, error: 'Room not found' });
-    if (room.ai_state === 'occupying_input' && room.occupant_user_id === req.user!.id) {
-      getDb()
-        .prepare(
-          `UPDATE rooms SET ai_state = 'idle', occupant_user_id = NULL, occupancy_until = NULL, updated_at = ? WHERE id = ?`
-        )
-        .run(nowIso(), room.id);
+    const before = roomToSnap(room);
+    const decision = releaseOccupancy(before, req.user!.id);
+    if (
+      decision.next.aiState !== before.aiState ||
+      decision.next.occupantUserId !== before.occupantUserId ||
+      decision.next.occupancyUntil !== before.occupancyUntil
+    ) {
+      applyOccupancy(room.id, decision.next);
     }
-    const updated = serializeRoom(getRoom(room.id));
+    const updated = serializeRoom(getRoomOr(room));
     broadcast(room.id, { type: 'room', room: updated });
     res.json({ success: true, data: updated });
   } catch (err: unknown) {
@@ -477,14 +504,6 @@ router.post('/:id/ai/ask', async (req: AuthRequest, res: Response) => {
     if (!isMember(room.id, req.user!.id)) {
       return res.status(403).json({ success: false, error: 'Not a member of this room' });
     }
-    room = reconcileOccupancy(room);
-    if (room.ai_state === 'ai_running') {
-      return res.status(409).json({ success: false, error: 'AI is already working on a task' });
-    }
-    // Must hold the input lock (or room idle and we grab it atomically)
-    if (room.ai_state === 'occupying_input' && room.occupant_user_id !== req.user!.id) {
-      return res.status(409).json({ success: false, error: 'Someone else holds the @AI lock' });
-    }
 
     const content = String(req.body?.content || '').trim();
     if (!content) return res.status(400).json({ success: false, error: 'content is required' });
@@ -495,10 +514,12 @@ router.post('/:id/ai/ask', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, error: 'Group has no chat model set. Pick one in group settings.' });
     }
 
-    // Transition to ai_running (locks the whole group)
-    db.prepare(
-      `UPDATE rooms SET ai_state = 'ai_running', occupant_user_id = NULL, occupancy_until = NULL, updated_at = ? WHERE id = ?`
-    ).run(nowIso(), room.id);
+    // Transition to ai_running via pure FSM (reconciles stale locks; enforces single task)
+    const start = beginAiTask(roomToSnap(room), req.user!.id, Date.now());
+    if (!start.ok) {
+      return res.status(start.status).json({ success: false, error: start.error });
+    }
+    applyOccupancy(room.id, start.next);
 
     const now = nowIso();
     const userMsgId = uuidv4();
@@ -549,7 +570,7 @@ router.post('/:id/ai/ask', async (req: AuthRequest, res: Response) => {
         kind: 'ai_stub', content: stubText, aiMessageId: asstId, attachments: [], createdAt: stubNow,
       },
     });
-    broadcast(room.id, { type: 'room', room: serializeRoom(getRoom(room.id)) });
+    broadcast(room.id, { type: 'room', room: serializeRoom(getRoomOr(room)) });
 
     // Build the model context from the RIGHT track only (AI never sees left chat).
     const history = db
@@ -580,7 +601,7 @@ router.post('/:id/ai/ask', async (req: AuthRequest, res: Response) => {
 
     for (const h of history) {
       if (h.role === 'user' || h.role === 'assistant' || h.role === 'system') {
-        messages.push({ role: h.role as any, content: h.content });
+        messages.push({ role: h.role as 'system' | 'user' | 'assistant', content: h.content });
       }
     }
     messages.push({ role: 'user', content });
@@ -620,7 +641,7 @@ router.post('/:id/ai/ask', async (req: AuthRequest, res: Response) => {
     }
 
     // Back to idle — next @AI allowed only now (§10.6.4 / §10.6.5)
-    db.prepare(`UPDATE rooms SET ai_state = 'idle', updated_at = ? WHERE id = ?`).run(nowIso(), room.id);
+    applyOccupancy(room.id, finishAiTask(roomToSnap(getRoomOr(room))));
 
     const asst = db
       .prepare(
@@ -632,16 +653,16 @@ router.post('/:id/ai/ask', async (req: AuthRequest, res: Response) => {
     // Fan out the finished (or errored) answer — replaces the thinking bubble
     // for everyone — and the room's return to idle so locks/countdowns clear.
     broadcast(room.id, { type: 'ai', message: { ...(asst as object), fileIds: [] } });
-    broadcast(room.id, { type: 'room', room: serializeRoom(getRoom(room.id)) });
+    broadcast(room.id, { type: 'room', room: serializeRoom(getRoomOr(room)) });
 
     res.json({ success: true, data: { userMessageId: userMsgId, assistant: asst } });
   } catch (err: unknown) {
     // Best-effort unlock so the room never stays stuck in ai_running
     try {
       if (room) {
-        db.prepare(`UPDATE rooms SET ai_state = 'idle', updated_at = ? WHERE id = ?`).run(nowIso(), room.id);
+        applyOccupancy(room.id, finishAiTask(roomToSnap(getRoomOr(room))));
         // Tell everyone the room is idle again so no client is stuck on "AI running".
-        broadcast(room.id, { type: 'room', room: serializeRoom(getRoom(room.id)) });
+        broadcast(room.id, { type: 'room', room: serializeRoom(getRoomOr(room)) });
       }
     } catch {
       /* ignore */
@@ -664,7 +685,7 @@ router.get('/util/users', (req: AuthRequest, res: Response) => {
         `SELECT id, username, display_name as displayName, role, is_active as isActive
          FROM users WHERE is_active = 1 AND id != ? ORDER BY username ASC`
       )
-      .all(req.user!.id) as any[];
+      .all(req.user!.id) as InviteUserRow[];
     const data = rows.map((r) => ({ ...r, isActive: Boolean(r.isActive) }));
     res.json({ success: true, data });
   } catch (err: unknown) {
@@ -674,7 +695,7 @@ router.get('/util/users', (req: AuthRequest, res: Response) => {
 
 // ---------- group knowledge base files (§10.6.7) ----------
 
-function serializeRoomFile(f: any): any {
+function serializeRoomFile(f: RoomFileRow) {
   return {
     id: f.id,
     roomId: f.room_id,
@@ -699,7 +720,7 @@ router.get('/:id/files', (req: AuthRequest, res: Response) => {
         `SELECT id, room_id, uploaded_by, original_name, mime_type, file_size, created_at
          FROM room_files WHERE room_id = ? ORDER BY created_at DESC`
       )
-      .all(room.id) as any[];
+      .all(room.id) as RoomFileRow[];
     res.json({ success: true, data: rows.map(serializeRoomFile) });
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: getErrorMessage(err) });
@@ -738,7 +759,7 @@ router.post('/:id/files', (req: AuthRequest, res: Response) => {
       content != null ? String(content) : null,
       now
     );
-    res.status(201).json({ success: true, data: serializeRoomFile(getDb().prepare('SELECT * FROM room_files WHERE id = ?').get(id)) });
+    res.status(201).json({ success: true, data: serializeRoomFile(getDb().prepare('SELECT * FROM room_files WHERE id = ?').get(id) as RoomFileRow) });
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: getErrorMessage(err) });
   }

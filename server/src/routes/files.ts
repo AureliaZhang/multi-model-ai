@@ -9,6 +9,7 @@ import { generateEmbedding } from '../services/embeddings';
 import { requireAuth } from '../middleware/auth';
 import type { AuthRequest } from '../types';
 import type { FileLibraryEntry, FileFolder } from '../types';
+import type { FileFolderRow, FileLibraryRow, FileChunkListRow } from '../dbRows';
 import { getErrorMessage } from '../utils/errors';
 
 const router = Router();
@@ -53,9 +54,9 @@ router.get('/folders', requireAuth, (req: AuthRequest, res: Response) => {
 
     let rows;
     if (parentId) {
-      rows = db.prepare('SELECT * FROM file_folders WHERE parent_id = ? ORDER BY name ASC').all(parentId) as any[];
+      rows = db.prepare('SELECT * FROM file_folders WHERE parent_id = ? ORDER BY name ASC').all(parentId) as FileFolderRow[];
     } else {
-      rows = db.prepare('SELECT * FROM file_folders ORDER BY name ASC').all() as any[];
+      rows = db.prepare('SELECT * FROM file_folders ORDER BY name ASC').all() as FileFolderRow[];
     }
 
     const folders: FileFolder[] = rows.map(rowToFolder);
@@ -83,7 +84,7 @@ router.post('/folders', requireAuth, (req: AuthRequest, res: Response) => {
 
     // If parentId provided, verify it exists
     if (parentId) {
-      const parent = db.prepare('SELECT id FROM file_folders WHERE id = ?').get(parentId) as any;
+      const parent = db.prepare('SELECT id FROM file_folders WHERE id = ?').get(parentId) as { id: string } | undefined;
       if (!parent) {
         return res.status(404).json({ success: false, error: 'Parent folder not found' });
       }
@@ -122,7 +123,7 @@ router.put('/folders/:id', requireAuth, (req: AuthRequest, res: Response) => {
     }
 
     const db = getDb();
-    const row = db.prepare('SELECT * FROM file_folders WHERE id = ?').get(req.params.id) as any;
+    const row = db.prepare('SELECT * FROM file_folders WHERE id = ?').get(req.params.id) as FileFolderRow | undefined;
     if (!row) {
       return res.status(404).json({ success: false, error: 'Folder not found' });
     }
@@ -144,7 +145,7 @@ router.put('/folders/:id', requireAuth, (req: AuthRequest, res: Response) => {
 router.delete('/folders/:id', requireAuth, (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const row = db.prepare('SELECT * FROM file_folders WHERE id = ?').get(req.params.id) as any;
+    const row = db.prepare('SELECT * FROM file_folders WHERE id = ?').get(req.params.id) as FileFolderRow | undefined;
     if (!row) {
       return res.status(404).json({ success: false, error: 'Folder not found' });
     }
@@ -173,7 +174,7 @@ router.get('/folders/:id/path', requireAuth, (req: AuthRequest, res: Response) =
     let currentId: string | null = req.params.id;
 
     while (currentId) {
-      const row = db.prepare('SELECT id, name, parent_id FROM file_folders WHERE id = ?').get(currentId) as any;
+      const row = db.prepare('SELECT id, name, parent_id FROM file_folders WHERE id = ?').get(currentId) as Pick<FileFolderRow, 'id' | 'name' | 'parent_id'> | undefined;
       if (!row) break;
       pathArr.unshift({ id: row.id, name: row.name });
       currentId = row.parent_id;
@@ -224,9 +225,9 @@ router.get('/', requireAuth, (req: AuthRequest, res: Response) => {
     folderQuery += ' ORDER BY name ASC';
     fileQuery += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
 
-    const folders = db.prepare(folderQuery).all(...folderParams) as any[];
-    const rows = db.prepare(fileQuery).all(...fileParams, limit, offset) as any[];
-    const countRow = db.prepare(countQuery).get(...fileParams) as any;
+    const folders = db.prepare(folderQuery).all(...folderParams) as FileFolderRow[];
+    const rows = db.prepare(fileQuery).all(...fileParams, limit, offset) as FileLibraryRow[];
+    const countRow = db.prepare(countQuery).get(...fileParams) as { total: number };
 
     const files: FileLibraryEntry[] = rows.map(rowToFile);
 
@@ -254,7 +255,7 @@ router.get('/', requireAuth, (req: AuthRequest, res: Response) => {
 router.get('/:id', requireAuth, (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const row = db.prepare('SELECT * FROM file_library WHERE id = ?').get(req.params.id) as any;
+    const row = db.prepare('SELECT * FROM file_library WHERE id = ?').get(req.params.id) as FileLibraryRow | undefined;
     if (!row) {
       return res.status(404).json({ success: false, error: 'File not found' });
     }
@@ -281,9 +282,9 @@ router.get('/:id/chunks', requireAuth, (req: AuthRequest, res: Response) => {
       WHERE file_id = ?
       ORDER BY chunk_index ASC
       LIMIT ? OFFSET ?
-    `).all(req.params.id, limit, offset) as any[];
+    `).all(req.params.id, limit, offset) as FileChunkListRow[];
 
-    const countRow = db.prepare('SELECT COUNT(*) as total FROM file_chunks WHERE file_id = ?').get(req.params.id) as any;
+    const countRow = db.prepare('SELECT COUNT(*) as total FROM file_chunks WHERE file_id = ?').get(req.params.id) as { total: number };
 
     res.json({
       success: true,
@@ -317,7 +318,7 @@ router.post('/upload', requireAuth, upload.array('files', 20), async (req: AuthR
 
     // Validate folder exists if provided
     if (folderId) {
-      const folder = db.prepare('SELECT id FROM file_folders WHERE id = ?').get(folderId) as any;
+      const folder = db.prepare('SELECT id FROM file_folders WHERE id = ?').get(folderId) as { id: string } | undefined;
       if (!folder) {
         return res.status(404).json({ success: false, error: 'Folder not found' });
       }
@@ -376,14 +377,14 @@ router.patch('/:id/move', requireAuth, (req: AuthRequest, res: Response) => {
     const { folderId } = req.body;
     const db = getDb();
 
-    const row = db.prepare('SELECT * FROM file_library WHERE id = ?').get(req.params.id) as any;
+    const row = db.prepare('SELECT * FROM file_library WHERE id = ?').get(req.params.id) as FileLibraryRow | undefined;
     if (!row) {
       return res.status(404).json({ success: false, error: 'File not found' });
     }
 
     // Validate folder exists if provided (null means root)
     if (folderId) {
-      const folder = db.prepare('SELECT id FROM file_folders WHERE id = ?').get(folderId) as any;
+      const folder = db.prepare('SELECT id FROM file_folders WHERE id = ?').get(folderId) as { id: string } | undefined;
       if (!folder) {
         return res.status(404).json({ success: false, error: 'Target folder not found' });
       }
@@ -406,7 +407,7 @@ router.patch('/:id/move', requireAuth, (req: AuthRequest, res: Response) => {
 router.delete('/:id', requireAuth, (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const row = db.prepare('SELECT * FROM file_library WHERE id = ?').get(req.params.id) as any;
+    const row = db.prepare('SELECT * FROM file_library WHERE id = ?').get(req.params.id) as FileLibraryRow | undefined;
     if (!row) {
       return res.status(404).json({ success: false, error: 'File not found' });
     }
@@ -437,7 +438,7 @@ router.delete('/:id', requireAuth, (req: AuthRequest, res: Response) => {
 router.post('/:id/reindex', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const row = db.prepare('SELECT * FROM file_library WHERE id = ?').get(req.params.id) as any;
+    const row = db.prepare('SELECT * FROM file_library WHERE id = ?').get(req.params.id) as FileLibraryRow | undefined;
     if (!row) {
       return res.status(404).json({ success: false, error: 'File not found' });
     }
@@ -483,7 +484,7 @@ router.post('/search', requireAuth, async (req: AuthRequest, res: Response) => {
     if (fileIds && Array.isArray(fileIds) && fileIds.length > 0) {
       targetFileIds = fileIds;
     } else {
-      const rows = db.prepare('SELECT id FROM file_library WHERE status = ?').all('ready') as any[];
+      const rows = db.prepare('SELECT id FROM file_library WHERE status = ?').all('ready') as { id: string }[];
       targetFileIds = rows.map((r: any) => r.id);
     }
 
@@ -501,7 +502,7 @@ router.post('/search', requireAuth, async (req: AuthRequest, res: Response) => {
   }
 });
 
-function rowToFolder(row: any): FileFolder {
+function rowToFolder(row: FileFolderRow): FileFolder {
   return {
     id: row.id,
     name: row.name,
@@ -512,7 +513,7 @@ function rowToFolder(row: any): FileFolder {
   };
 }
 
-function rowToFile(row: any): FileLibraryEntry {
+function rowToFile(row: FileLibraryRow): FileLibraryEntry {
   return {
     id: row.id,
     originalName: row.original_name,
@@ -520,7 +521,7 @@ function rowToFile(row: any): FileLibraryEntry {
     mimeType: row.mime_type,
     fileSize: row.file_size,
     chunkCount: row.chunk_count,
-    status: row.status,
+    status: row.status as FileLibraryEntry['status'],
     errorMessage: row.error_message,
     folderId: row.folder_id || null,
     uploadedBy: row.uploaded_by,

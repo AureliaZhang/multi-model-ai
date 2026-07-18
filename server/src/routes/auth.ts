@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../database';
 import { generateToken, requireAuth } from '../middleware/auth';
 import type { AuthRequest, RegisterRequest, LoginRequest, AuthResponse, UserPublic } from '../types';
+import type { UserPublicRow } from '../dbRows';
 import { getErrorMessage } from '../utils/errors';
 
 const router = Router();
@@ -116,7 +117,7 @@ router.post('/login', (req: AuthRequest, res: Response) => {
                 created_at as createdAt
          FROM users WHERE username = ?`;
 
-    const row = db.prepare(query).get(username) as any;
+    const row = db.prepare(query).get(username) as (UserPublicRow & { passwordHash: string }) | undefined;
 
     if (!row) {
       const errorMsg = mode === 'phone'
@@ -148,7 +149,7 @@ router.post('/login', (req: AuthRequest, res: Response) => {
       email: row.email,
       phone: row.phone,
       displayName: row.displayName,
-      role: row.role,
+      role: row.role as UserPublic['role'],
       isActive: Boolean(row.isActive),
       lastLogin: new Date().toISOString(),
       createdAt: row.createdAt,

@@ -3,7 +3,8 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../database';
 import { requireAuth, requireRole } from '../middleware/auth';
-import type { AuthRequest, UserPublic, CreateUserRequest, UpdateUserRequest } from '../types';
+import type { AuthRequest, UserPublic, UserRole, CreateUserRequest, UpdateUserRequest } from '../types';
+import type { UserPublicRow } from '../dbRows';
 import { getErrorMessage } from '../utils/errors';
 
 const router = Router();
@@ -24,11 +25,18 @@ router.get('/', (req: AuthRequest, res: Response) => {
              is_active as isActive, last_login as lastLogin,
              created_at as createdAt, updated_at as updatedAt
       FROM users ORDER BY created_at DESC
-    `).all() as any[];
+    `).all() as UserPublicRow[];
 
     const users: UserPublic[] = rows.map(row => ({
-      ...row,
+      id: row.id,
+      username: row.username,
+      email: row.email,
+      phone: row.phone,
+      displayName: row.displayName,
+      role: row.role as UserPublic['role'],
       isActive: Boolean(row.isActive),
+      lastLogin: row.lastLogin,
+      createdAt: row.createdAt,
     }));
 
     res.json({ success: true, data: users });
@@ -127,14 +135,27 @@ router.get('/:id', (req: AuthRequest, res: Response) => {
              is_active as isActive, last_login as lastLogin,
              created_at as createdAt
       FROM users WHERE id = ?
-    `).get(req.params.id) as any;
+    `).get(req.params.id) as UserPublicRow | undefined;
 
     if (!row) {
       res.status(404).json({ success: false, error: 'User not found' });
       return;
     }
 
-    res.json({ success: true, data: { ...row, isActive: Boolean(row.isActive) } });
+    res.json({
+      success: true,
+      data: {
+        id: row.id,
+        username: row.username,
+        email: row.email,
+        phone: row.phone,
+        displayName: row.displayName,
+        role: row.role as UserPublic['role'],
+        isActive: Boolean(row.isActive),
+        lastLogin: row.lastLogin,
+        createdAt: row.createdAt,
+      },
+    });
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
@@ -194,9 +215,22 @@ router.put('/:id', (req: AuthRequest, res: Response) => {
              is_active as isActive, last_login as lastLogin,
              created_at as createdAt
       FROM users WHERE id = ?
-    `).get(userId) as any;
+    `).get(userId) as UserPublicRow;
 
-    res.json({ success: true, data: { ...row, isActive: Boolean(row.isActive) } });
+    res.json({
+      success: true,
+      data: {
+        id: row.id,
+        username: row.username,
+        email: row.email,
+        phone: row.phone,
+        displayName: row.displayName,
+        role: row.role as UserPublic['role'],
+        isActive: Boolean(row.isActive),
+        lastLogin: row.lastLogin,
+        createdAt: row.createdAt,
+      },
+    });
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: getErrorMessage(err) });
   }

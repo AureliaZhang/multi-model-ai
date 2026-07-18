@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { getDb } from '../database';
 import { requireAuth, requireRole } from '../middleware/auth';
 import type { AuthRequest } from '../types';
+import type { UsageLogListRow } from '../dbRows';
 import { getErrorMessage } from '../utils/errors';
 
 const router = Router();
@@ -22,7 +23,7 @@ router.get('/', (req: AuthRequest, res: Response) => {
     const to = typeof req.query.to === 'string' ? req.query.to : '';
 
     const where: string[] = ['1=1'];
-    const params: any[] = [];
+    const params: (string | number)[] = [];
     if (status) {
       where.push('status = ?');
       params.push(status);
@@ -46,7 +47,7 @@ router.get('/', (req: AuthRequest, res: Response) => {
 
     const whereSql = where.join(' AND ');
     const total = (
-      db.prepare(`SELECT COUNT(*) as n FROM api_usage_logs WHERE ${whereSql}`).get(...params) as any
+      db.prepare(`SELECT COUNT(*) as n FROM api_usage_logs WHERE ${whereSql}`).get(...params) as { n: number }
     ).n;
 
     const rows = db.prepare(`
@@ -61,18 +62,18 @@ router.get('/', (req: AuthRequest, res: Response) => {
       WHERE ${whereSql}
       ORDER BY created_at DESC
       LIMIT ? OFFSET ?
-    `).all(...params, limit, offset);
+    `).all(...params, limit, offset) as UsageLogListRow[];
 
     const errorCount = (
       db.prepare(
         `SELECT COUNT(*) as n FROM api_usage_logs WHERE ${whereSql} AND status != 'ok'`
-      ).get(...params) as any
+      ).get(...params) as { n: number }
     ).n;
 
     const sumTokens = (
       db.prepare(
         `SELECT COALESCE(SUM(total_tokens), 0) as n FROM api_usage_logs WHERE ${whereSql} AND status = 'ok'`
-      ).get(...params) as any
+      ).get(...params) as { n: number }
     ).n;
 
     res.json({

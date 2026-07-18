@@ -1,23 +1,35 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../database';
-import { Conversation, ConversationVisibility, ApiResponse, AuthRequest } from '../types';
+import { Conversation, ConversationVisibility, ApiResponse, AuthRequest, Message } from '../types';
+import type { ConversationRow, MessageRow, ConversationImportItem } from '../dbRows';
 import { optionalAuth } from '../middleware/auth';
 import { getErrorMessage } from '../utils/errors';
 
 const router = Router();
 
 // Helper to map a DB row to Conversation type
-function rowToConversation(r: any): Conversation {
+function rowToConversation(r: ConversationRow): Conversation {
   return {
     id: r.id,
     title: r.title,
     modelNormalizedName: r.model_normalized_name,
-    visibility: r.visibility || 'public',
+    visibility: (r.visibility as ConversationVisibility) || 'public',
     selfReview: Boolean(r.self_review),
     userId: r.user_id || undefined,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+  };
+}
+
+function rowToMessage(r: MessageRow): Message {
+  return {
+    id: r.id,
+    conversationId: r.conversation_id,
+    role: r.role as Message['role'],
+    content: r.content,
+    modelUsed: r.model_used || undefined,
+    createdAt: r.created_at,
   };
 }
 
@@ -28,18 +40,18 @@ router.get('/', optionalAuth, (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
     const userId = req.user?.id;
-    let rows: any[];
+    let rows: ConversationRow[];
 
     if (userId) {
       // Authenticated: own conversations (all visibility) + public from others
       rows = db.prepare(
         'SELECT * FROM conversations WHERE user_id = ? OR visibility = ? OR user_id IS NULL ORDER BY updated_at DESC'
-      ).all(userId, 'public') as any[];
+      ).all(userId, 'public') as ConversationRow[];
     } else {
       // Guest: only public conversations
       rows = db.prepare(
         'SELECT * FROM conversations WHERE visibility = ? ORDER BY updated_at DESC'
-      ).all('public') as any[];
+      ).all('public') as ConversationRow[];
     }
 
     const conversations: Conversation[] = rows.map(rowToConversation);
@@ -67,7 +79,7 @@ router.post('/', optionalAuth, (req: AuthRequest, res: Response) => {
       'INSERT INTO conversations (id, title, model_normalized_name, visibility, self_review, user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     ).run(id, title || 'New Conversation', modelNormalizedName, vis, review, userId, now, now);
 
-    const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(id) as any;
+    const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(id) as ConversationRow;
     res.status(201).json({
       success: true,
       data: rowToConversation(conv),
@@ -84,7 +96,7 @@ router.put('/:id', optionalAuth, (req: AuthRequest, res: Response) => {
     const { title, modelNormalizedName, visibility, selfReview } = req.body;
     const db = getDb();
 
-    const existing = db.prepare('SELECT * FROM conversations WHERE id = ?').get(id) as any;
+    const existing = db.prepare('SELECT * FROM conversations WHERE id = ?').get(id) as ConversationRow | undefined;
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Conversation not found' });
     }
@@ -98,7 +110,7 @@ router.put('/:id', optionalAuth, (req: AuthRequest, res: Response) => {
     db.prepare('UPDATE conversations SET title = ?, model_normalized_name = ?, visibility = ?, self_review = ?, updated_at = ? WHERE id = ?')
       .run(newTitle, newModel, newVisibility, newSelfReview, now, id);
 
-    const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(id) as any;
+    const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(id) as ConversationRow;
     res.json({
       success: true,
       data: rowToConversation(conv),
@@ -132,16 +144,16 @@ router.get('/export', optionalAuth, (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
     const userId = req.user?.id;
-    let convRows: any[];
+    let convRows: ConversationRow[];
 
     if (userId) {
       convRows = db.prepare(
         'SELECT * FROM conversations WHERE user_id = ? OR visibility = ? OR user_id IS NULL ORDER BY updated_at DESC'
-      ).all(userId, 'public') as any[];
+      ).all(userId, 'public') as ConversationRow[];
     } else {
       convRows = db.prepare(
         'SELECT * FROM conversations WHERE visibility = ? ORDER BY updated_at DESC'
-      ).all('public') as any[];
+      ).all('public') as ConversationRow[];
     }
 
     const msgStmt = db.prepare(
@@ -150,7 +162,7 @@ router.get('/export', optionalAuth, (req: AuthRequest, res: Response) => {
 
     const conversations = convRows.map(c => ({
       ...rowToConversation(c),
-      messages: (msgStmt.all(c.id) as any[]).map(r => ({
+      messages: (msgStmt.all(c.id) as MessageRow[]).map(r => ({
         id: r.id,
         role: r.role,
         content: r.content,
@@ -178,8 +190,8 @@ router.get('/export', optionalAuth, (req: AuthRequest, res: Response) => {
 // Uses INSERT OR IGNORE so re-importing the same file is a no-op (dedup by id).
 router.post('/import', optionalAuth, (req: AuthRequest, res: Response) => {
   try {
-    const body = req.body;
-    const list: any[] = Array.isArray(body)
+    const body = req.body as ConversationImportItem[] | { conversations?: ConversationImportItem[] } | null;
+    const list: ConversationImportItem[] = Array.isArray(body)
       ? body
       : Array.isArray(body?.conversations)
         ? body.conversations
@@ -209,7 +221,7 @@ router.post('/import', optionalAuth, (req: AuthRequest, res: Response) => {
     let importedConvs = 0;
     let importedMsgs = 0;
 
-    const runImport = db.transaction((items: any[]) => {
+    const runImport = db.transaction((items: ConversationImportItem[]) => {
       for (const c of items) {
         if (!c || !c.modelNormalizedName) continue; // skip malformed entries
         const convId = c.id || uuidv4();
@@ -262,21 +274,14 @@ router.get('/:id/messages', (req: Request, res: Response) => {
     const { id } = req.params;
     const db = getDb();
 
-    const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(id) as any;
+    const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(id) as ConversationRow | undefined;
     if (!conv) {
       console.warn('[getMessages] Conversation not found:', id);
       return res.status(404).json({ success: false, error: 'Conversation not found' });
     }
 
-    const rows = db.prepare('SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC').all(id) as any[];
-    const messages = rows.map(r => ({
-      id: r.id,
-      conversationId: r.conversation_id,
-      role: r.role,
-      content: r.content,
-      modelUsed: r.model_used,
-      createdAt: r.created_at,
-    }));
+    const rows = db.prepare('SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC').all(id) as MessageRow[];
+    const messages = rows.map(rowToMessage);
 
     console.log(`[getMessages] conv=${id} messages=${messages.length}`);
     res.json({ success: true, data: messages } as ApiResponse);
