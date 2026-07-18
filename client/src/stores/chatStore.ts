@@ -183,7 +183,12 @@ interface ChatState {
   /** Download all visible conversations (+ messages) as a JSON file. */
   exportConversations: () => Promise<void>;
   /** Import conversations from a parsed export file; refreshes the list. Returns a summary. */
-  importConversations: (data: unknown) => Promise<{ importedConversations: number; importedMessages: number; total: number }>;
+  importConversations: (data: unknown) => Promise<{
+    importedConversations: number;
+    importedMessages: number;
+    importedAttachments?: number;
+    total: number;
+  }>;
   stopStreaming: () => void;
   clearError: () => void;
   setVisibility: (v: ConversationVisibility) => void;
@@ -359,7 +364,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       throw new Error(res.error || 'Import failed');
     }
     await get().fetchConversations();
-    return res.data as { importedConversations: number; importedMessages: number; total: number };
+    return res.data as {
+      importedConversations: number;
+      importedMessages: number;
+      importedAttachments?: number;
+      total: number;
+    };
   },
 
   sendMessage: (message: string, modelNormalizedName: string, attachments?: PendingAttachment[], fileIds?: string[]) => {

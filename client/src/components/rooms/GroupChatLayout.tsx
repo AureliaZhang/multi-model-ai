@@ -368,8 +368,12 @@ function AiPane({
               ) : m.status === 'error' ? (
                 <div className="text-[13px] text-red-400">{m.errorMessage || t('room.aiError')}</div>
               ) : (
-                <div className="text-[13.5px] text-[var(--color-text-primary)] whitespace-pre-wrap break-words leading-6">
-                  {m.content}
+                <div
+                  className={`text-[13.5px] text-[var(--color-text-primary)] whitespace-pre-wrap break-words leading-6 ${
+                    m.status === 'streaming' ? 'typing-cursor' : ''
+                  }`}
+                >
+                  {m.content || (m.status === 'streaming' ? '…' : '')}
                 </div>
               )}
             </div>

@@ -30,9 +30,17 @@
 <!-- > **Last Updated**: 2026-07-18 (v0.7.16 — P2: SQLite row types for models/users/usage/prefs/media/auth + fileProcessor; see §12 change log) -->
 <!-- > **Version**: 0.7.17 -->
 <!-- > **Last Updated**: 2026-07-18 (v0.7.17 — P2: SQLite row types for arena (last route `as any` zero); see §12 change log) -->
-> **Version**: 0.7.18
+<!-- > **Version**: 0.7.18 -->
+<!-- > **Last Updated**: 2026-07-18 (v0.7.18 — P2 closeout: invokeModel failover tests + vectorSearch harness + client vitest + README; see §12 change log) -->
+<!-- > **Version**: 0.7.19 -->
+<!-- > **Last Updated**: 2026-07-18 (v0.7.19 — P3 start: conversation export/import includes attachments; see §12 change log) -->
+<!-- > **Version**: 0.7.20 -->
+<!-- > **Last Updated**: 2026-07-18 (v0.7.20 — P3: group AI true token streaming over WebSocket; see §12 change log) -->
+<!-- > **Version**: 0.7.21 -->
+<!-- > **Last Updated**: 2026-07-18 (v0.7.21 — P3: mobile stacked-card layouts for Memory/Files/Users tables; see §12 change log) -->
+> **Version**: 0.7.22
 > **Created**: 2026-06-15
-> **Last Updated**: 2026-07-18 (v0.7.18 — P2 closeout: invokeModel failover tests + vectorSearch harness + client vitest + README; see §12 change log)
+> **Last Updated**: 2026-07-18 (v0.7.22 — P3 polish: vite manualChunks + chat domain typing; see §12 change log)
 <!-- > **Last Updated**: 2026-07-12 (v0.7.2 — bug/breakpoint sweep across shipped work; wired the already-built group-chat UI (§10.6) into the app; fixed 4 real bugs; see §12 change log) -->
 > **Rule**: This file must be kept in sync with every development step. Content is NEVER deleted, only commented out with `<!-- ... -->` when superseded. Other files may be freely modified.
 
@@ -584,9 +592,9 @@ Steps:
 - [x] File upload & vision model support — chat attachments + file library RAG (partial vision path)
 <!-- superseded 2026-07-11: image generation MVP via /api/media/images + prefs image model -->
 - [x] Image generation model support — `/api/media/images` + confirm modal (MVP)
-- [ ] Dark/Light theme toggle
-- [ ] Responsive mobile design — desktop-first; group-chat pane slide done (§10.6), rest still desktop-first
-- [ ] Export/import conversations
+- [x] Dark/Light theme toggle — dual-theme CSS + ThemeToggle (v0.7.5)
+- [x] Responsive mobile design — sidebar drawer + rooms list/detail + table scroll (v0.7.6)
+- [x] Export/import conversations — nested JSON (v0.7.4); **attachments included from v0.7.19** (export version 2)
 - [x] Group chat / Group AI (§10.6) — wired into app 2026-07-12 (RoomsPage + Sidebar entry); **realtime WebSocket landed 2026-07-17 (v0.7.7)** — poll kept only as disconnect fallback
 
 ### Phase 5: Memory Store (记忆库)
@@ -604,7 +612,7 @@ Steps:
 - [x] Type-safety cleanup — catch-path `any` done (v0.7.9); **SQLite row `as any` zeroed (v0.7.17)** via `dbRows.ts`. Domain request-body `any` in chat still optional. See §10.7.
 - [x] Documentation — root `README.md` (v0.7.18) points at framework + quick start; framework remains SoT.
 - [ ] Comprehensive error messages — optional product copy polish (not blocking).
-- [x] Performance optimization — route-level lazy done (v0.7.10); optional vendor `manualChunks` later
+- [x] Performance optimization — route-level lazy (v0.7.10) + vendor `manualChunks` (v0.7.22: react / markdown / icons / zustand)
 
 ### Phase 7: Arena — Model Battle & Eval (管理员)
 - [x] Shared `ModelInvocation` service (non-stream completion + station failover) — `server/src/services/modelInvocation.ts`
@@ -639,7 +647,7 @@ API base: `/api/arena/*` (see `server/src/routes/arena.ts`).
 ## 10.6 Collaborative Chat & Group AI — Product Spec (Draft, 2026-07-11)
 
 <!-- > **Status**: Design locked via product discussion; **not implemented yet**. (superseded 2026-07-12) -->
-> **Status**: **Implemented (V1)** as of 2026-07-12; **realtime (WebSocket)** as of 2026-07-17 (v0.7.7). Backend (`server/src/routes/rooms.ts` + `services/roomHub.ts` on `/ws/rooms`), `roomStore` + `roomSocket`, and `GroupChatLayout` are live via Sidebar → "Group Chats" → `RoomsPage`. Live events: human messages, AI thinking/done, occupancy/room state, members, disband. 3s poll remains only while the socket is not open. AI answers arrive as a whole chunk with a typing-dots indicator (not token streaming). i18n `room.*` keys zh/en.  
+> **Status**: **Implemented (V1)** as of 2026-07-12; **realtime (WebSocket)** as of 2026-07-17 (v0.7.7); **AI token streaming over WS** as of 2026-07-18 (v0.7.20). Backend (`server/src/routes/rooms.ts` + `services/roomHub.ts` on `/ws/rooms`), `roomStore` + `roomSocket`, and `GroupChatLayout` are live via Sidebar → "Group Chats" → `RoomsPage`. Live events: human messages, AI thinking/**streaming**/done, occupancy/room state, members, disband. 3s poll remains only while the socket is not open. i18n `room.*` keys zh/en.  
 > **Scope**: `multi-model-ai` only.  
 > **Principle**: Two tracks in a group — left = human social, right = shared AI workbench. AI never reads human-only chat unless the user explicitly @AI.
 
@@ -794,19 +802,29 @@ Suggested building blocks (for later implementation; not started):
 
 | Item | Note |
 |------|------|
-| ~~Export / import conversations~~ | ✅ Done (2026-07-14, v0.7.4). `GET /api/conversations/export` (nested conv+messages JSON download, visibility-scoped like list) + `POST /api/conversations/import` (transaction, `INSERT OR IGNORE` dedup by id, accepts wrapped or bare array). Sidebar footer Export/Import buttons. **Attachments NOT included in v1** (separate binary storage) — TODO left in `conversations.ts`. |
+| ~~Export / import conversations~~ | ✅ Done (2026-07-14, v0.7.4) text-only. ✅ **Attachments included (2026-07-18, v0.7.19)** — export `version: 2` embeds per-message attachment rows (`id/type/filename/mimeType/url`, typically `data:` URLs already in SQLite); import restores via `INSERT OR IGNORE` on `attachments`; GET messages now joins attachments so re-import is visible in UI. v1 export files still import (no attachments field). |
 | ~~Dark / Light theme toggle~~ | ✅ Done (2026-07-15, v0.7.5). `index.css` refactored to dual-theme: `:root` is now LIGHT, `.dark` holds the original dark palette; added `--overlay-2..25` semantic tint scale (black-on-light / white-on-dark) that replaced ~104 hardcoded `rgba(255,255,255,x)` surface tints across 22 tsx files, plus `--code-block-bg`. `themeStore` + `ThemeToggle` (beside LanguageToggle in all 5 mount points), inline no-flash bootstrap script in `index.html` (reads `localStorage['theme']` / OS pref before paint). `theme.*` i18n (zh/en). Role/identity colors (assistant purple `#ab68ff`, accent-green avatars, `text-white` on colored buttons) intentionally left theme-agnostic. |
 | ~~Responsive mobile design~~ | ✅ Done (2026-07-15, v0.7.6). Main chat sidebar is now inline on desktop (`md:static w-[260px]`) but a fixed slide-in drawer + tap-to-dismiss backdrop on mobile (`<768px` starts closed; `Layout` initial state from `window.innerWidth`); selecting a conversation/page closes it via a new `onNavigate` Sidebar prop. `RoomsPage` uses a list/detail swap on mobile (list full-width → group full-width with a `md:hidden` back arrow via new `GroupChatLayout` `onBack` prop); the group's own two-pane human/AI split was already responsive (§10.6). The three fixed-column grid tables (`MemoryBrowser` 7-col, `FileBrowser` 5-col, `UserManagement` 6-col) now sit in `overflow-x-auto` wrappers with `min-w` on header+rows — **tables scroll sideways on narrow screens rather than reflowing into stacked cards** (deliberate trade-off: card layouts would be 4 separate redesigns; revisit per-table if wanted). Form/filter grids stack single-column under `sm`. No new lint issues (the `any`/`set-state-in-effect` items are the pre-existing P2 backlog). |
-| ~~Group chat realtime~~ | ✅ Done (2026-07-17, v0.7.7). Replaced always-on 3s polling with WebSocket push. **Server:** `ws@8.21.1` (exact pin; older 8.18 had advisories), `http.createServer(app)` + `attachRoomHub` on `/ws/rooms?token=&roomId=` (`server/src/services/roomHub.ts`) — JWT query auth + membership check, heartbeat, `broadcast` / `disconnectUser` / `closeRoom`. Write paths in `rooms.ts` fan out `message` / `ai` / `room` / `members` / `disband`. **Client:** `roomSocket.ts` (auto-reconnect backoff + ping), `roomStore` prefers WS and only polls while `socketStatus !== 'open'`. AI pane shows bouncing “正在输入中…” dots for `status: 'thinking'` (whole answer still arrives in one shot — not token streaming). Vite proxies `/ws` with `ws: true`. **Honest trade-off:** AI reply is whole-chunk + typing indicator, not true token streaming to all members; architecture leaves room for that later. |
+| ~~Group chat realtime~~ | ✅ Done (2026-07-17, v0.7.7). WebSocket push + typing indicator. ✅ **Token streaming (v0.7.20):** `streamInvokeModel` + WS `ai` events with `status: streaming` and growing `content`; UI shows typing cursor while streaming. |
 
 ### P2 — Code quality / hardening (no runtime impact)
 
 | Item | Note |
 |------|------|
-| Remove ~80 `any` — **done for row casts** | ✅ Catch-path (v0.7.9) + SQLite row `as any` = **0** on routes/services (v0.7.17). Optional: chat domain request-body `any` variables. |
-| ~~Test suite (unit + integration)~~ | ✅ **P2 closeout (v0.7.18).** Server **72** tests incl. `invokeModel` failover (injectable `getStations`/`fetch`/`markStationHealth`), `filterStationsForModel`, vectorSearch SQLite harness, asyncPool. Client vitest + errors/markdown pure tests (**9**). |
-| Bundle code-splitting | ✅ **Done (v0.7.10).** Optional later: vendor `manualChunks`. |
+| Remove ~80 `any` — **done for row casts + chat domain** | ✅ Catch-path (v0.7.9) + SQLite row `as any` = **0** (v0.7.17). ✅ Chat domain shapes typed (v0.7.22). |
+| ~~Test suite (unit + integration)~~ | ✅ **P2 closeout (v0.7.18).** Server tests now **77** after stream suite (v0.7.20). Client vitest **9**. |
+| Bundle code-splitting | ✅ Route lazy (v0.7.10) + vendor `manualChunks` (v0.7.22). Main index **~132 KB / 34 KB gz**. |
 | Comprehensive error messages + docs | ✅ **Docs (v0.7.18):** root `README.md`. Error *copy* polish still optional / non-blocking. |
+
+### P3 — Product upgrades (post-P2; user-visible polish)
+
+| Item | Note |
+|------|------|
+| ~~Export/import with attachments~~ | ✅ Done (v0.7.19). Export version **2** nests `messages[].attachments[]` (data URLs); import writes `attachments` table; GET `/messages` returns attachments for bubble render. |
+| ~~Group AI true token streaming~~ | ✅ Done (v0.7.20). `streamInvokeModel` (SSE parse + station failover) + WS fan-out `status:thinking→streaming→done|error`; ~40ms throttle; UI typing-cursor while streaming. Private chat SSE path unchanged. |
+| ~~Mobile table card layouts~~ | ✅ Done (v0.7.21). `MemoryBrowser` / `FileBrowser` / `UserManagement`: mobile (`md:hidden`) stacked cards with same actions; desktop (`hidden md:block`) keeps fixed-column grids. No horizontal-scroll requirement on phone. |
+| ~~Vendor `manualChunks`~~ | ✅ Done (v0.7.22). `client/vite.config.ts` splits `vendor-react`, `vendor-markdown`, `vendor-icons`, `vendor-zustand`. Main entry ~132 KB / 34 KB gz. |
+| ~~Chat domain `any` variables~~ | ✅ Done (v0.7.22). `chat.ts` multimodal / tool-call / memory-context request shapes typed; 0 remaining `: any` / `as any` / `any[]` in that route. |
 
 ### Done in the 2026-07-12 sweep (for reference)
 
@@ -870,6 +888,10 @@ settings:
 | 2026-07-18 | 0.7.16 | P2 type-safety row bite #4 (small files). Extended `dbRows.ts` with `UserPublicRow`, `UserModelPrefsRow`, `UsageLogListRow`, `AggregatedModelSourceRow`, `FileChunkSearchRow`. Wired: `models.ts`, `users.ts`, `auth.ts`, `prefs.ts`, `usage.ts`, `media.ts` (image API json shape), `fileProcessor.ts` — all **0 `as any`**. Server `npm test` 55 passed; `tsc --noEmit` clean. Remaining routes+services `as any` **~45, all in arena.ts**. No runtime behaviour change. | Claude |
 | 2026-07-18 | 0.7.17 | P2 type-safety row bite #5 (**arena closeout**). Extended `dbRows.ts` with full arena family (`ArenaBattle*`, `ArenaModelProfileRow`, `ArenaPrompt*`, `ArenaExperiment*`, `ArenaBenchmark*`, `CountRow`, `LeaderboardAppearanceRow`, `SelectionCountRow`). Wired entire `routes/arena.ts` (battle/leaderboard/prompts/sets/experiments/benchmarks/export) — **0 `as any`**. Routes+services explicit-`as any` total **0** (was ~176 at start of row sweep). Server `npm test` 55 passed; `tsc --noEmit` clean. No runtime behaviour change. | Claude |
 | 2026-07-18 | 0.7.18 | **P2 test/docs closeout.** (1) `invokeModel` gains optional `deps` (`getStations` / `fetchImpl` / `markStationHealth`) + pure `filterStationsForModel`; production path unchanged. `modelInvocation.test.ts`: no-station / HTTP failover+health marks / empty-content skip / all-fail combined errors / AbortError continue. (2) `embeddings.vectorSearch.test.ts` in-memory SQLite harness (rank/limit/threshold/bad JSON/importance tie-break). (3) `asyncPool.test.ts` (order, concurrency cap, env clamp). (4) Client: `vitest` + `errors.test.ts` + `markdown.test.ts` (9). (5) Root `README.md` quick start. Server **72** / client **9** tests green; `tsc` clean. P2 row+test+docs items closed; optional leftovers: chat domain `any` vars, error-copy polish, vendor manualChunks. | Claude |
+| 2026-07-18 | 0.7.19 | **P3 start:** conversation export/import includes attachments. Export payload `version: 2` embeds `messages[].attachments[]` (`id/type/filename/mimeType/url` — usually in-DB `data:` URLs; batched attachment load). Import restores attachments with `INSERT OR IGNORE` (idempotent; v1 files without attachments still work). `GET /api/conversations/:id/messages` now returns `attachments` so bubbles show images after re-import. Client: import summary may show attachment count (`sidebar.importDoneWithAtts` zh/en). Server+client `tsc` clean; server tests 72. Remaining P3: group AI token streaming, mobile table cards, optional vendor chunks. | Claude |
+| 2026-07-18 | 0.7.20 | **P3:** group AI true token streaming. New `streamInvokeModel` + pure `extractSseContentDelta` in `modelInvocation.ts` (stream:true, station failover, health marks, injectable deps). `rooms.ts` `POST .../ai/ask` uses it and broadcasts WS `ai` events: thinking → streaming (throttled ~40ms) → done/error with full content. `GroupChatLayout` renders streaming content with typing cursor (keeps thinking dots before first token). Tests: +5 (SSE parse + stream order + empty-stream failover) → server **77** passed. Private chat SSE path unchanged. Remaining P3: mobile table cards, optional vendor chunks / domain any. | Claude |
+| 2026-07-18 | 0.7.21 | **P3:** mobile stacked-card data tables. `MemoryBrowser`, `FileBrowser`, `UserManagement` each render a `md:hidden` card list (key fields + actions, memory expand/delete preserved) and keep the existing fixed-column grid under `hidden md:block` for desktop. Closes the v0.7.6 horizontal-scroll trade-off for phones. Client `tsc -b` clean; server tests unchanged (77). Remaining P3 optional: vendor `manualChunks`, chat domain `any`. | Claude |
+| 2026-07-18 | 0.7.22 | **P3 polish closeout.** (1) Vite `manualChunks`: `vendor-react` / `vendor-markdown` / `vendor-icons` / `vendor-zustand` — main index **132 KB / 34 KB gz** (was ~488 / 145). (2) `chat.ts` domain typing: `ChatContentPart`, `ChatApiMessage`, `ChatRequestBody`, `MemoryContextRow`; static import of `searchFileChunks`; 0 remaining `any` casts in chat route. Server tests 77; client+server `tsc` clean. P3 backlog items closed (optional product work can still appear later). | Claude |
 
 ---
 
@@ -878,6 +900,7 @@ settings:
 - [x] Should we support WebSocket in addition to SSE for bidirectional communication?
   - **Update 2026-07-11**: Collaborative human chat (§10.6) **expects** a bidirectional channel (WebSocket or equivalent) for occupancy/countdown and human messages; AI stream may remain SSE fan-out.
   - **Update 2026-07-17 (v0.7.7)**: WebSocket hub shipped for §10.6 rooms (`/ws/rooms`). Private chat remains SSE for AI streaming; rooms use WS push + whole-chunk AI answers with a typing indicator (token streaming deferred).
+  - **Update 2026-07-18 (v0.7.20)**: Room AI token streaming over WS (`streamInvokeModel` + `status:streaming` events). Private chat still SSE.
 - [x] Multi-user support or single-user local deployment?
   - Multi-user (admin / user / guest) already in product; group chat extends this.
 - [ ] Should model capabilities be auto-detected or manually configured?

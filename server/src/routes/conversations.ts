@@ -1,12 +1,21 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../database';
-import { Conversation, ConversationVisibility, ApiResponse, AuthRequest, Message } from '../types';
-import type { ConversationRow, MessageRow, ConversationImportItem } from '../dbRows';
+import { Conversation, ConversationVisibility, ApiResponse, AuthRequest, Message, Attachment } from '../types';
+import type {
+  ConversationRow,
+  MessageRow,
+  AttachmentRow,
+  ConversationImportItem,
+  AttachmentImportItem,
+} from '../dbRows';
 import { optionalAuth } from '../middleware/auth';
 import { getErrorMessage } from '../utils/errors';
 
 const router = Router();
+
+/** Export schema version: 2 includes per-message attachments (data URLs). v1 still importable. */
+const EXPORT_VERSION = 2;
 
 // Helper to map a DB row to Conversation type
 function rowToConversation(r: ConversationRow): Conversation {
@@ -22,7 +31,18 @@ function rowToConversation(r: ConversationRow): Conversation {
   };
 }
 
-function rowToMessage(r: MessageRow): Message {
+function rowToAttachment(r: AttachmentRow): Attachment {
+  return {
+    id: r.id,
+    messageId: r.message_id,
+    type: (r.type === 'image' ? 'image' : 'file') as Attachment['type'],
+    filename: r.filename,
+    mimeType: r.mime_type,
+    url: r.url,
+  };
+}
+
+function rowToMessage(r: MessageRow, attachments?: Attachment[]): Message {
   return {
     id: r.id,
     conversationId: r.conversation_id,
@@ -30,7 +50,31 @@ function rowToMessage(r: MessageRow): Message {
     content: r.content,
     modelUsed: r.model_used || undefined,
     createdAt: r.created_at,
+    attachments: attachments && attachments.length > 0 ? attachments : undefined,
   };
+}
+
+function loadAttachmentsForMessages(messageIds: string[]): Map<string, Attachment[]> {
+  const map = new Map<string, Attachment[]>();
+  if (messageIds.length === 0) return map;
+  const db = getDb();
+  // Chunk IN clauses to stay under SQLite variable limits on large exports
+  const CHUNK = 400;
+  for (let i = 0; i < messageIds.length; i += CHUNK) {
+    const slice = messageIds.slice(i, i + CHUNK);
+    const placeholders = slice.map(() => '?').join(',');
+    const rows = db
+      .prepare(
+        `SELECT id, message_id, type, filename, mime_type, url FROM attachments WHERE message_id IN (${placeholders})`
+      )
+      .all(...slice) as AttachmentRow[];
+    for (const r of rows) {
+      const list = map.get(r.message_id) || [];
+      list.push(rowToAttachment(r));
+      map.set(r.message_id, list);
+    }
+  }
+  return map;
 }
 
 // GET /api/conversations - List conversations
@@ -135,11 +179,11 @@ router.delete('/:id', (req: Request, res: Response) => {
   }
 });
 
-// GET /api/conversations/export - Export conversations (+ their messages) as JSON download
+// GET /api/conversations/export - Export conversations (+ messages + attachments) as JSON download
 // Scope mirrors the list endpoint: authed users get their own (all visibility) + public;
-// guests get public only. NOTE: attachments (images/files) are NOT included in v1 —
-// they live in separate binary storage. TODO 待更新：如果将来要连附件一起导出/导入，
-// 需要把 attachments 表 + 实际文件一起打包（见 framework §3.3 F-C04 / P1 backlog）。
+// guests get public only.
+// version 2 embeds attachment rows (url is typically a data: base64 URL stored in SQLite).
+// version 1 files (no attachments field) remain importable.
 router.get('/export', optionalAuth, (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
@@ -160,20 +204,38 @@ router.get('/export', optionalAuth, (req: AuthRequest, res: Response) => {
       'SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC'
     );
 
-    const conversations = convRows.map(c => ({
-      ...rowToConversation(c),
-      messages: (msgStmt.all(c.id) as MessageRow[]).map(r => ({
-        id: r.id,
-        role: r.role,
-        content: r.content,
-        modelUsed: r.model_used,
-        createdAt: r.created_at,
-      })),
+    // Load all message rows first so we can batch-fetch attachments once.
+    const convMessages: { conv: ConversationRow; messages: MessageRow[] }[] = convRows.map((c) => ({
+      conv: c,
+      messages: msgStmt.all(c.id) as MessageRow[],
+    }));
+    const allMsgIds = convMessages.flatMap((cm) => cm.messages.map((m) => m.id));
+    const attMap = loadAttachmentsForMessages(allMsgIds);
+
+    const conversations = convMessages.map(({ conv, messages }) => ({
+      ...rowToConversation(conv),
+      messages: messages.map((r) => {
+        const atts = attMap.get(r.id) || [];
+        return {
+          id: r.id,
+          role: r.role,
+          content: r.content,
+          modelUsed: r.model_used,
+          createdAt: r.created_at,
+          attachments: atts.map((a) => ({
+            id: a.id,
+            type: a.type,
+            filename: a.filename,
+            mimeType: a.mimeType,
+            url: a.url,
+          })),
+        };
+      }),
     }));
 
     const payload = {
       exportedAt: new Date().toISOString(),
-      version: 1,
+      version: EXPORT_VERSION,
       conversations,
     };
 
@@ -185,9 +247,10 @@ router.get('/export', optionalAuth, (req: AuthRequest, res: Response) => {
   }
 });
 
-// POST /api/conversations/import - Import conversations (+ messages) from an export file.
+// POST /api/conversations/import - Import conversations (+ messages + optional attachments).
 // Accepts either the wrapped { conversations: [...] } shape or a bare array.
 // Uses INSERT OR IGNORE so re-importing the same file is a no-op (dedup by id).
+// Compatible with export version 1 (no attachments) and version 2 (with attachments).
 router.post('/import', optionalAuth, (req: AuthRequest, res: Response) => {
   try {
     const body = req.body as ConversationImportItem[] | { conversations?: ConversationImportItem[] } | null;
@@ -217,9 +280,15 @@ router.post('/import', optionalAuth, (req: AuthRequest, res: Response) => {
         (id, conversation_id, role, content, model_used, created_at)
       VALUES (?, ?, ?, ?, ?, ?)
     `);
+    const insertAtt = db.prepare(`
+      INSERT OR IGNORE INTO attachments
+        (id, message_id, type, filename, mime_type, url)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
 
     let importedConvs = 0;
     let importedMsgs = 0;
+    let importedAtts = 0;
 
     const runImport = db.transaction((items: ConversationImportItem[]) => {
       for (const c of items) {
@@ -244,8 +313,9 @@ router.post('/import', optionalAuth, (req: AuthRequest, res: Response) => {
         const messages = Array.isArray(c.messages) ? c.messages : [];
         for (const m of messages) {
           if (!m || !m.role || m.content === undefined || m.content === null) continue;
+          const msgId = m.id || uuidv4();
           const mr = insertMsg.run(
-            m.id || uuidv4(),
+            msgId,
             convId,
             m.role,
             m.content,
@@ -253,6 +323,21 @@ router.post('/import', optionalAuth, (req: AuthRequest, res: Response) => {
             m.createdAt || now
           );
           if (mr.changes > 0) importedMsgs++;
+
+          const atts: AttachmentImportItem[] = Array.isArray(m.attachments) ? m.attachments : [];
+          for (const a of atts) {
+            if (!a || !a.url || !a.filename) continue;
+            const attType = a.type === 'image' ? 'image' : 'file';
+            const ar = insertAtt.run(
+              a.id || uuidv4(),
+              msgId,
+              attType,
+              a.filename,
+              a.mimeType || (attType === 'image' ? 'image/png' : 'application/octet-stream'),
+              a.url
+            );
+            if (ar.changes > 0) importedAtts++;
+          }
         }
       }
     });
@@ -261,14 +346,19 @@ router.post('/import', optionalAuth, (req: AuthRequest, res: Response) => {
 
     res.json({
       success: true,
-      data: { importedConversations: importedConvs, importedMessages: importedMsgs, total: list.length },
+      data: {
+        importedConversations: importedConvs,
+        importedMessages: importedMsgs,
+        importedAttachments: importedAtts,
+        total: list.length,
+      },
     });
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
-// GET /api/conversations/:id/messages - Get messages
+// GET /api/conversations/:id/messages - Get messages (with attachments)
 router.get('/:id/messages', (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -281,7 +371,8 @@ router.get('/:id/messages', (req: Request, res: Response) => {
     }
 
     const rows = db.prepare('SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC').all(id) as MessageRow[];
-    const messages = rows.map(rowToMessage);
+    const attMap = loadAttachmentsForMessages(rows.map((r) => r.id));
+    const messages = rows.map((r) => rowToMessage(r, attMap.get(r.id)));
 
     console.log(`[getMessages] conv=${id} messages=${messages.length}`);
     res.json({ success: true, data: messages } as ApiResponse);

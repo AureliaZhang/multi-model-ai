@@ -360,7 +360,104 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
             </p>
           </div>
         ) : (
-          <div className="px-3 py-2 overflow-x-auto">
+          <>
+            {/* Mobile: stacked cards (no horizontal scroll) */}
+            <div className="md:hidden space-y-2 px-3 py-2">
+              {displayEntries.map(entry => (
+                <div
+                  key={entry.id}
+                  className="rounded-lg border border-[var(--color-border-light)] bg-[var(--color-main-surface-secondary)] p-3"
+                >
+                  <div
+                    className="flex items-start justify-between gap-2 cursor-pointer"
+                    onClick={() => setExpandedRowId(expandedRowId === entry.id ? null : entry.id)}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                          entry.role === 'user'
+                            ? 'bg-blue-500/10 text-blue-400'
+                            : 'bg-purple-500/10 text-purple-400'
+                        }`}>
+                          {entry.role === 'user' ? 'U' : 'AI'}
+                        </span>
+                        <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-medium ${getImportanceColor(entry.importance)}`}>
+                          {getImportanceLabel(entry.importance)}
+                        </span>
+                        {entry.embedding && entry.embedding.length > 0 ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-green-400">
+                            <Brain size={10} /> {entry.embedding.length}d
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="text-xs text-[var(--color-text-tertiary)] mb-1">
+                        {formatDate(entry.createdAt)}
+                        {(entry.username || entry.userId) ? ` · ${entry.username || entry.userId}` : ''}
+                      </div>
+                      <div className="text-sm text-[var(--color-text-primary)] line-clamp-2">
+                        {entry.summary || entry.content.slice(0, 120)}
+                      </div>
+                      {entry.keywords.length > 0 && (
+                        <div className="flex items-center gap-1 flex-wrap mt-1.5">
+                          {entry.keywords.slice(0, 4).map((kw, i) => (
+                            <span key={i} className="inline-block px-1.5 py-0.5 rounded bg-[var(--color-bg-secondary)] text-[10px] text-[var(--color-text-tertiary)] border border-[var(--color-border-light)]">
+                              {kw}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setExpandedRowId(expandedRowId === entry.id ? null : entry.id); }}
+                        className="p-1.5 rounded-md hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)]"
+                      >
+                        {expandedRowId === entry.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDelete(entry.id); }}
+                        className={`p-1.5 rounded-md transition-colors ${
+                          deleteConfirmId === entry.id
+                            ? 'bg-red-500/20 text-red-400'
+                            : 'hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] hover:text-red-400'
+                        }`}
+                      >
+                        {deleteConfirmId === entry.id ? <X size={14} /> : <Trash2 size={14} />}
+                      </button>
+                    </div>
+                  </div>
+                  {expandedRowId === entry.id && (
+                    <div className="mt-2 pt-2 border-t border-[var(--color-border-light)]">
+                      {entry.summary && (
+                        <div className="mb-2">
+                          <span className="text-[11px] font-medium text-[var(--color-text-tertiary)] uppercase">{t('memory.summary')}:</span>
+                          <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">{entry.summary}</p>
+                        </div>
+                      )}
+                      <div className="mb-2">
+                        <span className="text-[11px] font-medium text-[var(--color-text-tertiary)] uppercase">{t('memory.content')}:</span>
+                        <p className="text-sm text-[var(--color-text-secondary)] mt-0.5 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                          {entry.content.length > 500 ? entry.content.substring(0, 500) + '...' : entry.content}
+                        </p>
+                      </div>
+                      {entry.tags.length > 0 && (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[11px] font-medium text-[var(--color-text-tertiary)] uppercase">{t('memory.tags')}:</span>
+                          {entry.tags.map((tag, i) => (
+                            <span key={i} className="inline-block px-1.5 py-0.5 rounded bg-[var(--color-bg-secondary)] text-[10px] text-[var(--color-text-tertiary)] border border-[var(--color-border-light)]">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop: fixed-column table (horizontal scroll fallback still available) */}
+            <div className="hidden md:block px-3 py-2 overflow-x-auto">
             {/* Table header — min-w keeps the fixed columns aligned; the parent
                 scrolls horizontally on narrow screens instead of crushing them. */}
             <div className="grid grid-cols-[150px_80px_50px_1fr_80px_80px_70px] gap-2 px-3 py-2 text-[11px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-light)] mb-1 min-w-[720px]">
@@ -488,7 +585,8 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
                 )}
               </div>
             ))}
-          </div>
+            </div>
+          </>
         )}
       </div>
 

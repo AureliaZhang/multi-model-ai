@@ -71,6 +71,8 @@ function applySocketEvent(
     case 'ai': {
       const message = event.message as RoomAiMessage;
       if (!message?.id) return;
+      // Streaming updates arrive many times per second: merge by id so
+      // content grows in place (thinking → streaming → done|error).
       set({ aiMessages: upsertById(get().aiMessages, message) });
       break;
     }

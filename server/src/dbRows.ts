@@ -29,6 +29,16 @@ export interface MessageRow {
   created_at: string;
 }
 
+export interface AttachmentRow {
+  id: string;
+  message_id: string;
+  type: string;
+  filename: string;
+  mime_type: string;
+  /** Often a data: URL (base64) for chat uploads. */
+  url: string;
+}
+
 /** Import payload entry (camelCase, from export JSON or bare array). */
 export interface ConversationImportItem {
   id?: string;
@@ -47,6 +57,17 @@ export interface MessageImportItem {
   content?: string | null;
   modelUsed?: string | null;
   createdAt?: string;
+  /** Present from export version >= 2; ignored by v1 importers that don't know it. */
+  attachments?: AttachmentImportItem[];
+}
+
+export interface AttachmentImportItem {
+  id?: string;
+  type?: string;
+  filename?: string;
+  mimeType?: string;
+  /** data: URL or remote URL string as stored in DB */
+  url?: string;
 }
 
 // --- stations / station_models ---

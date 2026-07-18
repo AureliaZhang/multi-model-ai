@@ -267,9 +267,78 @@ export function UserManagement({ onBack }: UserManagementProps) {
         ) : users.length === 0 ? (
           <div className="text-center py-12 text-[var(--color-text-tertiary)]">{t('users.noUsers')}</div>
         ) : (
-          /* min-w + overflow-x-auto: narrow screens scroll the table sideways
-             instead of crushing the six fixed columns. */
-          <div className="space-y-2 overflow-x-auto">
+          <>
+            {/* Mobile cards */}
+            <div className="md:hidden space-y-2">
+              {users.map(user => (
+                <div
+                  key={user.id}
+                  className="rounded-lg bg-[var(--color-main-surface-secondary)] border border-[var(--color-border-light)] p-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium">{user.displayName || user.username}</div>
+                      <div className="text-xs text-[var(--color-text-tertiary)]">@{user.username}</div>
+                      <div className="flex items-center gap-2 flex-wrap mt-1.5">
+                        <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
+                          user.role === 'admin'
+                            ? 'bg-[var(--color-surface-warning)] text-[var(--color-text-warning)]'
+                            : 'bg-[var(--color-main-surface-tertiary)] text-[var(--color-text-secondary)]'
+                        }`}>
+                          {user.role === 'admin' ? <Shield size={10} /> : null}
+                          {user.role}
+                        </span>
+                        <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
+                          user.isActive
+                            ? 'bg-[var(--color-surface-success)] text-[var(--color-text-success)]'
+                            : 'bg-[var(--color-surface-error)] text-[var(--color-text-error)]'
+                        }`}>
+                          {user.isActive ? t('users.active') : t('users.disabled')}
+                        </span>
+                      </div>
+                      {(user.phone || user.email) && (
+                        <div className="text-xs text-[var(--color-text-secondary)] mt-1.5 space-y-0.5">
+                          {user.phone && <div>{user.phone}</div>}
+                          {user.email && <div className="truncate">{user.email}</div>}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {user.id !== currentUser?.id ? (
+                        <>
+                          <button
+                            onClick={() => handleToggleActive(user)}
+                            className="p-1.5 rounded-md hover:bg-[var(--button-ghost-hover)] text-[var(--color-text-tertiary)]"
+                            title={user.isActive ? t('users.disableUser') : t('users.enableUser')}
+                          >
+                            {user.isActive ? <UserX size={14} /> : <UserCheck size={14} />}
+                          </button>
+                          <button
+                            onClick={() => handleChangeRole(user, user.role === 'admin' ? 'user' : 'admin')}
+                            className="p-1.5 rounded-md hover:bg-[var(--button-ghost-hover)] text-[var(--color-text-tertiary)]"
+                            title={user.role === 'admin' ? t('users.demoteToUser') : t('users.promoteToAdmin')}
+                          >
+                            {user.role === 'admin' ? <ShieldOff size={14} /> : <Shield size={14} />}
+                          </button>
+                          <button
+                            onClick={() => handleDelete(user)}
+                            className="p-1.5 rounded-md hover:bg-[var(--color-surface-error)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-error)]"
+                            title={t('users.deleteUser')}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-xs text-[var(--color-text-tertiary)] italic">{t('users.you')}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden md:block space-y-2 overflow-x-auto">
             {/* Table header */}
             <div className="grid grid-cols-[1fr_120px_1fr_100px_100px_120px] gap-4 px-4 py-2 text-xs text-[var(--color-text-tertiary)] uppercase tracking-wider min-w-[680px]">
               <span>{t('users.user')}</span>
@@ -357,7 +426,8 @@ export function UserManagement({ onBack }: UserManagementProps) {
                 </div>
               </div>
             ))}
-          </div>
+            </div>
+          </>
         )}
       </div>
     </div>

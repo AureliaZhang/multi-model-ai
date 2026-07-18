@@ -5,7 +5,7 @@ import type { AuthRequest } from '../types';
 import type { ConversationRow, MessageRow, MemoryConfigRow, StationModelJoinRow } from '../dbRows';
 import { v4 as uuidv4 } from 'uuid';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string; numpages: number; numrender: number; info: any; metadata: any; version: string }>;
+const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string; numpages: number; numrender: number; info: unknown; metadata: unknown; version: string }>;
 import { getDb } from '../database';
 import { normalizeModelName } from '../services/normalizeModelName';
 import { ApiResponse } from '../types';
@@ -14,6 +14,33 @@ import { generateEmbedding, serializeEmbedding, vectorSearch } from '../services
 import { roundRobin } from '../services/loadBalancer';
 import { getActiveScripts, applyRegexScripts } from '../services/regexEngine';
 import { getErrorMessage } from '../utils/errors';
+import { searchFileChunks } from '../services/fileProcessor';
+
+/** OpenAI-style multimodal content part for chat completions. */
+type ChatContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+
+type ChatApiMessage =
+  | { role: string; content: string | ChatContentPart[] | null; tool_calls?: unknown }
+  | { role: 'tool'; tool_call_id: string; content: string };
+
+type ChatRequestBody = {
+  model: string;
+  messages: ChatApiMessage[];
+  stream: boolean;
+  tools?: unknown;
+  temperature?: number;
+};
+
+type MemoryContextRow = {
+  summary?: string | null;
+  content?: string;
+  keywords?: string;
+  created_at?: string;
+  role?: string;
+};
+
 import type Database from 'better-sqlite3';
 
 const router = Router();
@@ -160,13 +187,13 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
     res.setHeader('X-Accel-Buffering', 'no');
 
     // Build messages array for the API, with multimodal support
-    const apiMessages: any[] = [];
+    const apiMessages: ChatApiMessage[] = [];
     for (const m of history) {
       // Apply input regex to current user message content for API
       const msgContent = (m.role === 'user' && m.id === userMsgId) ? transformedInput : m.content;
       if (m.role === 'user' && m.id === userMsgId && attachments && attachments.length > 0) {
         // Build multimodal content for the current user message with attachments
-        const contentParts: any[] = [];
+        const contentParts: ChatContentPart[] = [];
         let textContent = msgContent;
         for (const att of attachments) {
           if (att.mimeType.startsWith('image/')) {
@@ -199,7 +226,7 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
           'SELECT type, filename, mime_type, url FROM attachments WHERE message_id = ?'
         ).all(m.id) as Array<{ id: string; type: string; filename: string; mime_type: string; url: string }>;
         if (msgAttachments.length > 0) {
-          const contentParts: any[] = [];
+          const contentParts: ChatContentPart[] = [];
           let textContent = msgContent;
           let hasImages = false;
           for (const att of msgAttachments) {
@@ -241,12 +268,11 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
     // Inject relevant file library chunks as system context (RAG)
     if (fileIds && Array.isArray(fileIds) && fileIds.length > 0) {
       try {
-        const { searchFileChunks } = require('../services/fileProcessor');
         const queryEmbedding = await generateEmbedding(message);
         const relevantChunks = searchFileChunks(queryEmbedding, fileIds, 5);
         if (relevantChunks.length > 0) {
           const fileContext = relevantChunks
-            .map((c: any) => `[${c.fileName}] ${c.content}`)
+            .map((c: { fileName: string; content: string }) => `[${c.fileName}] ${c.content}`)
             .join('\n\n');
           apiMessages.unshift({
             role: 'system',
@@ -262,8 +288,8 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
     const relevantMemories = await retrieveRelevantMemories(db, message, 5);
     if (relevantMemories.length > 0) {
       const memoryContext = relevantMemories
-        .filter((m: any) => m.summary)
-        .map((m: any) => `- ${m.summary}`)
+        .filter((m) => m.summary)
+        .map((m) => `- ${m.summary}`)
         .join('\n');
 
       if (memoryContext) {
@@ -284,7 +310,7 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
 
     for (const s of stations) {
       try {
-        const requestBody: any = {
+        const requestBody: ChatRequestBody = {
           model: s.modelId,
           messages: apiMessages,
           stream: true,
@@ -409,7 +435,7 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
           }
 
           // Build assistant message with tool_calls for next round
-          const assistantToolCallsMsg: any = {
+          const assistantToolCallsMsg: ChatApiMessage = {
             role: 'assistant',
             content: roundContent || null,
             tool_calls: toolCalls.map(tc => ({
@@ -420,7 +446,7 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
           };
 
           // Execute each tool and build tool result messages
-          const toolResultMessages: any[] = [];
+          const toolResultMessages: ChatApiMessage[] = [];
           for (const tc of toolCalls) {
             let parsedArgs: Record<string, unknown> = {};
             try { parsedArgs = JSON.parse(tc.arguments); } catch { /* empty */ }
@@ -503,7 +529,7 @@ If you find any issues, correct them and return ONLY the corrected version. If t
 ${assistantContent}
 ---END AI RESPONSE---`;
 
-        const reviewRequestBody: any = {
+        const reviewRequestBody: ChatRequestBody = {
           model: usedStation.split(' @ ')[0], // Use the same model
           messages: [{ role: 'user', content: reviewPrompt }],
           stream: false,
@@ -687,7 +713,7 @@ async function autoSaveMemory(
 }
 
 // Retrieve relevant memories for context injection using vector similarity
-async function retrieveRelevantMemories(db: Database.Database, query: string, limit: number = 5): Promise<any[]> {
+async function retrieveRelevantMemories(db: Database.Database, query: string, limit: number = 5): Promise<MemoryContextRow[]> {
   try {
     const config = db.prepare('SELECT * FROM memory_config WHERE id = 1').get() as MemoryConfigRow | undefined;
     if (!config || !config.context_injection) return [];
@@ -724,11 +750,11 @@ async function retrieveRelevantMemories(db: Database.Database, query: string, li
         WHERE summary IS NOT NULL AND summary != ''
         ORDER BY importance DESC, created_at DESC
         LIMIT ?
-      `).all(maxMemories);
+      `).all(maxMemories) as MemoryContextRow[];
     }
 
     const conditions = keywords.map(() => '(content LIKE ? OR keywords LIKE ? OR summary LIKE ?)').join(' OR ');
-    const params: any[] = [];
+    const params: (string | number)[] = [];
     for (const kw of keywords) {
       params.push(`%${kw}%`, `%${kw}%`, `%${kw}%`);
     }
@@ -740,7 +766,7 @@ async function retrieveRelevantMemories(db: Database.Database, query: string, li
       WHERE ${conditions}
       ORDER BY importance DESC, created_at DESC
       LIMIT ?
-    `).all(...params);
+    `).all(...params) as MemoryContextRow[];
   } catch (err) {
     console.error('Memory retrieval error:', err);
     return [];

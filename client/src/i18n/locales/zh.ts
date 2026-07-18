@@ -81,6 +81,7 @@ const zh = {
   'sidebar.exportFailed': '导出失败',
   'sidebar.importFailed': '导入失败：文件格式无效',
   'sidebar.importDone': '已导入 {convs} 个对话、{msgs} 条消息',
+  'sidebar.importDoneWithAtts': '已导入 {convs} 个对话、{msgs} 条消息、{atts} 个附件',
 
   // Theme toggle
   'theme.switchToLight': '切换到亮色模式',

@@ -465,9 +465,111 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
             </div>
           </div>
         ) : (
-          /* Folder + file list — scrolls horizontally on narrow screens; the
-             min-w on header + rows keeps the fixed columns aligned. */
-          <div className="px-3 py-2 overflow-x-auto">
+          <>
+            {/* Mobile cards */}
+            <div className="md:hidden space-y-2 px-3 py-2">
+              {folders.map(folder => (
+                <div
+                  key={folder.id}
+                  className="rounded-lg border border-[var(--color-border-light)] bg-[var(--color-main-surface-secondary)] p-3"
+                  onDoubleClick={() => handleFolderDoubleClick(folder)}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <Folder size={18} className="text-yellow-400 flex-shrink-0" />
+                      {renamingFolderId === folder.id ? (
+                        <input
+                          autoFocus
+                          type="text"
+                          value={renameValue}
+                          onChange={e => setRenameValue(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') handleRenameFolder(folder.id); if (e.key === 'Escape') { setRenamingFolderId(null); setRenameValue(''); } }}
+                          onBlur={() => handleRenameFolder(folder.id)}
+                          className="flex-1 px-1.5 py-0.5 rounded bg-[var(--color-main-surface-primary)] border border-[var(--color-accent-main)] text-sm outline-none"
+                          onClick={e => e.stopPropagation()}
+                        />
+                      ) : (
+                        <div className="min-w-0">
+                          <div className="text-sm text-[var(--color-text-primary)] truncate">{folder.name}</div>
+                          <div className="text-[11px] text-[var(--color-text-tertiary)] mt-0.5">
+                            {t('files.folder')} · {formatDate(folder.createdAt)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setRenamingFolderId(folder.id); setRenameValue(folder.name); }}
+                        className="p-1.5 rounded-md hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)]"
+                        title={t('files.renameFolder')}
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder); }}
+                        className={`p-1.5 rounded-md ${
+                          deleteFolderConfirmId === folder.id
+                            ? 'bg-red-500/20 text-red-400'
+                            : 'hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] hover:text-red-400'
+                        }`}
+                        title={deleteFolderConfirmId === folder.id ? t('common.confirm') : t('files.deleteFolder')}
+                      >
+                        {deleteFolderConfirmId === folder.id ? <CheckCircle2 size={14} /> : <Trash2 size={14} />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {files.map(file => (
+                <div
+                  key={file.id}
+                  className="rounded-lg border border-[var(--color-border-light)] bg-[var(--color-main-surface-secondary)] p-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      {getFileIcon(file.mimeType, file.originalName)}
+                      <div className="min-w-0">
+                        <div className="text-sm text-[var(--color-text-primary)] truncate">{file.originalName}</div>
+                        <div className="flex items-center gap-2 flex-wrap mt-1 text-[11px] text-[var(--color-text-tertiary)]">
+                          <span>{formatFileSize(file.fileSize)}</span>
+                          <span>·</span>
+                          <span>{formatDate(file.createdAt)}</span>
+                        </div>
+                        <div className="mt-1.5">{getStatusBadge(file.status)}</div>
+                        {file.status === 'error' && file.errorMessage && (
+                          <div className="text-[11px] text-red-400 mt-1 truncate">{file.errorMessage}</div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {(file.status === 'error' || file.status === 'processing') && (
+                        <button
+                          onClick={() => handleReindex(file.id)}
+                          className="p-1.5 rounded-md hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)]"
+                          title={t('files.reindex')}
+                        >
+                          <RefreshCw size={14} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDelete(file)}
+                        className={`p-1.5 rounded-md ${
+                          deleteConfirmId === file.id
+                            ? 'bg-red-500/20 text-red-400'
+                            : 'hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] hover:text-red-400'
+                        }`}
+                        title={deleteConfirmId === file.id ? t('common.confirm') : t('files.delete')}
+                      >
+                        {deleteConfirmId === file.id ? <CheckCircle2 size={14} /> : <Trash2 size={14} />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden md:block px-3 py-2 overflow-x-auto">
             {/* Table header */}
             <div className="grid grid-cols-[1fr_100px_100px_100px_90px] gap-2 px-3 py-2 text-[11px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-light)] mb-1 min-w-[620px]">
               <span>{t('files.title')}</span>
@@ -622,7 +724,8 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
                 </div>
               </div>
             ))}
-          </div>
+            </div>
+          </>
         )}
       </div>
     </div>

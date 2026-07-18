@@ -81,6 +81,7 @@ const en = {
   'sidebar.exportFailed': 'Export failed',
   'sidebar.importFailed': 'Import failed: invalid file format',
   'sidebar.importDone': 'Imported {convs} conversations, {msgs} messages',
+  'sidebar.importDoneWithAtts': 'Imported {convs} conversations, {msgs} messages, {atts} attachments',
 
   // Theme toggle
   'theme.switchToLight': 'Switch to light mode',

@@ -166,7 +166,12 @@ export const conversationApi = {
     URL.revokeObjectURL(url);
   },
   import: (payload: unknown) =>
-    request<{ importedConversations: number; importedMessages: number; total: number }>(
+    request<{
+      importedConversations: number;
+      importedMessages: number;
+      importedAttachments?: number;
+      total: number;
+    }>(
       '/conversations/import',
       { method: 'POST', body: JSON.stringify(payload) }
     ),

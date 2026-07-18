@@ -56,7 +56,19 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
       const text = await file.text();
       const data = JSON.parse(text);
       const summary = await importConversations(data);
-      alert(t('sidebar.importDone', { convs: summary.importedConversations, msgs: summary.importedMessages }));
+      const atts = summary.importedAttachments ?? 0;
+      alert(
+        atts > 0
+          ? t('sidebar.importDoneWithAtts', {
+              convs: summary.importedConversations,
+              msgs: summary.importedMessages,
+              atts,
+            })
+          : t('sidebar.importDone', {
+              convs: summary.importedConversations,
+              msgs: summary.importedMessages,
+            })
+      );
     } catch (err) {
       console.error('[Sidebar] import failed:', err);
       alert(t('sidebar.importFailed'));

@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   filterStationsForModel,
   invokeModel,
+  streamInvokeModel,
+  extractSseContentDelta,
   type StationPick,
 } from './modelInvocation';
 import type { StationModelJoinRow } from '../dbRows';
@@ -165,5 +167,90 @@ describe('invokeModel failover', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.content).toBe('recovered');
+  });
+});
+
+
+describe('extractSseContentDelta', () => {
+  it('reads delta.content', () => {
+    expect(extractSseContentDelta('{"choices":[{"delta":{"content":"hi"}}]}')).toBe('hi');
+  });
+
+  it('returns null for [DONE] and empty', () => {
+    expect(extractSseContentDelta('[DONE]')).toBeNull();
+    expect(extractSseContentDelta('')).toBeNull();
+    expect(extractSseContentDelta('{"choices":[{"delta":{}}]}')).toBeNull();
+  });
+
+  it('returns null on invalid JSON', () => {
+    expect(extractSseContentDelta('not-json')).toBeNull();
+  });
+});
+
+describe('streamInvokeModel', () => {
+  beforeEach(() => {
+    _resetRoundRobin();
+  });
+
+  function sseResponse(chunks: string[], status = 200): Response {
+    const body = chunks.map((c) => `data: ${c}\n\n`).join('') + 'data: [DONE]\n\n';
+    return new Response(body, {
+      status,
+      headers: { 'Content-Type': 'text/event-stream' },
+    });
+  }
+
+  it('emits deltas in order and returns full content', async () => {
+    const stations = [pick('s1', 'Streamy')];
+    const deltas: string[] = [];
+    const fetchImpl = vi.fn(async () =>
+      sseResponse([
+        JSON.stringify({ choices: [{ delta: { content: 'Hel' } }] }),
+        JSON.stringify({ choices: [{ delta: { content: 'lo' } }] }),
+        JSON.stringify({ choices: [{ delta: { content: '!' } }] }),
+      ])
+    );
+
+    const result = await streamInvokeModel(
+      {
+        modelNormalizedName: 'gpt-4o',
+        messages: [{ role: 'user', content: 'hi' }],
+        onDelta: (d) => deltas.push(d),
+      },
+      {
+        getStations: () => stations,
+        fetchImpl: fetchImpl as typeof fetch,
+        markStationHealth: () => {},
+      }
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.content).toBe('Hello!');
+    expect(deltas.join('')).toBe('Hello!');
+    expect(deltas).toEqual(['Hel', 'lo', '!']);
+  });
+
+  it('fails over to next station when stream is empty', async () => {
+    const stations = [pick('s1', 'Empty'), pick('s2', 'Full')];
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      if (String(url).includes('s1')) {
+        return sseResponse([JSON.stringify({ choices: [{ delta: {} }] })]);
+      }
+      return sseResponse([JSON.stringify({ choices: [{ delta: { content: 'ok' } }] })]);
+    });
+
+    const result = await streamInvokeModel(
+      { modelNormalizedName: 'gpt-4o', messages: [{ role: 'user', content: 'hi' }] },
+      {
+        getStations: () => stations,
+        fetchImpl: fetchImpl as typeof fetch,
+        markStationHealth: () => {},
+      }
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.content).toBe('ok');
+    expect(result.stationId).toBe('s2');
   });
 });

@@ -10,15 +10,15 @@
  *   idle -> occupying_input -> ai_running -> idle
  *
  * This file covers P0 (rooms/members/messages CRUD + occupancy) and P1
- * (@AI delivery + reply via shared invokeModel). Realtime (WS) is layered
- * on top later; clients may poll GET endpoints in the meantime.
+ * (@AI delivery + reply via streamInvokeModel over WS). Realtime is live
+ * (roomHub); clients may still poll GET endpoints as a disconnect fallback.
  */
 
 import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../database';
 import { requireAuth } from '../middleware/auth';
-import { invokeModel } from '../services/modelInvocation';
+import { streamInvokeModel } from '../services/modelInvocation';
 import { logApiUsage } from '../services/usageLog';
 import { broadcast, closeRoom as closeRoomSockets, disconnectUser } from '../services/roomHub';
 import {
@@ -606,13 +606,56 @@ router.post('/:id/ai/ask', async (req: AuthRequest, res: Response) => {
     }
     messages.push({ role: 'user', content });
 
-    // Call the model (non-streaming; reuse shared invoker). Uses group model prefs.
-    const result = await invokeModel({ modelNormalizedName: chatModel, messages });
+    // Stream the model reply over WebSocket so every member sees tokens arrive
+    // (status: thinking → streaming → done|error). Private chat still uses SSE;
+    // rooms keep the whole-chunk HTTP response for the asker as a safety net.
+    let streamed = '';
+    let lastBroadcastAt = 0;
+    const STREAM_THROTTLE_MS = 40;
+
+    const broadcastStream = (status: 'streaming' | 'done' | 'error', extra: Record<string, unknown> = {}) => {
+      broadcast(room!.id, {
+        type: 'ai',
+        message: {
+          id: asstId,
+          role: 'assistant',
+          content: streamed,
+          authorId: null,
+          authorName: null,
+          status,
+          modelUsed: extra.modelUsed ?? null,
+          errorMessage: extra.errorMessage ?? null,
+          fileIds: [],
+          createdAt: nowIso(),
+        },
+      });
+    };
+
+    const result = await streamInvokeModel({
+      modelNormalizedName: chatModel,
+      messages,
+      onDelta: (delta, full) => {
+        streamed = full;
+        const now = Date.now();
+        // Always push the first delta (thinking → streaming) and throttle the rest
+        if (streamed.length === delta.length || now - lastBroadcastAt >= STREAM_THROTTLE_MS) {
+          lastBroadcastAt = now;
+          broadcastStream('streaming');
+        }
+      },
+    });
+
+    // Ensure final streamed text is visible even if last throttle window skipped it
+    if (result.ok && streamed && streamed !== result.content) {
+      streamed = result.content;
+    }
 
     if (result.ok) {
+      const finalContent = result.content || streamed;
+      streamed = finalContent;
       db.prepare(
         `UPDATE room_ai_messages SET content = ?, status = 'done', model_used = ?, created_at = created_at WHERE id = ?`
-      ).run(result.content, result.modelUsed, asstId);
+      ).run(finalContent, result.modelUsed, asstId);
       logApiUsage({
         userId: req.user!.id,
         username: req.user!.username,
@@ -623,11 +666,16 @@ router.post('/:id/ai/ask', async (req: AuthRequest, res: Response) => {
         stationId: result.stationId,
         stationName: result.stationName,
         status: 'ok',
-        completionTokens: Math.ceil((result.content || '').length / 4),
+        completionTokens: Math.ceil((finalContent || '').length / 4),
         latencyMs: result.latencyMs,
       });
+      broadcastStream('done', { modelUsed: result.modelUsed });
     } else {
-      db.prepare(`UPDATE room_ai_messages SET status = 'error', error_message = ? WHERE id = ?`).run(result.error, asstId);
+      db.prepare(`UPDATE room_ai_messages SET content = ?, status = 'error', error_message = ? WHERE id = ?`).run(
+        streamed || '',
+        result.error,
+        asstId
+      );
       logApiUsage({
         userId: req.user!.id,
         username: req.user!.username,
@@ -638,6 +686,7 @@ router.post('/:id/ai/ask', async (req: AuthRequest, res: Response) => {
         errorMessage: result.error,
         latencyMs: result.latencyMs,
       });
+      broadcastStream('error', { errorMessage: result.error });
     }
 
     // Back to idle — next @AI allowed only now (§10.6.4 / §10.6.5)
@@ -650,9 +699,7 @@ router.post('/:id/ai/ask', async (req: AuthRequest, res: Response) => {
       )
       .get(asstId);
 
-    // Fan out the finished (or errored) answer — replaces the thinking bubble
-    // for everyone — and the room's return to idle so locks/countdowns clear.
-    broadcast(room.id, { type: 'ai', message: { ...(asst as object), fileIds: [] } });
+    // Room state (idle) for locks/countdowns. Final AI payload already fan-out above.
     broadcast(room.id, { type: 'room', room: serializeRoom(getRoomOr(room)) });
 
     res.json({ success: true, data: { userMessageId: userMsgId, assistant: asst } });
