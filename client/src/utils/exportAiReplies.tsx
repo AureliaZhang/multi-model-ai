@@ -1,14 +1,11 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { normalizeMarkdown } from './markdown';
+import { MarkdownMessage } from '../components/common/MarkdownMessage';
 
 /**
  * Export the group AI replies (assistant answers only) as .docx or .pdf.
  *
  * Both formats start from the SAME markdown → HTML rendering used in column c
- * (react-markdown + remarkGfm + normalizeMarkdown), so what the user exports
- * matches what they see:
+ * (the shared <MarkdownMessage>), so what the user exports matches what they see:
  *   - PDF  : open a print window with a fixed light stylesheet and call print()
  *            (the user picks "Save as PDF"); pixel-faithful to column c.
  *   - docx : the raw markdown is sent to the server which builds a real OOXML
@@ -26,20 +23,7 @@ export interface ExportableReply {
 
 /** Render one assistant reply's markdown to an HTML string (column-c parity). */
 function replyToHtml(content: string): string {
-  return renderToStaticMarkup(
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      components={{
-        table: ({ children, ...props }) => (
-          <div className="table-wrapper">
-            <table {...props}>{children}</table>
-          </div>
-        ),
-      }}
-    >
-      {normalizeMarkdown(content)}
-    </ReactMarkdown>,
-  );
+  return renderToStaticMarkup(<MarkdownMessage content={content} />);
 }
 
 /**

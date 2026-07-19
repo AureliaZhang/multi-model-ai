@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { useRoomStore } from '../../stores/roomStore';
 import { useAuthStore } from '../../stores/authStore';
 import { usePrefsStore } from '../../stores/prefsStore';
 import { usersApi } from '../../services/api';
 import { useTranslation } from '../../i18n';
-import { normalizeMarkdown } from '../../utils/markdown';
+import { MarkdownMessage } from '../common/MarkdownMessage';
 import {
   exportRepliesAsPdf,
   downloadBlob,
@@ -523,16 +521,7 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
                     <div className="text-[13px] text-red-400">{m.errorMessage || t('room.aiError')}</div>
                   ) : (
                     <div className="markdown-content text-[13.5px] leading-6 text-[var(--color-text-primary)]">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          table: ({ children, ...props }) => (
-                            <div className="table-wrapper"><table {...props}>{children}</table></div>
-                          ),
-                        }}
-                      >
-                        {normalizeMarkdown(m.content)}
-                      </ReactMarkdown>
+                      <MarkdownMessage content={m.content} />
                     </div>
                   )}
                 </div>

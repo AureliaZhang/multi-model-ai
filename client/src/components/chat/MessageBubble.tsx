@@ -1,11 +1,8 @@
-import { useMemo } from 'react';
 import { Bot, User, FileIcon } from 'lucide-react';
 import type { Message } from '../../types';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { ToolCallBlock } from './ToolCallBlock';
 import { useTranslation } from '../../i18n';
-import { normalizeMarkdown } from '../../utils/markdown';
+import { MarkdownMessage } from '../common/MarkdownMessage';
 
 interface MessageBubbleProps {
   message: Message;
@@ -16,10 +13,6 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const { t } = useTranslation();
 
-  const normalizedContent = useMemo(
-    () => isUser ? message.content : normalizeMarkdown(message.content),
-    [message.content, isUser]
-  );
 
   return (
     <div className="group px-4 py-4 bg-[var(--overlay-4)] hover:bg-[var(--overlay-7)] transition-colors duration-150 rounded-xl mb-1">
@@ -86,16 +79,7 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
             {isUser ? (
               <p className="whitespace-pre-wrap">{message.content}</p>
             ) : (
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  table: ({ children, ...props }) => (
-                    <div className="table-wrapper"><table {...props}>{children}</table></div>
-                  ),
-                }}
-              >
-                {normalizedContent}
-              </ReactMarkdown>
+              <MarkdownMessage content={message.content} />
             )}
           </div>
 
