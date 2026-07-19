@@ -13,6 +13,7 @@ export function getDb(): Database.Database {
     db.pragma('foreign_keys = ON');
     initTables(db);
     seedDefaultAdmin(db);
+    seedVirtualPlaceholderUser(db);
     seedDefaultStation(db);
   }
   return db;
@@ -616,10 +617,45 @@ function initTables(db: Database.Database): void {
       FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
     );
 
+    -- §10.6.14 Group notepad (pinned sticky note). One row per room.
+    -- Owner can always edit; other members need a granted edit right (below).
+    CREATE TABLE IF NOT EXISTS room_notepad (
+      room_id TEXT PRIMARY KEY,
+      content TEXT NOT NULL DEFAULT '',
+      updated_by TEXT,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+      FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    -- Members granted continuous notepad edit rights (owner is implicit, no row).
+    CREATE TABLE IF NOT EXISTS room_notepad_editors (
+      room_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      granted_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (room_id, user_id),
+      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    -- Edit-permission requests: a member asks the owner for edit rights.
+    CREATE TABLE IF NOT EXISTS room_notepad_requests (
+      id TEXT PRIMARY KEY,
+      room_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','denied')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      resolved_at TEXT,
+      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_room_members_user ON room_members(user_id);
     CREATE INDEX IF NOT EXISTS idx_room_messages_room ON room_messages(room_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_room_ai_messages_room ON room_ai_messages(room_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_room_files_room ON room_files(room_id);
+    CREATE INDEX IF NOT EXISTS idx_room_notepad_editors_room ON room_notepad_editors(room_id);
+    CREATE INDEX IF NOT EXISTS idx_room_notepad_requests_room ON room_notepad_requests(room_id, status);
   `);
 
   // Refresh capabilities for known specialty model names (seeded rows may only say ["text"])
@@ -647,6 +683,37 @@ function seedDefaultAdmin(db: Database.Database): void {
     `).run(uuidv4(), 'admin', 'admin@localhost', passwordHash, 'Administrator', 'admin');
     console.log('🔑 Default admin user created (username: admin, password: admin123)');
   }
+}
+
+/**
+ * Always-on seat filler for group create when no real peer is ready yet.
+ * Random password hash — login is also blocked in auth routes.
+ */
+function seedVirtualPlaceholderUser(db: Database.Database): void {
+  const {
+    VIRTUAL_PLACEHOLDER_USER_ID,
+    VIRTUAL_PLACEHOLDER_USERNAME,
+    VIRTUAL_PLACEHOLDER_DISPLAY_NAME,
+  } = require('./virtualUser');
+
+  const existing = db
+    .prepare('SELECT id FROM users WHERE id = ? OR username = ?')
+    .get(VIRTUAL_PLACEHOLDER_USER_ID, VIRTUAL_PLACEHOLDER_USERNAME);
+  if (existing) return;
+
+  // Unusable password (random hash); auth also rejects this username/id.
+  const passwordHash = bcrypt.hashSync(`vp-${Date.now()}-${Math.random()}`, 10);
+  db.prepare(`
+    INSERT INTO users (id, username, email, password_hash, display_name, role, is_active)
+    VALUES (?, ?, ?, ?, ?, 'user', 1)
+  `).run(
+    VIRTUAL_PLACEHOLDER_USER_ID,
+    VIRTUAL_PLACEHOLDER_USERNAME,
+    null,
+    passwordHash,
+    VIRTUAL_PLACEHOLDER_DISPLAY_NAME
+  );
+  console.log('👤 Virtual placeholder user seeded (invite-only seat filler, cannot log in)');
 }
 
 /**

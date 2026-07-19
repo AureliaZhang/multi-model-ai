@@ -38,9 +38,23 @@
 <!-- > **Last Updated**: 2026-07-18 (v0.7.20 — P3: group AI true token streaming over WebSocket; see §12 change log) -->
 <!-- > **Version**: 0.7.21 -->
 <!-- > **Last Updated**: 2026-07-18 (v0.7.21 — P3: mobile stacked-card layouts for Memory/Files/Users tables; see §12 change log) -->
-> **Version**: 0.7.22
+<!-- > **Version**: 0.7.22 -->
+<!-- > **Last Updated**: 2026-07-18 (v0.7.22 — P3 polish: vite manualChunks + chat domain typing; see §12 change log) -->
+<!-- > **Version**: 0.7.23 -->
+<!-- > **Last Updated**: 2026-07-18 (v0.7.23 — UX bugs: toggle cluster, users header, memory gate, new-chat menu, settings label; see §12 change log) -->
+<!-- > **Version**: 0.7.24 -->
+<!-- > **Last Updated**: 2026-07-18 (v0.7.24 — virtual placeholder user for group create; see §12 change log) -->
+<!-- > **Version**: 0.7.25 -->
+<!-- > **Last Updated**: 2026-07-18 (v0.7.25 — group chat: single unified timeline + one composer with 群聊/@AI toggle; surface @AI errors incl. no-chat-model; see §12 change log) -->
+<!-- > **Version**: 0.7.26 -->
+<!-- > **Last Updated**: 2026-07-18 (v0.7.26 — group chat: restore two panes (b human chat + c AI replies) under one composer; keep 群聊/@AI toggle; see §12 change log) -->
+<!-- > **Version**: 0.7.27 -->
+<!-- > **Last Updated**: 2026-07-18 (v0.7.27 — group chat polish: @AI delivery pill + composer live in column b only; column c holds only AI answers; transient "reply generating on the right" placeholder in b that clears when c finishes; see §12 change log) -->
+<!-- > **Version**: 0.7.28 -->
+<!-- > **Last Updated**: 2026-07-18 (v0.7.28 — group chat: column c renders the AI reply as formatted markdown (react-markdown + remarkGfm + normalizeMarkdown, same as private chat) instead of raw text; hide the first-pass raw stream, show "generating & formatting" until done; see §12 change log) -->
+> **Version**: 0.7.29
 > **Created**: 2026-06-15
-> **Last Updated**: 2026-07-18 (v0.7.22 — P3 polish: vite manualChunks + chat domain typing; see §12 change log)
+> **Last Updated**: 2026-07-18 (v0.7.29 — smaller top-right toggle cluster (icon-first, no big grey block); spec §10.6.13 AI-reply export docx/pdf, §10.6.14 room pinned note + edit-grant approval, §10.6.15 recorded; see §12 change log)
 <!-- > **Last Updated**: 2026-07-12 (v0.7.2 — bug/breakpoint sweep across shipped work; wired the already-built group-chat UI (§10.6) into the app; fixed 4 real bugs; see §12 change log) -->
 > **Rule**: This file must be kept in sync with every development step. Content is NEVER deleted, only commented out with `<!-- ... -->` when superseded. Other files may be freely modified.
 
@@ -774,6 +788,52 @@ Suggested building blocks (for later implementation; not started):
 - State machine per room: `idle → occupying_input → ai_running → idle`.
 - Safety: rule engine on assistant text → alert row + temporary read grant scoped to one dialog id.
 
+### 10.6.13 AI reply export (docx / pdf) — spec (2026-07-18)
+
+**Goal:** from column c (the AI-reply pane) the user can export **only the AI's replies** as a downloadable file, in **.docx** and **.pdf**. The exported formatting must match what column c shows (headings, bold, tables, lists) — no raw markdown symbols, and **.docx must open cleanly in WPS/Word** (a real OOXML document, NOT HTML renamed to `.doc`).
+
+**Scope of content:** assistant replies only (`room_ai_messages.role='assistant'`, `status='done'`). The `X → AI:` delivery rows and the human chat (column b) are **excluded**. Export includes every done assistant reply in the room's AI thread, in chronological order (one document for the whole thread).
+
+**How (decided):**
+- **.docx** — generated **client-side** as a genuine OOXML file with **no new npm dependency**. A `.docx` is a ZIP of XML parts; we build the ZIP (stored/deflated entries) and map markdown → Word-native elements: headings → Word heading styles, `**bold**` → real bold runs, `| tables |` → Word native tables, lists → numbered/bulleted paragraphs. Result opens clean in WPS. (Rationale: avoids native-binary install pain like better-sqlite3/rolldown; keeps parity with column c because both start from the same markdown.)
+- **.pdf** — via the **browser print pipeline**: open a print view styled with the *same* `.markdown-content` CSS as column c, call `window.print()`; the user picks "Save as PDF". Pixel-parity with column c, zero server work.
+- Both paths start from the **same normalized markdown** (`normalizeMarkdown`) used by column c, so the export looks like what the user saw.
+
+**UI:** an export control in the column-c header (download icon → menu: `.docx` / `.pdf`). Disabled when there are no done assistant replies.
+
+**Non-binding implementation notes:** docx builder is a pure module (`client/src/utils/docx.ts`) with its own unit test; markdown→doc AST reuses `marked`-free hand parsing kept minimal (headings/bold/italic/inline-code/tables/lists/paragraphs — the subset the group AI actually emits).
+
+### 10.6.14 Group pinned note (置顶便签) + edit-permission approval — spec (2026-07-18)
+
+**Goal:** a WeChat-style pinned note at the top of column b (the human-chat pane). It's a shared work log for the group. Placeholder shows grey hint text inviting the user to record work here.
+
+**Permissions:**
+- The **owner** can always edit.
+- Other members are **read-only** by default.
+- A member may **request edit access**; the request is queued for owner review.
+- The **owner approves/denies**. On approval that member gains a **persistent edit grant** (can edit the note freely thereafter, until the owner revokes). This is the "grant persistent edit rights" model (chosen over per-change approval).
+
+**Data model (new):**
+- `rooms.pinned_note TEXT` (nullable) + `rooms.pinned_note_updated_at`, `rooms.pinned_note_updated_by`.
+- `room_note_editors (room_id, user_id, granted_at)` — members (besides owner) with a standing edit grant.
+- `room_note_requests (id, room_id, user_id, status pending|approved|denied, created_at, decided_at)` — edit-access requests.
+
+**Routes (new, all under `/api/rooms/:id`, members only unless noted):**
+- `PUT /note` — set note body. Allowed if caller is owner **or** has a row in `room_note_editors`. Broadcasts `note` event.
+- `POST /note/requests` — member asks for edit access (creates a `pending` request). Broadcasts `note_request` to owner.
+- `GET /note/requests` — owner lists pending requests.
+- `POST /note/requests/:reqId/decide` — owner sets `approved`/`denied`; approval inserts into `room_note_editors`. Broadcasts `members`/`note_perm`.
+- (`DELETE /note/editors/:userId` — owner revokes a grant. Optional V1.)
+
+**UI:** pinned bar at top of column b. Grey placeholder when empty. Pencil/edit affordance: owner + granted editors see an editable field (save/cancel); others see a read-only note with a "request edit" button (→ pending state → owner sees an approve/deny prompt, e.g. in the Manage modal or an inline banner).
+
+**Realtime:** new WS event types `note` (body changed), `note_request` (new pending request), `note_perm` (grant changed). Clients update the note bar / owner's pending list live; poll fallback via room refresh.
+
+### 10.6.15 Top-right toggle cluster + column-c rich rendering (done 2026-07-18)
+
+- **Toggle cluster** (`TopRightToggles`): the fixed theme+language buttons were oversized/grey and clashed with the UI. Restyled smaller, icon-forward, less heavy background. (v0.7.29)
+- **Column-c rendering** (done v0.7.28): AI replies render via the private-chat markdown pipeline (`react-markdown` + `remarkGfm` + `normalizeMarkdown` + `.markdown-content`). The first pass is produced in the background — while `thinking`/`streaming` the raw markdown is **not** shown (a "生成回复中…" placeholder is shown instead); once `status='done'` the calibrated, formatted answer appears. Trade-off: column c no longer shows token-by-token streaming (required by the "don't show the raw first pass" ask).
+
 ### 10.6.12 Out of scope (explicit)
 
 - Full WeChat clone (moments, friend graph, calls).
@@ -892,6 +952,13 @@ settings:
 | 2026-07-18 | 0.7.20 | **P3:** group AI true token streaming. New `streamInvokeModel` + pure `extractSseContentDelta` in `modelInvocation.ts` (stream:true, station failover, health marks, injectable deps). `rooms.ts` `POST .../ai/ask` uses it and broadcasts WS `ai` events: thinking → streaming (throttled ~40ms) → done/error with full content. `GroupChatLayout` renders streaming content with typing cursor (keeps thinking dots before first token). Tests: +5 (SSE parse + stream order + empty-stream failover) → server **77** passed. Private chat SSE path unchanged. Remaining P3: mobile table cards, optional vendor chunks / domain any. | Claude |
 | 2026-07-18 | 0.7.21 | **P3:** mobile stacked-card data tables. `MemoryBrowser`, `FileBrowser`, `UserManagement` each render a `md:hidden` card list (key fields + actions, memory expand/delete preserved) and keep the existing fixed-column grid under `hidden md:block` for desktop. Closes the v0.7.6 horizontal-scroll trade-off for phones. Client `tsc -b` clean; server tests unchanged (77). Remaining P3 optional: vendor `manualChunks`, chat domain `any`. | Claude |
 | 2026-07-18 | 0.7.22 | **P3 polish closeout.** (1) Vite `manualChunks`: `vendor-react` / `vendor-markdown` / `vendor-icons` / `vendor-zustand` — main index **132 KB / 34 KB gz** (was ~488 / 145). (2) `chat.ts` domain typing: `ChatContentPart`, `ChatApiMessage`, `ChatRequestBody`, `MemoryContextRow`; static import of `searchFileChunks`; 0 remaining `any` casts in chat route. Server tests 77; client+server `tsc` clean. P3 backlog items closed (optional product work can still appear later). | Claude |
+| 2026-07-18 | 0.7.23 | **UX bugfix (user report).** (1) `TopRightToggles` cluster replaces separate fixed Theme/Language buttons so they no longer overlap (login/register/layout). (2) `UserManagement` header uses flex-wrap + `pr-28` so count/create no longer collide with fixed toggles. (3) Memory browser disabled (greyed) until embedding Base URL + API Key + model are configured; empty state CTA opens settings. (4) Sidebar “New chat” opens a menu: Private chat / New group chat; rooms remain invite-only (create modal copy). (5) Sidebar settings label → “设置” / “Settings” (no “中转站” in the nav name). Client `tsc -b` clean. | Claude |
+| 2026-07-18 | 0.7.24 | **Virtual placeholder user for group create.** Fixed system user `virtual-placeholder` (stable id) seeded on boot — invite picker only, badge + default-checked; cannot log in / register / admin-delete/modify. Lets solo/local use create a group before real members are known; later invite real users and kick the placeholder. Server+client `tsc` clean. | Claude |
+| 2026-07-18 | 0.7.25 | **Group chat UX rework + @AI bugfix (user report).** (1) **Bug: @AI silently did nothing** — a freshly-created group has `chat_model = NULL`, so `POST /ai/ask` returned `400 "no chat model set"` but the client only stored `error` and never rendered it. Fix: `roomStore.ask` now returns the error and the group view shows an error banner; `switchToAi`/submit detect no-model and open the model settings modal with a `needChatModel` prompt. (2) **UI: replaced the left/right dual-track panes** (§10.6 original design, now commented as superseded) **with a single chronological timeline + one composer.** A `群聊 / @AI` toggle above the input switches target: chat = human message to the group; @AI = auto-claims the shared input lock (green border, countdown, +2min renew) and streams the reply. Human msgs, `X → AI:` deliveries, and streaming AI answers interleave by `createdAt`; left-track `ai_stub` rows are dropped (AI track already shows the Q+A). **Backend two-track storage + "AI never reads left chat" privacy invariant unchanged** — this is a view merge only. Client+server `tsc` clean. (Server vitest not run in this container — native `rolldown`/`better-sqlite3` bindings are macOS-built for the user's local run; verified via tsc.) | Claude |
+| 2026-07-18 | 0.7.26 | **Group chat layout correction (user report + screenshot).** v0.7.25 over-merged: it collapsed BOTH the human track AND the AI reply track into one timeline, so the AI reply pane (c) vanished after answering. Restored the intended **three-column layout**: (a) room-list sidebar, (b) human free-chat pane, (c) dedicated AI-reply pane on the far right — while **keeping the single composer + 群聊/@AI toggle** from v0.7.25. Pane b renders human msgs only (`ai_stub` rows dropped); pane c renders `X → AI:` deliveries + streaming AI replies; each pane scrolls independently (`endRef` / `aiEndRef`). New i18n keys `room.paneChat` / `room.paneAi`. Client+server `tsc` clean. | Claude |
+| 2026-07-18 | 0.7.27 | **Group chat composer/pane fine-tuning (user report).** Three tweaks on top of v0.7.26: (1) the `X → AI:` delivery notice moves back to pane **b** (rendered from the `ai_stub` human-track row) so it reads like a normal chat entry; pane **c** now holds ONLY assistant replies. (2) The composer lives **inside column b** (below its message list) instead of spanning the full width under both panes. (3) When an @AI ask is in flight, pane b shows a transient bot placeholder **“回复正在右侧生成中……”** derived purely from AI-track status (`thinking`/`streaming`) — it disappears automatically once the assistant reply on the right flips to `done`/`error`. New i18n key `room.replyGenerating`. Backend two-track + privacy invariants unchanged. Client+server `tsc` clean. | Claude |
+| 2026-07-18 | 0.7.28 | **Group chat column c renders formatted markdown (user request).** Pane c previously showed the AI reply as raw text (`**bold**`, pipe tables, etc.). Now the assistant answer renders through the same pipeline as private chat — `react-markdown` + `remarkGfm` + `normalizeMarkdown` under `.markdown-content` (tables wrapped in `.table-wrapper`) — for a GPT/Claude-style look. Per the "calibrate first, then show" request, the raw first-pass stream is **not** shown while `thinking`/`streaming`; pane c shows a "generating & formatting" indicator (new i18n key `room.formatting`) and reveals the formatted answer only on `status: done`. No extra model round-trip (formatting is client-side render, not a second AI pass); this removes c-pane live token streaming by design. Client+server `tsc` clean. | Claude |
+| 2026-07-18 | 0.7.29 | **Spec + start of 3-part group polish (user request).** Wrote §10.6.13 (export AI replies to .docx/.pdf), §10.6.14 (pinned owner-editable work note + edit-permission request/approve), §10.6.15 (compact top-right toggles + c-pane render, done) into the framework so the build follows a written spec. Build order: #1 toggles (done here) → #3 export → #2 pinned note. **#1 done:** `TopRightToggles` restyled from a heavy grey pill (`bg-[var(--overlay-20)]` + border + `px-3 py-1.5 text-sm`) to compact borderless icon buttons (`px-2 py-1 text-xs`, hover-only bg) that blend into the UI. Client+server `tsc` clean. | Claude |
 
 ---
 

@@ -6,6 +6,7 @@ import { requireAuth, requireRole } from '../middleware/auth';
 import type { AuthRequest, UserPublic, UserRole, CreateUserRequest, UpdateUserRequest } from '../types';
 import type { UserPublicRow } from '../dbRows';
 import { getErrorMessage } from '../utils/errors';
+import { isVirtualPlaceholderUser, VIRTUAL_PLACEHOLDER_USERNAME, VIRTUAL_PLACEHOLDER_USER_ID } from '../virtualUser';
 
 const router = Router();
 
@@ -60,6 +61,11 @@ router.post('/', (req: AuthRequest, res: Response) => {
 
     if (username.length < 3 || username.length > 30) {
       res.status(400).json({ success: false, error: 'Username must be 3-30 characters' });
+      return;
+    }
+
+    if (username === VIRTUAL_PLACEHOLDER_USERNAME) {
+      res.status(400).json({ success: false, error: 'This username is reserved' });
       return;
     }
 
@@ -172,9 +178,14 @@ router.put('/:id', (req: AuthRequest, res: Response) => {
     const { email, phone, displayName, role, isActive, password } = req.body as UpdateUserRequest;
 
     // Check user exists
-    const existing = db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+    const existing = db.prepare('SELECT id, username FROM users WHERE id = ?').get(userId) as { id: string; username: string } | undefined;
     if (!existing) {
       res.status(404).json({ success: false, error: 'User not found' });
+      return;
+    }
+
+    if (isVirtualPlaceholderUser(existing)) {
+      res.status(400).json({ success: false, error: 'Cannot modify the system placeholder user' });
       return;
     }
 

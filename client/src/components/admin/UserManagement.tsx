@@ -123,24 +123,24 @@ export function UserManagement({ onBack }: UserManagementProps) {
 
   return (
     <div className="min-h-screen bg-[var(--color-main-surface-primary)] text-[var(--color-text-primary)]">
-      {/* Header */}
-      <div className="border-b border-[var(--color-border-light)] px-6 py-4 flex items-center gap-4">
+      {/* Header — pr reserves space for fixed TopRightToggles so actions don't collide */}
+      <div className="border-b border-[var(--color-border-light)] px-6 py-4 pr-28 flex flex-wrap items-center gap-3">
         <button
           onClick={onBack}
           className="p-2 rounded-lg hover:bg-[var(--button-ghost-hover)] text-[var(--color-text-secondary)] transition-colors"
         >
           <ArrowLeft size={20} />
         </button>
-        <div className="flex items-center gap-2">
-          <Users size={20} className="text-[var(--color-accent-main)]" />
-          <h1 className="text-lg font-semibold">{t('users.title')}</h1>
+        <div className="flex items-center gap-2 min-w-0">
+          <Users size={20} className="text-[var(--color-accent-main)] flex-shrink-0" />
+          <h1 className="text-lg font-semibold truncate">{t('users.title')}</h1>
         </div>
-        <span className="text-[var(--color-text-tertiary)] text-sm ml-auto">
+        <span className="text-[var(--color-text-tertiary)] text-sm">
           {t('users.count', { count: users.length, s: users.length !== 1 ? 's' : '' })}
         </span>
         <button
           onClick={() => { setShowCreateForm(!showCreateForm); setCreateError(''); }}
-          className="ml-4 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--button-primary-bg)] hover:bg-[var(--button-primary-hover)] text-white text-sm transition-colors"
+          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--button-primary-bg)] hover:bg-[var(--button-primary-hover)] text-white text-sm transition-colors"
         >
           <UserPlus size={14} />
           {t('users.createUser')}
@@ -304,7 +304,7 @@ export function UserManagement({ onBack }: UserManagementProps) {
                       )}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      {user.id !== currentUser?.id ? (
+                      {user.id !== currentUser?.id && user.username !== 'virtual-placeholder' ? (
                         <>
                           <button
                             onClick={() => handleToggleActive(user)}
@@ -395,7 +395,7 @@ export function UserManagement({ onBack }: UserManagementProps) {
 
                 {/* Actions */}
                 <div className="flex items-center justify-end gap-1">
-                  {user.id !== currentUser?.id && (
+                  {user.id !== currentUser?.id && user.username !== 'virtual-placeholder' && (
                     <>
                       <button
                         onClick={() => handleToggleActive(user)}

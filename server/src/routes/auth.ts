@@ -6,6 +6,7 @@ import { generateToken, requireAuth } from '../middleware/auth';
 import type { AuthRequest, RegisterRequest, LoginRequest, AuthResponse, UserPublic } from '../types';
 import type { UserPublicRow } from '../dbRows';
 import { getErrorMessage } from '../utils/errors';
+import { isVirtualPlaceholderUser, VIRTUAL_PLACEHOLDER_USERNAME } from '../virtualUser';
 
 const router = Router();
 
@@ -24,6 +25,11 @@ router.post('/register', (req: AuthRequest, res: Response) => {
 
     if (username.length < 3 || username.length > 30) {
       res.status(400).json({ success: false, error: 'Username must be 3-30 characters' });
+      return;
+    }
+
+    if (username === VIRTUAL_PLACEHOLDER_USERNAME || isVirtualPlaceholderUser({ username })) {
+      res.status(400).json({ success: false, error: 'This username is reserved' });
       return;
     }
 
@@ -124,6 +130,11 @@ router.post('/login', (req: AuthRequest, res: Response) => {
         ? 'Invalid phone number or password'
         : 'Invalid username or password';
       res.status(401).json({ success: false, error: errorMsg });
+      return;
+    }
+
+    if (isVirtualPlaceholderUser(row)) {
+      res.status(403).json({ success: false, error: 'This account is a system placeholder and cannot log in' });
       return;
     }
 

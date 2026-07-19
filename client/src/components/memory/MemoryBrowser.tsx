@@ -147,21 +147,30 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
     return 'Low';
   };
 
+  // Memory store is active only when a dedicated embedding API is configured.
+  const embeddingConfigured = Boolean(
+    (config?.embeddingApiBaseUrl || '').trim() &&
+    (config?.embeddingApiKey || '').trim() &&
+    (config?.embeddingModel || '').trim()
+  );
+
   return (
     <div className="h-full flex flex-col bg-[var(--color-main-surface-primary)]">
-      {/* Top bar */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--color-border-light)] flex-shrink-0">
-        <div className="flex items-center gap-3">
+      {/* Top bar — pr for fixed theme/lang toggles */}
+      <div className="flex items-center justify-between px-5 py-3 pr-28 border-b border-[var(--color-border-light)] flex-shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg hover:bg-[var(--overlay-5)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
           >
             <ArrowLeft size={20} />
           </button>
-          <div>
+          <div className="min-w-0">
             <h2 className="text-base font-semibold text-[var(--color-text-primary)]">{t('memory.title')}</h2>
             <p className="text-[11px] text-[var(--color-text-tertiary)]">
-              {t('memory.entries', { count: total }).replace('{count}', String(total))}
+              {embeddingConfigured
+                ? t('memory.entries', { count: total }).replace('{count}', String(total))
+                : t('memory.disabledHint')}
             </p>
           </div>
         </div>
@@ -169,7 +178,8 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
         <div className="flex items-center gap-2">
           <button
             onClick={handleBackfill}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--color-border-light)] hover:bg-[var(--overlay-5)] text-[var(--color-text-secondary)] text-sm font-medium transition-colors"
+            disabled={!embeddingConfigured}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--color-border-light)] hover:bg-[var(--overlay-5)] text-[var(--color-text-secondary)] text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="Regenerate embeddings for all entries"
           >
             <RefreshCw size={14} />
@@ -288,6 +298,8 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
         </div>
       )}
 
+      {/* Search + list — greyed out until embedding API is configured */}
+      <div className={`flex-1 flex flex-col min-h-0 ${!embeddingConfigured ? 'opacity-40 pointer-events-none select-none' : ''}`}>
       {/* Search bar */}
       <div className="px-5 py-3 border-b border-[var(--color-border-light)] flex-shrink-0">
         <div className="relative">
@@ -297,7 +309,8 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
             value={searchQuery}
             onChange={e => handleSearch(e.target.value)}
             placeholder={t('memory.searchPlaceholder')}
-            className="w-full pl-9 pr-8 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border-light)] text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent-main)] transition-colors"
+            disabled={!embeddingConfigured}
+            className="w-full pl-9 pr-8 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border-light)] text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent-main)] transition-colors disabled:cursor-not-allowed"
           />
           {searchQuery && (
             <button
@@ -340,7 +353,26 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
-        {loading || searching ? (
+        {!embeddingConfigured ? (
+          <div className="flex flex-col items-center justify-center py-20 px-5 pointer-events-auto">
+            <div className="w-20 h-20 rounded-full bg-[var(--color-bg-secondary)] flex items-center justify-center mb-5">
+              <Brain size={36} className="text-[var(--color-text-tertiary)] opacity-50" />
+            </div>
+            <p className="text-base font-medium text-[var(--color-text-secondary)] mb-1">
+              {t('memory.disabledTitle')}
+            </p>
+            <p className="text-sm text-[var(--color-text-tertiary)] text-center max-w-sm">
+              {t('memory.disabledBody')}
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowSettings(true)}
+              className="mt-4 px-4 py-2 rounded-lg bg-[var(--button-primary-bg)] hover:bg-[var(--button-primary-hover)] text-white text-sm"
+            >
+              {t('memory.openSettings')}
+            </button>
+          </div>
+        ) : loading || searching ? (
           <div className="flex flex-col items-center justify-center py-16">
             <Loader size={28} className="animate-spin mb-3 text-[var(--color-text-tertiary)]" />
             <span className="text-sm text-[var(--color-text-tertiary)]">
@@ -589,9 +621,10 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
           </>
         )}
       </div>
+      </div>
 
       {/* Pagination */}
-      {totalPages > 1 && !searchQuery && (
+      {totalPages > 1 && !searchQuery && embeddingConfigured && (
         <div className="flex items-center justify-between px-5 py-3 border-t border-[var(--color-border-light)] flex-shrink-0">
           <span className="text-xs text-[var(--color-text-tertiary)]">
             {t('memory.page', { page, totalPages }).replace('{page}', String(page)).replace('{totalPages}', String(totalPages))}

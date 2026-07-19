@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { useAuthStore } from '../../stores/authStore';
 import { UserPlus, Eye, EyeOff } from 'lucide-react';
 import { useTranslation } from '../../i18n';
-import { LanguageToggle } from '../layout/LanguageToggle';
-import { ThemeToggle } from '../layout/ThemeToggle';
+import { TopRightToggles } from '../layout/TopRightToggles';
 
 interface RegisterPageProps {
   onSwitchToLogin: () => void;
@@ -49,8 +48,7 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--color-main-surface-primary)]">
-      <ThemeToggle />
-      <LanguageToggle />
+      <TopRightToggles />
       <div className="w-full max-w-md px-6">
         {/* Title */}
         <div className="text-center mb-8">

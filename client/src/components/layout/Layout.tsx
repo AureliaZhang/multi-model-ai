@@ -26,8 +26,7 @@ const RoomsPage = lazy(() =>
 const GuideOverlay = lazy(() =>
   import('../guide/GuideOverlay').then((m) => ({ default: m.GuideOverlay }))
 );
-import { LanguageToggle } from './LanguageToggle';
-import { ThemeToggle } from './ThemeToggle';
+import { TopRightToggles } from './TopRightToggles';
 import { DailyModelModal } from '../prefs/DailyModelModal';
 import { ImageConfirmModal } from '../prefs/ImageConfirmModal';
 import { useModelStore } from '../../stores/modelStore';
@@ -85,8 +84,7 @@ export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
 
   const withLang = (node: ReactNode) => (
     <>
-      <ThemeToggle />
-      <LanguageToggle />
+      <TopRightToggles />
       {!isGuest && <DailyModelModal />}
       {!isGuest && <ImageConfirmModal />}
       {node}

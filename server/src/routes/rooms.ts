@@ -35,6 +35,8 @@ import {
 import type { AuthRequest, ApiResponse } from '../types';
 import type { RoomRow, RoomListRow, RoomMemberInfoRow, RoomMessageListRow, RoomAiMessageListRow, RoomFileRow, InviteUserRow } from '../dbRows';
 import { getErrorMessage } from '../utils/errors';
+import { VIRTUAL_PLACEHOLDER_USER_ID } from '../virtualUser';
+import { markdownToDocx, type DocxSection } from '../utils/markdownToDocx';
 
 const router = Router();
 router.use(requireAuth);
@@ -724,16 +726,24 @@ router.post('/:id/ai/ask', async (req: AuthRequest, res: Response) => {
  * GET /api/rooms/util/users — minimal user list for the invite picker.
  * Any authenticated user may list (needed to build a group). Returns only
  * id / username / displayName of active users, excluding the caller.
+ * Includes the fixed virtual placeholder so a group can be created before
+ * real members are known (seat filler only — cannot log in).
  */
 router.get('/util/users', (req: AuthRequest, res: Response) => {
   try {
     const rows = getDb()
       .prepare(
         `SELECT id, username, display_name as displayName, role, is_active as isActive
-         FROM users WHERE is_active = 1 AND id != ? ORDER BY username ASC`
+         FROM users WHERE is_active = 1 AND id != ? ORDER BY
+           CASE WHEN id = ? THEN 0 ELSE 1 END,
+           username ASC`
       )
-      .all(req.user!.id) as InviteUserRow[];
-    const data = rows.map((r) => ({ ...r, isActive: Boolean(r.isActive) }));
+      .all(req.user!.id, VIRTUAL_PLACEHOLDER_USER_ID) as InviteUserRow[];
+    const data = rows.map((r) => ({
+      ...r,
+      isActive: Boolean(r.isActive),
+      isVirtual: r.id === VIRTUAL_PLACEHOLDER_USER_ID,
+    }));
     res.json({ success: true, data });
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: getErrorMessage(err) });
@@ -822,6 +832,217 @@ router.delete('/:id/files/:fileId', (req: AuthRequest, res: Response) => {
     }
     getDb().prepare('DELETE FROM room_files WHERE id = ? AND room_id = ?').run(req.params.fileId, room.id);
     res.json({ success: true });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
+  }
+});
+
+// ========== §10.6.13 Export AI replies as .docx ==========
+
+/**
+ * POST /api/rooms/:id/ai/export/docx
+ * body: { contents: string[], title?: string }
+ * Members only. Builds a real OOXML .docx from the given AI-reply markdown
+ * blocks (client sends what it rendered in column c) and returns the binary.
+ */
+router.post('/:id/ai/export/docx', (req: AuthRequest, res: Response) => {
+  try {
+    const room = getRoom(req.params.id);
+    if (!room) return res.status(404).json({ success: false, error: 'Room not found' });
+    if (!isMember(room.id, req.user!.id)) {
+      return res.status(403).json({ success: false, error: 'Not a member of this room' });
+    }
+    const contents: string[] = Array.isArray(req.body?.contents) ? req.body.contents : [];
+    const blocks = contents.map((c) => String(c || '')).filter((c) => c.trim().length > 0);
+    if (blocks.length === 0) {
+      return res.status(400).json({ success: false, error: 'No AI replies to export' });
+    }
+    const title = String(req.body?.title || room.name || 'Group AI');
+    const sections = blocks.map((markdown) => ({ markdown }));
+    const buffer = markdownToDocx(title, sections);
+
+    const asciiName = `group_AI_${new Date().toISOString().slice(0, 10)}.docx`;
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${asciiName}"`);
+    res.setHeader('Content-Length', String(buffer.length));
+    res.end(buffer);
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
+  }
+});
+
+// ========== §10.6.14 Group notepad (pinned sticky note) ==========
+
+/** Owner always may edit; other members need a granted row. */
+function canEditNotepad(roomId: string, userId: string): boolean {
+  const m = isMember(roomId, userId);
+  if (!m) return false;
+  if (m.role === 'owner') return true;
+  const row = getDb()
+    .prepare('SELECT 1 FROM room_notepad_editors WHERE room_id = ? AND user_id = ?')
+    .get(roomId, userId);
+  return Boolean(row);
+}
+
+/** Serialize the notepad + the caller's rights + (for owner) pending requests. */
+function serializeNotepad(roomId: string, userId: string) {
+  const db = getDb();
+  const room = getRoom(roomId);
+  const isOwner = room?.owner_id === userId;
+
+  const np = db
+    .prepare('SELECT content, updated_by as updatedBy, updated_at as updatedAt FROM room_notepad WHERE room_id = ?')
+    .get(roomId) as { content: string; updatedBy: string | null; updatedAt: string } | undefined;
+
+  const editors = db
+    .prepare(
+      `SELECT e.user_id as userId, u.username, u.display_name as displayName
+       FROM room_notepad_editors e JOIN users u ON u.id = e.user_id
+       WHERE e.room_id = ?`
+    )
+    .all(roomId) as { userId: string; username: string; displayName: string | null }[];
+
+  // Only the owner sees the request queue; a member sees their own request status.
+  const requests = isOwner
+    ? (db
+        .prepare(
+          `SELECT r.id, r.user_id as userId, u.username, u.display_name as displayName, r.status, r.created_at as createdAt
+           FROM room_notepad_requests r JOIN users u ON u.id = r.user_id
+           WHERE r.room_id = ? AND r.status = 'pending' ORDER BY r.created_at ASC`
+        )
+        .all(roomId) as unknown[])
+    : (db
+        .prepare(
+          `SELECT id, status, created_at as createdAt FROM room_notepad_requests
+           WHERE room_id = ? AND user_id = ? ORDER BY created_at DESC LIMIT 1`
+        )
+        .all(roomId, userId) as unknown[]);
+
+  return {
+    content: np?.content ?? '',
+    updatedBy: np?.updatedBy ?? null,
+    updatedAt: np?.updatedAt ?? null,
+    canEdit: canEditNotepad(roomId, userId),
+    isOwner,
+    editors,
+    requests,
+  };
+}
+
+/** GET /api/rooms/:id/notepad — content + caller rights + requests */
+router.get('/:id/notepad', (req: AuthRequest, res: Response) => {
+  try {
+    const room = getRoom(req.params.id);
+    if (!room) return res.status(404).json({ success: false, error: 'Room not found' });
+    if (!isMember(room.id, req.user!.id)) {
+      return res.status(403).json({ success: false, error: 'Not a member of this room' });
+    }
+    res.json({ success: true, data: serializeNotepad(room.id, req.user!.id) });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
+  }
+});
+
+/** PUT /api/rooms/:id/notepad — save content (owner or granted editor only) */
+router.put('/:id/notepad', (req: AuthRequest, res: Response) => {
+  try {
+    const db = getDb();
+    const room = getRoom(req.params.id);
+    if (!room) return res.status(404).json({ success: false, error: 'Room not found' });
+    if (!isMember(room.id, req.user!.id)) {
+      return res.status(403).json({ success: false, error: 'Not a member of this room' });
+    }
+    if (!canEditNotepad(room.id, req.user!.id)) {
+      return res.status(403).json({ success: false, error: 'You do not have edit rights for the notepad' });
+    }
+    const content = String(req.body?.content ?? '');
+    db.prepare(
+      `INSERT INTO room_notepad (room_id, content, updated_by, updated_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(room_id) DO UPDATE SET content = excluded.content, updated_by = excluded.updated_by, updated_at = excluded.updated_at`
+    ).run(room.id, content, req.user!.id, nowIso());
+
+    broadcast(room.id, { type: 'notepad', notepad: { content, updatedBy: req.user!.id, updatedAt: nowIso() } });
+    res.json({ success: true, data: serializeNotepad(room.id, req.user!.id) });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
+  }
+});
+
+/** POST /api/rooms/:id/notepad/request — a member asks the owner for edit rights */
+router.post('/:id/notepad/request', (req: AuthRequest, res: Response) => {
+  try {
+    const db = getDb();
+    const room = getRoom(req.params.id);
+    if (!room) return res.status(404).json({ success: false, error: 'Room not found' });
+    const m = isMember(room.id, req.user!.id);
+    if (!m) return res.status(403).json({ success: false, error: 'Not a member of this room' });
+    if (m.role === 'owner' || canEditNotepad(room.id, req.user!.id)) {
+      return res.status(400).json({ success: false, error: 'You already have edit rights' });
+    }
+    // Collapse duplicate pending requests.
+    const existing = db
+      .prepare(`SELECT id FROM room_notepad_requests WHERE room_id = ? AND user_id = ? AND status = 'pending'`)
+      .get(room.id, req.user!.id);
+    if (!existing) {
+      db.prepare(
+        `INSERT INTO room_notepad_requests (id, room_id, user_id, status, created_at) VALUES (?, ?, ?, 'pending', ?)`
+      ).run(uuidv4(), room.id, req.user!.id, nowIso());
+    }
+    broadcast(room.id, { type: 'notepadRequest', request: { roomId: room.id, userId: req.user!.id } });
+    res.json({ success: true, data: serializeNotepad(room.id, req.user!.id) });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
+  }
+});
+
+/** POST /api/rooms/:id/notepad/requests/:reqId/resolve — owner approves/denies */
+router.post('/:id/notepad/requests/:reqId/resolve', (req: AuthRequest, res: Response) => {
+  try {
+    const db = getDb();
+    const room = getRoom(req.params.id);
+    if (!room) return res.status(404).json({ success: false, error: 'Room not found' });
+    if (room.owner_id !== req.user!.id) {
+      return res.status(403).json({ success: false, error: 'Only the owner can resolve requests' });
+    }
+    const approve = req.body?.approve === true;
+    const reqRow = db
+      .prepare(`SELECT id, user_id as userId, status FROM room_notepad_requests WHERE id = ? AND room_id = ?`)
+      .get(req.params.reqId, room.id) as { id: string; userId: string; status: string } | undefined;
+    if (!reqRow) return res.status(404).json({ success: false, error: 'Request not found' });
+
+    db.prepare(`UPDATE room_notepad_requests SET status = ?, resolved_at = ? WHERE id = ?`).run(
+      approve ? 'approved' : 'denied',
+      nowIso(),
+      reqRow.id
+    );
+    if (approve) {
+      db.prepare(
+        `INSERT OR IGNORE INTO room_notepad_editors (room_id, user_id, granted_at) VALUES (?, ?, ?)`
+      ).run(room.id, reqRow.userId, nowIso());
+    }
+    broadcast(room.id, { type: 'notepad', notepad: { resolved: true } });
+    res.json({ success: true, data: serializeNotepad(room.id, req.user!.id) });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
+  }
+});
+
+/** DELETE /api/rooms/:id/notepad/editors/:userId — owner revokes a member's edit right */
+router.delete('/:id/notepad/editors/:userId', (req: AuthRequest, res: Response) => {
+  try {
+    const db = getDb();
+    const room = getRoom(req.params.id);
+    if (!room) return res.status(404).json({ success: false, error: 'Room not found' });
+    if (room.owner_id !== req.user!.id) {
+      return res.status(403).json({ success: false, error: 'Only the owner can revoke edit rights' });
+    }
+    db.prepare('DELETE FROM room_notepad_editors WHERE room_id = ? AND user_id = ?').run(room.id, req.params.userId);
+    broadcast(room.id, { type: 'notepad', notepad: { revoked: req.params.userId } });
+    res.json({ success: true, data: serializeNotepad(room.id, req.user!.id) });
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: getErrorMessage(err) });
   }

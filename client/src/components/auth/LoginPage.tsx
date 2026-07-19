@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { useAuthStore } from '../../stores/authStore';
 import { LogIn, Eye, EyeOff, User, Phone, Shield, UserCircle, Compass } from 'lucide-react';
 import { useTranslation } from '../../i18n';
-import { LanguageToggle } from '../layout/LanguageToggle';
-import { ThemeToggle } from '../layout/ThemeToggle';
+import { TopRightToggles } from '../layout/TopRightToggles';
 
 interface LoginPageProps {
   onSwitchToRegister: () => void;
@@ -65,8 +64,7 @@ export function LoginPage({ onSwitchToRegister, onGuestBrowse }: LoginPageProps)
   if (mode === 'select') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-main-surface-primary)] relative">
-        <ThemeToggle />
-        <LanguageToggle />
+        <TopRightToggles />
 
         <div className="w-full max-w-md px-6">
           <div className="text-center mb-10">
@@ -142,8 +140,7 @@ export function LoginPage({ onSwitchToRegister, onGuestBrowse }: LoginPageProps)
   if (mode === 'admin') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-main-surface-primary)] relative">
-        <ThemeToggle />
-        <LanguageToggle />
+        <TopRightToggles />
 
         <div className="w-full max-w-md px-6">
           <div className="text-center mb-8">
@@ -227,8 +224,7 @@ export function LoginPage({ onSwitchToRegister, onGuestBrowse }: LoginPageProps)
   // User login screen
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--color-main-surface-primary)] relative">
-        <ThemeToggle />
-        <LanguageToggle />
+        <TopRightToggles />
 
       <div className="w-full max-w-md px-6">
         <div className="text-center mb-8">

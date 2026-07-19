@@ -659,6 +659,50 @@ export const roomApi = {
     }),
   deleteFile: (id: string, fileId: string) =>
     request<void>(`/rooms/${id}/files/${fileId}`, { method: 'DELETE' }),
+
+  /**
+   * Export the group AI replies as a real .docx. Returns a Blob (binary), so it
+   * does its own fetch instead of going through `request` (which assumes JSON).
+   * The server builds OOXML from the markdown contents (see rooms route).
+   */
+  exportDocx: async (id: string, contents: string[], title: string): Promise<Blob> => {
+    const token = getToken();
+    const res = await fetch(`${BASE_URL}/rooms/${id}/ai/export/docx`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ contents, title }),
+    });
+    if (!res.ok) {
+      let msg = `Export failed (HTTP ${res.status})`;
+      try {
+        const j = await res.json();
+        if (j?.error) msg = j.error;
+      } catch { /* body was not JSON */ }
+      throw new Error(msg);
+    }
+    return res.blob();
+  },
+
+  // §10.6.14 group notepad (pinned sticky note + edit-permission flow)
+  getNotepad: (id: string) =>
+    request<import('../types').RoomNotepad>(`/rooms/${id}/notepad`),
+  saveNotepad: (id: string, content: string) =>
+    request<import('../types').RoomNotepad>(`/rooms/${id}/notepad`, {
+      method: 'PUT',
+      body: JSON.stringify({ content }),
+    }),
+  requestNotepadEdit: (id: string) =>
+    request<import('../types').RoomNotepad>(`/rooms/${id}/notepad/request`, { method: 'POST' }),
+  resolveNotepadRequest: (id: string, reqId: string, approve: boolean) =>
+    request<import('../types').RoomNotepad>(`/rooms/${id}/notepad/requests/${reqId}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify({ approve }),
+    }),
+  revokeNotepadEditor: (id: string, userId: string) =>
+    request<import('../types').RoomNotepad>(`/rooms/${id}/notepad/editors/${userId}`, { method: 'DELETE' }),
 };
 
 // --- Users (list for invite picker; admin creates, but members list is needed for group invite) ---

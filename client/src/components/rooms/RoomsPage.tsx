@@ -116,7 +116,12 @@ function CreateRoomModal({ onClose, onCreated }: { onClose: () => void; onCreate
 
   useEffect(() => {
     usersApi.listBasic().then((r) => {
-      if (r.success && r.data) setAllUsers(r.data);
+      if (r.success && r.data) {
+        setAllUsers(r.data);
+        // Default-select the virtual placeholder so solo users can create a group immediately
+        const vp = r.data.find((u) => u.isVirtual);
+        if (vp) setPicked((prev) => (prev.length === 0 ? [vp.id] : prev));
+      }
     });
   }, []);
 
@@ -148,6 +153,10 @@ function CreateRoomModal({ onClose, onCreated }: { onClose: () => void; onCreate
           </button>
         </div>
 
+        <p className="text-[12px] text-[var(--color-text-tertiary)] mb-3 leading-relaxed">
+          {t('room.inviteOnlyHint')}
+        </p>
+
         {err && <div className="text-[12px] text-red-400 mb-2">{err}</div>}
 
         <label className="block text-[12px] text-[var(--color-text-secondary)] mb-1">{t('room.groupName')}</label>
@@ -170,11 +179,21 @@ function CreateRoomModal({ onClose, onCreated }: { onClose: () => void; onCreate
                 className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[var(--color-main-surface-tertiary)] cursor-pointer"
               >
                 <input type="checkbox" checked={picked.includes(u.id)} onChange={() => toggle(u.id)} />
-                <span className="text-[13px] text-[var(--color-text-primary)]">{u.displayName || u.username}</span>
+                <span className="text-[13px] text-[var(--color-text-primary)] flex-1 min-w-0 truncate">
+                  {u.displayName || u.username}
+                </span>
+                {u.isVirtual && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] border border-[var(--color-border-light)] flex-shrink-0">
+                    {t('room.virtualBadge')}
+                  </span>
+                )}
               </label>
             ))
           )}
         </div>
+        <p className="text-[11px] text-[var(--color-text-tertiary)] mb-3 leading-relaxed">
+          {t('room.virtualHint')}
+        </p>
 
         <div className="flex items-center justify-end gap-2">
           <button

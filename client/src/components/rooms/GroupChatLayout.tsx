@@ -1,18 +1,40 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useRoomStore } from '../../stores/roomStore';
 import { useAuthStore } from '../../stores/authStore';
 import { usePrefsStore } from '../../stores/prefsStore';
 import { usersApi } from '../../services/api';
 import { useTranslation } from '../../i18n';
+import { normalizeMarkdown } from '../../utils/markdown';
+import {
+  exportRepliesAsPdf,
+  downloadBlob,
+  exportFilename,
+  type ExportableReply,
+} from '../../utils/exportAiReplies';
+import { roomApi } from '../../services/api';
 import type { UserPublic, RoomFile } from '../../types';
 import {
   Send, Bot, Sparkles, Users2, Settings2, Trash2, UserPlus, X,
-  ChevronRight, ChevronLeft, Loader2, Clock, FileText,
+  ChevronLeft, Loader2, Clock, FileText, MessageSquare, AtSign, AlertCircle,
+  Download, ChevronDown, FileText as FileDoc,
 } from 'lucide-react';
+import { NotepadBar } from './NotepadBar';
 
 /**
- * §10.6 Group room: left = human chat, right = shared Group AI.
- * Desktop shows both panes; mobile shows one at a time with a slide toggle.
+ * §10.6 Group room — single unified timeline + one composer.
+ *
+ * The backend still keeps two tracks (human `messages` + shared-AI `aiMessages`,
+ * and the AI never reads the human track). The UI merges them into one
+ * chronological view; a small toggle above the single input switches the
+ * composer between "群聊" (human message) and "@AI" (prompt the group AI).
+ * Choosing @AI takes the shared input lock; sending calls the AI and streams
+ * the reply to every member.
+ *
+ * <!-- superseded: the earlier left/right two-pane layout (§10.6.10) is replaced
+ * by this single-timeline + toggle composer. Backend two-track + privacy
+ * invariants are unchanged. -->
  */
 interface GroupChatLayoutProps {
   roomId: string;
@@ -29,6 +51,7 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
   const currentRoom = useRoomStore((s) => s.currentRoom);
   const messages = useRoomStore((s) => s.messages);
   const aiMessages = useRoomStore((s) => s.aiMessages);
+  const files = useRoomStore((s) => s.files);
   const openRoom = useRoomStore((s) => s.openRoom);
   const closeRoom = useRoomStore((s) => s.closeRoom);
   const sendMessage = useRoomStore((s) => s.sendMessage);
@@ -37,16 +60,75 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
   const release = useRoomStore((s) => s.release);
   const ask = useRoomStore((s) => s.ask);
   const asking = useRoomStore((s) => s.asking);
+  const error = useRoomStore((s) => s.error);
+  const clearError = useRoomStore((s) => s.clearError);
 
-  const [mobilePane, setMobilePane] = useState<'human' | 'ai'>('human');
   const [showManage, setShowManage] = useState(false);
   const [showModels, setShowModels] = useState(false);
+
+  // export (column c): dropdown open + in-flight guard
+  const [showExport, setShowExport] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  // composer
+  const [mode, setMode] = useState<'chat' | 'ai'>('chat');
+  const [text, setText] = useState('');
+  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+  const [remaining, setRemaining] = useState(0);
+  const endRef = useRef<HTMLDivElement>(null);
+  const aiEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     openRoom(roomId);
     return () => closeRoom();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
+
+  // Pane b (human chat) shows everything on the human track, including the
+  // `ai_stub` "X → AI: …" delivery rows so the group sees who asked the AI.
+  const humanItems = messages;
+
+  // While the AI reply is being produced on the right (pane c), show a
+  // transient "generating on the right" notice in pane b. It is derived
+  // purely from the AI track status, so it disappears automatically once the
+  // assistant message flips to done/error.
+  const aiGenerating = useMemo(
+    () => aiMessages.some((m) => m.role === 'assistant' && (m.status === 'thinking' || m.status === 'streaming')),
+    [aiMessages],
+  );
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [humanItems.length, aiGenerating]);
+
+  useEffect(() => {
+    aiEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [aiMessages.length, asking]);
+
+  const iHoldLock = currentRoom?.aiState === 'occupying_input' && currentRoom?.occupantUserId === me?.id;
+  const someoneElseHolds = currentRoom?.aiState === 'occupying_input' && currentRoom?.occupantUserId !== me?.id;
+  const aiRunning = currentRoom?.aiState === 'ai_running' || asking;
+
+  // Countdown while I hold the @AI lock; auto-release + revert to chat on expiry.
+  useEffect(() => {
+    if (!iHoldLock || !currentRoom?.occupancyUntil) {
+      setRemaining(0);
+      return;
+    }
+    const tick = () => {
+      const ms = new Date(currentRoom.occupancyUntil!).getTime() - Date.now();
+      const secs = Math.max(0, Math.ceil(ms / 1000));
+      setRemaining(secs);
+      if (secs <= 0) {
+        void release();
+        setMode('chat');
+      }
+    };
+    tick();
+    const id = setInterval(tick, CLAIM_POLL_MS);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [iHoldLock, currentRoom?.occupancyUntil]);
 
   if (!currentRoom) {
     return (
@@ -57,6 +139,97 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
   }
 
   const isOwner = currentRoom.ownerId === me?.id;
+  const hasChatModel = Boolean(currentRoom.chatModel);
+  const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+
+  // Switch the composer to @AI: needs a chat model + the shared input lock.
+  const switchToAi = async () => {
+    clearError();
+    if (aiRunning) return;
+    if (!hasChatModel) {
+      setShowModels(true);
+      return;
+    }
+    if (iHoldLock) {
+      setMode('ai');
+      return;
+    }
+    const ok = await claim();
+    if (ok) setMode('ai');
+    // failure reason is surfaced via the store `error` banner
+  };
+
+  const switchToChat = async () => {
+    setMode('chat');
+    clearError();
+    if (iHoldLock) await release();
+  };
+
+  const submit = async () => {
+    const v = text.trim();
+    if (!v) return;
+    if (mode === 'ai') {
+      if (!hasChatModel) {
+        setShowModels(true);
+        return;
+      }
+      setText('');
+      const fids = [...selectedFiles];
+      setSelectedFiles([]);
+      await ask(v, fids.length ? fids : undefined);
+      // Server returns to idle after the reply; go back to plain chat mode.
+      setMode('chat');
+    } else {
+      setText('');
+      await sendMessage(v);
+    }
+  };
+
+  const toggleFile = (id: string) => {
+    setSelectedFiles((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      if (next.length > 1) alert(t('room.multiFileWarn'));
+      return next;
+    });
+  };
+
+  // Export: only finished assistant replies with real content (column-c parity).
+  const exportableReplies: ExportableReply[] = useMemo(
+    () =>
+      aiMessages
+        .filter((m) => m.role === 'assistant' && m.status === 'done' && m.content.trim())
+        .map((m) => ({ content: m.content, modelUsed: m.modelUsed, createdAt: m.createdAt })),
+    [aiMessages],
+  );
+
+  const handleExport = async (format: 'pdf' | 'docx') => {
+    setShowExport(false);
+    if (exportableReplies.length === 0) {
+      alert(t('room.exportEmpty'));
+      return;
+    }
+    const roomName = currentRoom?.name || 'group';
+    try {
+      setExporting(true);
+      if (format === 'pdf') {
+        exportRepliesAsPdf(exportableReplies, roomName);
+      } else {
+        const blob = await roomApi.exportDocx(
+          currentRoom!.id,
+          exportableReplies.map((r) => r.content),
+          roomName,
+        );
+        downloadBlob(blob, exportFilename(roomName, 'docx'));
+      }
+    } catch (err) {
+      console.error('[room] export failed:', err);
+      alert(t('room.exportFailed'));
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const composerLocked = mode === 'chat' && (aiRunning || someoneElseHolds);
 
   return (
     <div className="h-full flex flex-col bg-[var(--color-main-surface-primary)]">
@@ -78,14 +251,6 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
           {currentRoom.memberCount ?? currentRoom.members?.length ?? ''} {t('room.members')}
         </span>
         <div className="flex-1" />
-        {/* mobile pane toggle */}
-        <button
-          className="md:hidden p-1.5 rounded-lg hover:bg-[var(--overlay-6)] text-[var(--color-text-secondary)]"
-          onClick={() => setMobilePane(mobilePane === 'human' ? 'ai' : 'human')}
-          title={mobilePane === 'human' ? t('room.toAi') : t('room.toHuman')}
-        >
-          {mobilePane === 'human' ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-        </button>
         <button
           className="p-1.5 rounded-lg hover:bg-[var(--overlay-6)] text-[var(--color-text-secondary)]"
           onClick={() => setShowModels(true)}
@@ -102,376 +267,284 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
         </button>
       </div>
 
-      {/* Two-pane body */}
+      {/* Two columns: b = human chat + composer (left), c = AI replies (right).
+          The AI never reads the human track; @AI replies live only in column c.
+          The "X → AI:" delivery rows stay in column b (rendered as ai_stub) so
+          the group sees who asked; column c holds only the assistant answers. */}
       <div className="flex-1 min-h-0 flex">
-        {/* Left: human chat */}
-        <div
-          className={`flex flex-col min-w-0 border-r border-[var(--color-border-light)] w-full md:w-1/3 ${
-            mobilePane === 'human' ? 'flex' : 'hidden md:flex'
-          }`}
-        >
-          <HumanPane messages={messages} meId={me?.id} onSend={sendMessage} />
-        </div>
-
-        {/* Right: shared Group AI */}
-        <div
-          className={`flex flex-col min-w-0 w-full md:w-2/3 ${
-            mobilePane === 'ai' ? 'flex' : 'hidden md:flex'
-          }`}
-        >
-          <AiPane
-            aiMessages={aiMessages}
-            room={currentRoom}
-            meId={me?.id}
-            asking={asking}
-            onClaim={claim}
-            onRenew={renew}
-            onRelease={release}
-            onAsk={ask}
-          />
-        </div>
-      </div>
-
-      {showManage && (
-        <ManageModal isOwner={isOwner} onClose={() => setShowManage(false)} />
-      )}
-      {showModels && <ModelsModal onClose={() => setShowModels(false)} />}
-    </div>
-  );
-}
-
-// ---------------- Human (left) pane ----------------
-
-function HumanPane({
-  messages,
-  meId,
-  onSend,
-}: {
-  messages: ReturnType<typeof useRoomStore.getState>['messages'];
-  meId?: string;
-  onSend: (content: string) => Promise<void>;
-}) {
-  const { t } = useTranslation();
-  const [text, setText] = useState('');
-  const endRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length]);
-
-  const submit = async () => {
-    const v = text.trim();
-    if (!v) return;
-    setText('');
-    await onSend(v);
-  };
-
-  return (
-    <>
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
-        {messages.length === 0 && (
-          <div className="text-center text-[var(--color-text-tertiary)] text-[12px] py-8">{t('room.noMessages')}</div>
-        )}
-        {messages.map((m) => {
-          const mine = m.userId && m.userId === meId;
-          if (m.kind === 'ai_stub') {
-            return (
-              <div key={m.id} className="flex justify-center">
-                <div className="text-[11px] text-[var(--color-text-tertiary)] bg-[rgba(16,163,127,0.08)] rounded-full px-3 py-1 flex items-center gap-1">
-                  <Bot size={11} className="text-[var(--color-accent-main)]" />
-                  {m.username || t('room.someone')} → AI: {m.content}
-                </div>
-              </div>
-            );
-          }
-          return (
-            <div key={m.id} className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
-              {!mine && (
-                <span className="text-[10px] text-[var(--color-text-tertiary)] mb-0.5 px-1">
-                  {m.displayName || m.username || t('room.someone')}
-                </span>
-              )}
-              <div
-                className={`max-w-[85%] rounded-2xl px-3 py-1.5 text-[13px] whitespace-pre-wrap break-words ${
-                  mine
-                    ? 'bg-[var(--color-accent-main)] text-white'
-                    : 'bg-[var(--color-main-surface-tertiary)] text-[var(--color-text-primary)]'
-                }`}
-              >
-                {m.content}
-              </div>
-            </div>
-          );
-        })}
-        <div ref={endRef} />
-      </div>
-      <div className="p-2 border-t border-[var(--color-border-light)] flex items-end gap-2">
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          rows={1}
-          placeholder={t('room.humanPlaceholder')}
-          className="flex-1 resize-none bg-[var(--composer-bg)] border border-[var(--color-border-light)] rounded-xl px-3 py-2 text-[13px] outline-none max-h-32"
-        />
-        <button
-          onClick={submit}
-          disabled={!text.trim()}
-          className="p-2 rounded-xl bg-[var(--color-accent-main)] text-white disabled:opacity-40"
-        >
-          <Send size={16} />
-        </button>
-      </div>
-    </>
-  );
-}
-
-// ---------------- AI (right) pane ----------------
-
-function AiPane({
-  aiMessages,
-  room,
-  meId,
-  asking,
-  onClaim,
-  onRenew,
-  onRelease,
-  onAsk,
-}: {
-  aiMessages: ReturnType<typeof useRoomStore.getState>['aiMessages'];
-  room: NonNullable<ReturnType<typeof useRoomStore.getState>['currentRoom']>;
-  meId?: string;
-  asking: boolean;
-  onClaim: () => Promise<boolean>;
-  onRenew: () => Promise<void>;
-  onRelease: () => Promise<void>;
-  onAsk: (content: string, fileIds?: string[]) => Promise<void>;
-}) {
-  const { t } = useTranslation();
-  const [draft, setDraft] = useState('');
-  const [remaining, setRemaining] = useState<number>(0);
-  const [showRenewPrompt, setShowRenewPrompt] = useState(false);
-  const renewGraceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const endRef = useRef<HTMLDivElement>(null);
-  const files = useRoomStore((s) => s.files);
-  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
-
-  const iHoldLock = room.aiState === 'occupying_input' && room.occupantUserId === meId;
-  const someoneElseHolds = room.aiState === 'occupying_input' && room.occupantUserId !== meId;
-  const aiRunning = room.aiState === 'ai_running' || asking;
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [aiMessages.length]);
-
-  // Countdown for whoever is composing (visible to all, editable only by holder)
-  useEffect(() => {
-    if (room.aiState !== 'occupying_input' || !room.occupancyUntil) {
-      setRemaining(0);
-      setShowRenewPrompt(false);
-      return;
-    }
-    const tick = () => {
-      const ms = new Date(room.occupancyUntil!).getTime() - Date.now();
-      const secs = Math.max(0, Math.ceil(ms / 1000));
-      setRemaining(secs);
-      // holder gets a "still need to type?" prompt when it hits 0
-      if (secs <= 0 && iHoldLock && !showRenewPrompt) {
-        setShowRenewPrompt(true);
-        // 30s grace → auto-release
-        if (renewGraceRef.current) clearTimeout(renewGraceRef.current);
-        renewGraceRef.current = setTimeout(() => {
-          onRelease();
-          setShowRenewPrompt(false);
-        }, 30_000);
-      }
-    };
-    tick();
-    const id = setInterval(tick, CLAIM_POLL_MS);
-    return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room.aiState, room.occupancyUntil, iHoldLock]);
-
-  const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-
-  const handleClaim = async () => {
-    const ok = await onClaim();
-    if (ok) setDraft('');
-  };
-
-  const handleRenewYes = async () => {
-    if (renewGraceRef.current) clearTimeout(renewGraceRef.current);
-    setShowRenewPrompt(false);
-    await onRenew();
-  };
-  const handleRenewNo = async () => {
-    if (renewGraceRef.current) clearTimeout(renewGraceRef.current);
-    setShowRenewPrompt(false);
-    await onRelease();
-    setDraft('');
-  };
-
-  const handleSend = async () => {
-    const v = draft.trim();
-    if (!v) return;
-    setDraft('');
-    const fids = [...selectedFiles];
-    setSelectedFiles([]);
-    await onAsk(v, fids.length ? fids : undefined);
-  };
-
-  const toggleFile = (id: string) => {
-    setSelectedFiles((prev) => {
-      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-      if (next.length > 1) {
-        // §10.6.7 warn on multi-file
-        alert(t('room.multiFileWarn'));
-      }
-      return next;
-    });
-  };
-
-  return (
-    <>
-      {/* AI thread */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {aiMessages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center text-[var(--color-text-tertiary)]">
-            <Sparkles size={22} className="mb-2 text-[var(--color-accent-main)]" />
-            <p className="text-[13px]">{t('room.aiEmpty')}</p>
+        {/* Column b — human chat + composer */}
+        <div className="flex flex-col min-w-0 flex-1 border-r border-[var(--color-border-light)]">
+          <div className="px-4 py-2 border-b border-[var(--color-border-light)] flex items-center gap-1.5 text-[11px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
+            <Users2 size={12} /> {t('room.paneChat')}
           </div>
-        )}
-        {aiMessages.map((m) => (
-          <div key={m.id} className="flex gap-3">
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${m.role === 'assistant' ? 'bg-[#ab68ff]' : 'bg-[var(--color-accent-main)]'}`}>
-              {m.role === 'assistant' ? <Bot size={13} className="text-white" /> : <span className="text-[10px] text-white font-medium">{(m.authorName || '?').slice(0, 1)}</span>}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[11px] text-[var(--color-text-tertiary)] mb-0.5">
-                {m.role === 'assistant' ? 'AI' : m.authorName || t('room.someone')}
-                {m.modelUsed ? ` · ${m.modelUsed}` : ''}
+          <NotepadBar />
+
+          {/* messages */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {humanItems.length === 0 && !aiGenerating && (
+              <div className="flex flex-col items-center justify-center h-full text-center text-[var(--color-text-tertiary)]">
+                <MessageSquare size={20} className="mb-2 opacity-40" />
+                <p className="text-[13px]">{t('room.noMessages')}</p>
               </div>
-              {m.status === 'thinking' ? (
-                <div className="text-[13px] text-[var(--color-text-tertiary)] flex items-center gap-2">
-                  <span className="typing-dots" aria-hidden="true">
-                    <span />
-                    <span />
-                    <span />
-                  </span>
-                  <span>{t('room.thinking')}</span>
+            )}
+            {humanItems.map((m) => {
+              // ai_stub: "X → AI: …" delivery notice (centered pill)
+              if (m.kind === 'ai_stub') {
+                return (
+                  <div key={m.id} className="flex justify-center">
+                    <div className="text-[11px] text-[var(--color-text-tertiary)] bg-[rgba(16,163,127,0.08)] rounded-full px-3 py-1 flex items-center gap-1 max-w-[90%]">
+                      <AtSign size={11} className="text-[var(--color-accent-main)] flex-shrink-0" />
+                      <span className="truncate">
+                        {m.username || t('room.someone')} → AI: {m.content}
+                      </span>
+                    </div>
+                  </div>
+                );
+              }
+              const mine = m.userId && m.userId === me?.id;
+              return (
+                <div key={m.id} className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
+                  {!mine && (
+                    <span className="text-[10px] text-[var(--color-text-tertiary)] mb-0.5 px-1">
+                      {m.displayName || m.username || t('room.someone')}
+                    </span>
+                  )}
+                  <div
+                    className={`max-w-[85%] rounded-2xl px-3 py-1.5 text-[13px] whitespace-pre-wrap break-words ${
+                      mine
+                        ? 'bg-[var(--color-accent-main)] text-white'
+                        : 'bg-[var(--color-main-surface-tertiary)] text-[var(--color-text-primary)]'
+                    }`}
+                  >
+                    {m.content}
+                  </div>
                 </div>
-              ) : m.status === 'error' ? (
-                <div className="text-[13px] text-red-400">{m.errorMessage || t('room.aiError')}</div>
-              ) : (
-                <div
-                  className={`text-[13.5px] text-[var(--color-text-primary)] whitespace-pre-wrap break-words leading-6 ${
-                    m.status === 'streaming' ? 'typing-cursor' : ''
+              );
+            })}
+
+            {/* transient "AI is replying on the right" notice — disappears once
+                the assistant message on the right flips to done/error */}
+            {aiGenerating && (
+              <div className="flex gap-3">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 bg-[#ab68ff]">
+                  <Bot size={13} className="text-white" />
+                </div>
+                <div className="flex items-center gap-2 text-[13px] text-[var(--color-text-tertiary)]">
+                  <Loader2 size={13} className="animate-spin text-[#ab68ff]" />
+                  <span>{t('room.replyGenerating')}</span>
+                </div>
+              </div>
+            )}
+            <div ref={endRef} />
+          </div>
+
+          {/* Composer (column b only) */}
+          <div className="border-t border-[var(--color-border-light)] p-2.5">
+            {/* error banner */}
+            {error && (
+              <div className="mb-2 px-2.5 py-1.5 rounded-lg bg-[var(--color-surface-error)] text-[var(--color-text-error)] text-[12px] flex items-center gap-1.5">
+                <AlertCircle size={13} className="flex-shrink-0" />
+                <span className="flex-1">{error}</span>
+                <button onClick={clearError} className="hover:opacity-70"><X size={13} /></button>
+              </div>
+            )}
+
+            {/* mode toggle + status */}
+            <div className="flex items-center gap-2 mb-2">
+              <div className="inline-flex rounded-lg border border-[var(--color-border-light)] overflow-hidden text-[12px]">
+                <button
+                  onClick={switchToChat}
+                  className={`flex items-center gap-1 px-2.5 py-1 transition-colors ${
+                    mode === 'chat'
+                      ? 'bg-[var(--color-accent-main)] text-white'
+                      : 'text-[var(--color-text-secondary)] hover:bg-[var(--overlay-6)]'
                   }`}
                 >
-                  {m.content || (m.status === 'streaming' ? '…' : '')}
-                </div>
+                  <MessageSquare size={12} /> {t('room.modeChat')}
+                </button>
+                <button
+                  onClick={switchToAi}
+                  disabled={aiRunning || someoneElseHolds}
+                  className={`flex items-center gap-1 px-2.5 py-1 transition-colors disabled:opacity-40 ${
+                    mode === 'ai'
+                      ? 'bg-[var(--color-accent-main)] text-white'
+                      : 'text-[var(--color-text-secondary)] hover:bg-[var(--overlay-6)]'
+                  }`}
+                >
+                  <Bot size={12} /> {t('room.modeAi')}
+                </button>
+              </div>
+
+              {/* status line */}
+              {aiRunning ? (
+                <span className="flex items-center gap-1 text-[11px] text-[var(--color-accent-main)]">
+                  <Loader2 size={11} className="animate-spin" /> {t('room.aiRunning')}
+                </span>
+              ) : someoneElseHolds ? (
+                <span className="flex items-center gap-1 text-[11px] text-[var(--color-text-tertiary)]">
+                  <Clock size={11} /> {t('room.someoneTyping', { name: '' })}
+                </span>
+              ) : mode === 'ai' && iHoldLock ? (
+                <span className="flex items-center gap-1 text-[11px] text-[var(--color-accent-main)]">
+                  <Clock size={11} /> {t('room.youHold')} {remaining > 0 ? `(${fmt(remaining)})` : ''}
+                  <button onClick={renew} className="ml-1 underline hover:opacity-80">{t('room.yesNeed')}</button>
+                </span>
+              ) : mode === 'ai' && !hasChatModel ? (
+                <button onClick={() => setShowModels(true)} className="flex items-center gap-1 text-[11px] text-amber-400 hover:opacity-80">
+                  <AlertCircle size={11} /> {t('room.needChatModel')}
+                </button>
+              ) : (
+                <span className="text-[11px] text-[var(--color-text-tertiary)]">
+                  {mode === 'ai' ? t('room.atAiHint') : t('room.chatHint')}
+                </span>
+              )}
+            </div>
+
+            {/* KB file strip — only when composing @AI */}
+            {mode === 'ai' && iHoldLock && files.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {files.map((f: RoomFile) => (
+                  <button
+                    key={f.id}
+                    onClick={() => toggleFile(f.id)}
+                    className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border ${
+                      selectedFiles.includes(f.id)
+                        ? 'border-[var(--color-accent-main)] bg-[rgba(16,163,127,0.12)] text-[var(--color-accent-main)]'
+                        : 'border-[var(--color-border-light)] text-[var(--color-text-tertiary)]'
+                    }`}
+                    title={f.originalName}
+                  >
+                    <FileText size={11} /> <span className="max-w-[100px] truncate">{f.originalName}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* single input */}
+            <div className="flex items-end gap-2">
+              <textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    submit();
+                  }
+                }}
+                rows={1}
+                disabled={composerLocked}
+                placeholder={
+                  composerLocked
+                    ? t('room.composerLocked')
+                    : mode === 'ai'
+                      ? t('room.aiPlaceholder')
+                      : t('room.humanPlaceholder')
+                }
+                className={`flex-1 resize-none bg-[var(--composer-bg)] rounded-xl px-3 py-2 text-[13px] outline-none max-h-40 disabled:opacity-50 border ${
+                  mode === 'ai' ? 'border-[var(--color-accent-main)]' : 'border-[var(--color-border-light)]'
+                }`}
+              />
+              <button
+                onClick={submit}
+                disabled={!text.trim() || composerLocked || (mode === 'ai' && asking)}
+                className="p-2 rounded-xl bg-[var(--color-accent-main)] text-white disabled:opacity-40"
+                title={mode === 'ai' ? t('room.modeAi') : t('room.modeChat')}
+              >
+                {mode === 'ai' && asking ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Column c — AI replies (assistant answers only) */}
+        <div className="flex flex-col min-w-0 flex-1">
+          <div className="px-4 py-2 border-b border-[var(--color-border-light)] flex items-center gap-1.5 text-[11px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
+            <Bot size={12} className="text-[#ab68ff]" /> {t('room.paneAi')}
+            <div className="flex-1" />
+            {/* Export AI replies (docx / pdf) */}
+            <div className="relative">
+              <button
+                onClick={() => setShowExport((v) => !v)}
+                disabled={exporting}
+                className="flex items-center gap-1 px-2 py-1 rounded-md normal-case tracking-normal text-[var(--color-text-tertiary)] hover:bg-[var(--overlay-6)] hover:text-[var(--color-text-primary)] transition-colors disabled:opacity-50"
+                title={t('room.export')}
+              >
+                {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                <span className="text-[11px]">{exporting ? t('room.exporting') : t('room.export')}</span>
+                <ChevronDown size={11} />
+              </button>
+              {showExport && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowExport(false)} />
+                  <div className="absolute right-0 top-full mt-1 z-50 w-52 rounded-lg border border-[var(--color-border-light)] bg-[var(--color-main-surface-secondary)] shadow-lg py-1 normal-case tracking-normal">
+                    <button
+                      onClick={() => handleExport('pdf')}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-[var(--color-text-secondary)] hover:bg-[var(--overlay-6)] text-left"
+                    >
+                      <FileText size={13} /> {t('room.exportPdf')}
+                    </button>
+                    <button
+                      onClick={() => handleExport('docx')}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-[var(--color-text-secondary)] hover:bg-[var(--overlay-6)] text-left"
+                    >
+                      <FileDoc size={13} /> {t('room.exportDocx')}
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           </div>
-        ))}
-        <div ref={endRef} />
-      </div>
-
-      {/* @AI composer / occupancy bar */}
-      <div className="border-t border-[var(--color-border-light)] p-2.5">
-        {/* status line */}
-        <div className="flex items-center gap-2 mb-2 text-[11px]">
-          {aiRunning ? (
-            <span className="flex items-center gap-1 text-[var(--color-accent-main)]">
-              <Loader2 size={12} className="animate-spin" /> {t('room.aiRunning')}
-            </span>
-          ) : someoneElseHolds ? (
-            <span className="flex items-center gap-1 text-[var(--color-text-tertiary)]">
-              <Clock size={12} /> {t('room.someoneTyping')} {remaining > 0 ? `(${fmt(remaining)})` : ''}
-            </span>
-          ) : iHoldLock ? (
-            <span className="flex items-center gap-1 text-[var(--color-accent-main)]">
-              <Clock size={12} /> {t('room.youHold')} {remaining > 0 ? `(${fmt(remaining)})` : ''}
-            </span>
-          ) : (
-            <span className="text-[var(--color-text-tertiary)]">{t('room.atAiHint')}</span>
-          )}
-        </div>
-
-        {/* files strip (only when composing) */}
-        {iHoldLock && files.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            {files.map((f: RoomFile) => (
-              <button
-                key={f.id}
-                onClick={() => toggleFile(f.id)}
-                className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border ${
-                  selectedFiles.includes(f.id)
-                    ? 'border-[var(--color-accent-main)] bg-[rgba(16,163,127,0.12)] text-[var(--color-accent-main)]'
-                    : 'border-[var(--color-border-light)] text-[var(--color-text-tertiary)]'
-                }`}
-                title={f.originalName}
-              >
-                <FileText size={11} /> <span className="max-w-[100px] truncate">{f.originalName}</span>
-              </button>
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {aiMessages.filter((m) => m.role === 'assistant').length === 0 && (
+              <div className="flex flex-col items-center justify-center h-full text-center text-[var(--color-text-tertiary)]">
+                <Sparkles size={22} className="mb-2 text-[var(--color-accent-main)]" />
+                <p className="text-[13px]">{t('room.aiEmpty')}</p>
+              </div>
+            )}
+            {aiMessages.filter((m) => m.role === 'assistant').map((m) => (
+              <div key={m.id} className="flex gap-3">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 bg-[#ab68ff]">
+                  <Bot size={13} className="text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] text-[var(--color-text-tertiary)] mb-0.5">
+                    AI{m.modelUsed ? ` · ${m.modelUsed}` : ''}
+                  </div>
+                  {m.status === 'thinking' || m.status === 'streaming' ? (
+                    // First pass is produced in the background; we do NOT show the
+                    // raw markdown while it streams. Once status flips to `done`
+                    // we render the calibrated, formatted answer below.
+                    <div className="text-[13px] text-[var(--color-text-tertiary)] flex items-center gap-2">
+                      <span className="typing-dots" aria-hidden="true"><span /><span /><span /></span>
+                      <span>{t('room.formatting')}</span>
+                    </div>
+                  ) : m.status === 'error' ? (
+                    <div className="text-[13px] text-red-400">{m.errorMessage || t('room.aiError')}</div>
+                  ) : (
+                    <div className="markdown-content text-[13.5px] leading-6 text-[var(--color-text-primary)]">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          table: ({ children, ...props }) => (
+                            <div className="table-wrapper"><table {...props}>{children}</table></div>
+                          ),
+                        }}
+                      >
+                        {normalizeMarkdown(m.content)}
+                      </ReactMarkdown>
+                    </div>
+                  )}
+                </div>
+              </div>
             ))}
+            <div ref={aiEndRef} />
           </div>
-        )}
-
-        {!iHoldLock ? (
-          <button
-            onClick={handleClaim}
-            disabled={aiRunning || someoneElseHolds}
-            className="w-full py-2 rounded-xl bg-[var(--color-accent-main)] text-white text-[13px] font-medium disabled:opacity-40 flex items-center justify-center gap-1.5"
-          >
-            <Bot size={15} /> {t('room.atAiButton')}
-          </button>
-        ) : (
-          <div className="flex items-end gap-2">
-            <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              rows={1}
-              autoFocus
-              placeholder={t('room.aiPlaceholder')}
-              className="flex-1 resize-none bg-[var(--composer-bg)] border border-[var(--color-accent-main)] rounded-xl px-3 py-2 text-[13px] outline-none max-h-40"
-            />
-            <button onClick={handleRenewNo} className="p-2 rounded-xl hover:bg-[var(--overlay-6)] text-[var(--color-text-tertiary)]" title={t('room.cancel')}>
-              <X size={16} />
-            </button>
-            <button
-              onClick={handleSend}
-              disabled={!draft.trim() || asking}
-              className="p-2 rounded-xl bg-[var(--color-accent-main)] text-white disabled:opacity-40"
-            >
-              {asking ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-            </button>
-          </div>
-        )}
-
-        {/* renew prompt */}
-        {showRenewPrompt && (
-          <div className="mt-2 p-2 rounded-lg bg-[var(--color-main-surface-tertiary)] border border-[var(--color-border-light)] text-[12px] flex items-center justify-between">
-            <span>{t('room.stillTyping')}</span>
-            <div className="flex gap-2">
-              <button onClick={handleRenewYes} className="px-2 py-1 rounded-md bg-[var(--color-accent-main)] text-white">{t('room.yesNeed')}</button>
-              <button onClick={handleRenewNo} className="px-2 py-1 rounded-md border border-[var(--color-border-light)]">{t('room.noRelease')}</button>
-            </div>
-          </div>
-        )}
+        </div>
       </div>
-    </>
+
+      {showManage && <ManageModal isOwner={isOwner} onClose={() => setShowManage(false)} />}
+      {showModels && <ModelsModal onClose={() => setShowModels(false)} />}
+    </div>
   );
 }
 

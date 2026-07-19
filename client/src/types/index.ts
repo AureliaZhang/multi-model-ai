@@ -227,6 +227,8 @@ export interface UserPublic {
   isActive: boolean;
   lastLogin: string | null;
   createdAt: string;
+  /** System seat-filler for group create; cannot log in. */
+  isVirtual?: boolean;
 }
 
 export interface RegisterRequest {
@@ -603,4 +605,28 @@ export interface RoomFile {
   fileSize: number;
   uploadedBy?: string | null;
   createdAt: string;
+}
+
+/** §10.6.14 Group notepad (pinned sticky note) + edit-permission flow. */
+export interface RoomNotepadRequest {
+  id: string;
+  userId?: string;
+  username?: string;
+  displayName?: string | null;
+  status: 'pending' | 'approved' | 'denied';
+  createdAt: string;
+}
+
+export interface RoomNotepad {
+  content: string;
+  updatedBy: string | null;
+  updatedAt: string | null;
+  /** Whether the current caller may edit (owner or granted editor). */
+  canEdit: boolean;
+  /** Whether the current caller is the room owner. */
+  isOwner: boolean;
+  /** Member ids granted edit rights (owner is implicit, not listed). */
+  editors: string[];
+  /** Owner: all pending requests. Member: their own latest request (0-1). */
+  requests: RoomNotepadRequest[];
 }

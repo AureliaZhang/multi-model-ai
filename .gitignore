@@ -13,3 +13,6 @@ server/data/
 .DS_Store
 .vscode/
 .idea/
+
+# local scratch — screenshots etc., not repo content
+截图/

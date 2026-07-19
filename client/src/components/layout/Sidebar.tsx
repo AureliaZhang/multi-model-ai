@@ -37,6 +37,7 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
   const logout = useAuthStore(s => s.logout);
   const { t } = useTranslation();
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [showNewMenu, setShowNewMenu] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   const handleExport = async () => {
@@ -75,9 +76,16 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
     }
   };
 
-  const handleNewChat = () => {
+  const handleNewPrivateChat = () => {
+    setShowNewMenu(false);
     localStorage.removeItem('last_conversation_id');
     useChatStore.setState({ currentConversationId: null, messages: [] });
+    onNavigate?.();
+  };
+
+  const handleNewGroupChat = () => {
+    setShowNewMenu(false);
+    onOpenRooms?.();
     onNavigate?.();
   };
 
@@ -109,7 +117,7 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
 
   return (
     <div className="h-full flex flex-col bg-[var(--color-sidebar-surface)]">
-      {/* Header - collapse + new chat */}
+      {/* Header - collapse + new chat (private / group) */}
       <div className="p-2 flex items-center gap-1.5">
         <button
           type="button"
@@ -120,15 +128,45 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
         >
           <PanelLeftClose size={18} strokeWidth={1.5} />
         </button>
-        <button
-          onClick={handleNewChat}
-          disabled={isGuest}
-          className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-[var(--color-border-light)] hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-primary)] text-sm flex-1 min-w-0 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
-          title={isGuest ? t('sidebar.signInToChat') : t('sidebar.newChat')}
-        >
-          <MessageSquarePlus size={18} strokeWidth={1.5} />
-          <span className="truncate">{t('sidebar.newChat')}</span>
-        </button>
+        <div className="relative flex-1 min-w-0">
+          <button
+            onClick={() => {
+              if (isGuest) return;
+              setShowNewMenu((v) => !v);
+            }}
+            disabled={isGuest}
+            className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-[var(--color-border-light)] hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-primary)] text-sm w-full min-w-0 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={isGuest ? t('sidebar.signInToChat') : t('sidebar.newChat')}
+          >
+            <MessageSquarePlus size={18} strokeWidth={1.5} />
+            <span className="truncate flex-1 text-left">{t('sidebar.newChat')}</span>
+          </button>
+          {showNewMenu && !isGuest && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowNewMenu(false)} aria-hidden />
+              <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl border border-[var(--color-border-light)] bg-[var(--color-main-surface-secondary)] shadow-lg overflow-hidden">
+                <button
+                  type="button"
+                  onClick={handleNewPrivateChat}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-sidebar-surface-hover)]"
+                >
+                  <MessageSquarePlus size={16} className="text-[var(--color-accent-main)]" />
+                  <span>{t('sidebar.newPrivateChat')}</span>
+                </button>
+                {onOpenRooms && (
+                  <button
+                    type="button"
+                    onClick={handleNewGroupChat}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-sidebar-surface-hover)] border-t border-[var(--color-border-light)]"
+                  >
+                    <Users2 size={16} className="text-[var(--color-accent-main)]" />
+                    <span>{t('sidebar.newGroupChat')}</span>
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* New conversation options (visibility + self-review defaults) */}
@@ -259,6 +297,7 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
               <FolderOpen size={16} strokeWidth={1.5} />
               <span>{t('sidebar.fileLibrary')}</span>
             </button>
+            {/* Group chats: create only via “New chat → New group”; list still via openRooms when needed */}
             {onOpenRooms && (
               <button
                 onClick={onOpenRooms}
@@ -327,7 +366,7 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
           className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-secondary)] text-[13px] w-full transition-colors duration-150"
         >
           <Settings size={16} strokeWidth={1.5} />
-          <span>{t('sidebar.settingsStations')}</span>
+          <span>{t('sidebar.settings')}</span>
         </button>
 
         {isAuthenticated && user ? (

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { roomApi } from '../services/api';
 import { roomSocket, type RoomSocketEvent, type RoomSocketStatus } from '../services/roomSocket';
-import type { Room, RoomMessage, RoomAiMessage, RoomFile } from '../types';
+import type { Room, RoomMessage, RoomAiMessage, RoomFile, RoomNotepad } from '../types';
 
 /**
  * §10.6 Group chat store.
@@ -23,6 +23,7 @@ interface RoomState {
   asking: boolean; // an @AI request is in flight from THIS client
   socketStatus: RoomSocketStatus | 'idle';
   _pollTimer: ReturnType<typeof setInterval> | null;
+  notepad: RoomNotepad | null;
 
   fetchRooms: () => Promise<void>;
   createRoom: (name: string, memberUserIds: string[]) => Promise<Room | null>;
@@ -35,7 +36,9 @@ interface RoomState {
   claim: () => Promise<boolean>;
   renew: () => Promise<void>;
   release: () => Promise<void>;
-  ask: (content: string, fileIds?: string[]) => Promise<void>;
+  /** Send an @AI prompt. Returns an error string on failure, or null on success. */
+  ask: (content: string, fileIds?: string[]) => Promise<string | null>;
+  clearError: () => void;
 
   setModels: (models: { chatModel?: string | null; imageModel?: string | null; ttsModel?: string | null }) => Promise<string | null>;
 
@@ -46,6 +49,13 @@ interface RoomState {
   fetchFiles: () => Promise<void>;
   uploadFile: (name: string, mimeType: string, content: string, fileSize: number) => Promise<void>;
   deleteFile: (fileId: string) => Promise<void>;
+
+  // §10.6.14 group notepad
+  fetchNotepad: () => Promise<void>;
+  saveNotepad: (content: string) => Promise<string | null>;
+  requestNotepadEdit: () => Promise<void>;
+  resolveNotepadRequest: (reqId: string, approve: boolean) => Promise<void>;
+  revokeNotepadEditor: (userId: string) => Promise<void>;
 }
 
 function upsertById<T extends { id: string }>(list: T[], item: T): T[] {
@@ -95,6 +105,14 @@ function applySocketEvent(
       void get().fetchRooms();
       break;
     }
+    case 'notepad':
+    case 'notepadRequest': {
+      // Notepad content / editors / request-queue changed. The payloads are
+      // partial (some carry only {resolved} or {revoked}), so just re-fetch the
+      // authoritative notepad state for the open room.
+      void get().fetchNotepad();
+      break;
+    }
     default:
       break;
   }
@@ -131,6 +149,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   asking: false,
   socketStatus: 'idle',
   _pollTimer: null,
+  notepad: null,
 
   fetchRooms: async () => {
     set({ roomsLoading: true });
@@ -185,6 +204,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
     });
 
     get().fetchFiles();
+    get().fetchNotepad();
 
     // Live updates via WebSocket; fall back to polling only while disconnected.
     roomSocket.connect(
@@ -207,6 +227,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
       messages: [],
       aiMessages: [],
       files: [],
+      notepad: null,
       _pollTimer: null,
       socketStatus: 'idle',
     });
@@ -269,17 +290,25 @@ export const useRoomStore = create<RoomState>((set, get) => ({
 
   ask: async (content, fileIds) => {
     const cur = get().currentRoom;
-    if (!cur) return;
-    set({ asking: true });
+    if (!cur) return 'No room';
+    set({ asking: true, error: null });
     const res = await roomApi.ask(cur.id, content, fileIds);
     set({ asking: false });
     if (!res.success) {
-      set({ error: res.error || 'AI request failed' });
+      const err = res.error || 'AI request failed';
+      set({ error: err });
+      // Failed asks (e.g. no chat model set) leave no thinking bubble to clear,
+      // but refresh so any partial lock state is reconciled.
+      await get().refreshRoom();
+      return err;
     }
     // WS should have already pushed thinking → done; this is a safety net
     // for the case where the socket was briefly down during the request.
     await get().refreshRoom();
+    return null;
   },
+
+  clearError: () => set({ error: null }),
 
   setModels: async (models) => {
     const cur = get().currentRoom;
@@ -351,5 +380,51 @@ export const useRoomStore = create<RoomState>((set, get) => ({
     if (res.success) {
       await get().fetchFiles();
     }
+  },
+
+  fetchNotepad: async () => {
+    const cur = get().currentRoom;
+    if (!cur) return;
+    const res = await roomApi.getNotepad(cur.id);
+    if (res.success && res.data) {
+      // Ignore a late response for a room we already left.
+      if (get().currentRoom?.id === cur.id) set({ notepad: res.data });
+    }
+  },
+
+  saveNotepad: async (content) => {
+    const cur = get().currentRoom;
+    if (!cur) return 'No room';
+    const res = await roomApi.saveNotepad(cur.id, content);
+    if (res.success && res.data) {
+      set({ notepad: res.data });
+      return null;
+    }
+    return res.error || 'Failed to save notepad';
+  },
+
+  requestNotepadEdit: async () => {
+    const cur = get().currentRoom;
+    if (!cur) return 'No room';
+    const res = await roomApi.requestNotepadEdit(cur.id);
+    if (res.success && res.data) {
+      set({ notepad: res.data });
+      return null;
+    }
+    return res.error || 'Failed to request edit rights';
+  },
+
+  resolveNotepadRequest: async (reqId, approve) => {
+    const cur = get().currentRoom;
+    if (!cur) return;
+    const res = await roomApi.resolveNotepadRequest(cur.id, reqId, approve);
+    if (res.success && res.data) set({ notepad: res.data });
+  },
+
+  revokeNotepadEditor: async (userId) => {
+    const cur = get().currentRoom;
+    if (!cur) return;
+    const res = await roomApi.revokeNotepadEditor(cur.id, userId);
+    if (res.success && res.data) set({ notepad: res.data });
   },
 }));
