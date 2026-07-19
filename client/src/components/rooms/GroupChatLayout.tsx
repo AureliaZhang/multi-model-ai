@@ -97,6 +97,16 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
     [aiMessages],
   );
 
+  // Export: only finished assistant replies with real content (column-c parity).
+  // NOTE: must stay above the early `return` below — hooks cannot be called conditionally.
+  const exportableReplies: ExportableReply[] = useMemo(
+    () =>
+      aiMessages
+        .filter((m) => m.role === 'assistant' && m.status === 'done' && m.content.trim())
+        .map((m) => ({ content: m.content, modelUsed: m.modelUsed, createdAt: m.createdAt })),
+    [aiMessages],
+  );
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [humanItems.length, aiGenerating]);
@@ -192,15 +202,6 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
       return next;
     });
   };
-
-  // Export: only finished assistant replies with real content (column-c parity).
-  const exportableReplies: ExportableReply[] = useMemo(
-    () =>
-      aiMessages
-        .filter((m) => m.role === 'assistant' && m.status === 'done' && m.content.trim())
-        .map((m) => ({ content: m.content, modelUsed: m.modelUsed, createdAt: m.createdAt })),
-    [aiMessages],
-  );
 
   const handleExport = async (format: 'pdf' | 'docx') => {
     setShowExport(false);

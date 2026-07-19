@@ -53,7 +53,7 @@ interface RoomState {
   // §10.6.14 group notepad
   fetchNotepad: () => Promise<void>;
   saveNotepad: (content: string) => Promise<string | null>;
-  requestNotepadEdit: () => Promise<void>;
+  requestNotepadEdit: () => Promise<string | null>;
   resolveNotepadRequest: (reqId: string, approve: boolean) => Promise<void>;
   revokeNotepadEditor: (userId: string) => Promise<void>;
 }
