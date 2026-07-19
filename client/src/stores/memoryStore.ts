@@ -89,7 +89,7 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
     try {
       const res = await memoryApi.getTags();
       if (res.success && res.data) {
-        set({ allTags: res.data.map((t: any) => t.name) });
+        set({ allTags: res.data.map((t) => t.name) });
       }
     } catch (err: unknown) {
       console.error('Failed to fetch memory tags:', err);

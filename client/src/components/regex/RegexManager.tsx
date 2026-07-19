@@ -217,7 +217,7 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
           <label className="text-xs text-[var(--color-text-secondary)] mb-1 block">{t('regex.placement')}</label>
           <select
             value={script.placement || 'both'}
-            onChange={e => setEditingScript(prev => ({ ...prev!, placement: e.target.value as any }))}
+            onChange={e => setEditingScript(prev => ({ ...prev!, placement: e.target.value as RegexScript['placement'] }))}
             className="w-full px-3 py-2 bg-[var(--color-input-bg)] border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
           >
             <option value="input">{t('regex.placementInput')}</option>

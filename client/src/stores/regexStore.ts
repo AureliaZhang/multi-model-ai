@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { regexApi } from '../services/api';
-import type { RegexScript, RegexPreset } from '../types';
+import type { RegexScript, RegexPreset, RegexExportData } from '../types';
 import { getErrorMessage } from '../utils/errors';
 
 interface RegexState {
@@ -172,7 +172,7 @@ export const useRegexStore = create<RegexState>((set, get) => ({
 
   importPreset: async (data) => {
     try {
-      const res = await regexApi.importPreset(data as any);
+      const res = await regexApi.importPreset(data as RegexExportData);
       if (res.success && res.data) {
         set(state => ({ presets: [...state.presets, res.data!] }));
       }

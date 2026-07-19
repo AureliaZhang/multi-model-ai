@@ -589,7 +589,7 @@ export const arenaApi = {
     }
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: res.statusText }));
-      throw new Error((err as any).error || 'Export failed');
+      throw new Error((err as { error?: string }).error || 'Export failed');
     }
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
