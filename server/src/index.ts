@@ -21,31 +21,45 @@ import roomRoutes from './routes/rooms';
 import usageRoutes from './routes/usage';
 import { startHealthCheckJob, stopHealthCheckJob } from './services/healthCheck';
 import { attachRoomHub } from './services/roomHub';
+import { assertAuthSecurity, optionalAuth } from './middleware/auth';
+import { rateLimit } from './middleware/rateLimit';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 const isProduction = process.env.NODE_ENV === 'production';
 
+// Fail fast on insecure production config (default JWT secret → forgeable tokens).
+assertAuthSecurity();
+
 // Middleware
 app.use(helmet());
-app.use(cors({ origin: '*' }));
+// CORS: open by default for easy local/dev use; set CORS_ORIGIN (comma-separated
+// origins) to lock the API down to the team's frontend origin(s) in production.
+const corsOrigin = process.env.CORS_ORIGIN?.trim();
+app.use(cors({ origin: corsOrigin ? corsOrigin.split(',').map((s) => s.trim()) : '*' }));
 app.use(express.json({ limit: '50mb' }));
 
 // Initialize database
 getDb();
 
 // Routes
+// Per-user (or per-IP) rate limits on the paths that hit paid upstream model APIs.
+// Tunable via RATE_LIMIT_CHAT_PER_MIN / RATE_LIMIT_ARENA_PER_MIN; optionalAuth first so
+// authenticated members are counted by user id rather than shared IP.
+const chatPerMin = Number(process.env.RATE_LIMIT_CHAT_PER_MIN) || 60;
+const arenaPerMin = Number(process.env.RATE_LIMIT_ARENA_PER_MIN) || 120;
+
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/stations', stationRoutes);
 app.use('/api/models', modelRoutes);
 app.use('/api/conversations', conversationRoutes);
-app.use('/api/chat', chatRoutes);
+app.use('/api/chat', optionalAuth, rateLimit({ windowMs: 60_000, max: chatPerMin, key: 'chat' }), chatRoutes);
 app.use('/api/memories', memoryRoutes);
 app.use('/api/mcp', mcpRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/regex', regexRoutes);
-app.use('/api/arena', arenaRoutes);
+app.use('/api/arena', optionalAuth, rateLimit({ windowMs: 60_000, max: arenaPerMin, key: 'arena' }), arenaRoutes);
 app.use('/api/prefs', prefsRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api/rooms', roomRoutes);

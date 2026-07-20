@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../database';
 import { Conversation, ConversationVisibility, ApiResponse, AuthRequest, Message, Attachment } from '../types';
@@ -30,6 +30,20 @@ function rowToConversation(r: ConversationRow): Conversation {
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
+}
+
+/** Read access: admin, owner, public conversations, or legacy ownerless rows. */
+function canReadConv(req: AuthRequest, conv: ConversationRow): boolean {
+  const u = req.user;
+  if (u && (u.role === 'admin' || conv.user_id === u.id)) return true;
+  return conv.visibility === 'public' || conv.user_id == null;
+}
+
+/** Mutate access: admin or the real owner only (legacy ownerless rows → admin only). */
+function canModifyConv(req: AuthRequest, conv: ConversationRow): boolean {
+  const u = req.user;
+  if (!u) return false;
+  return u.role === 'admin' || (conv.user_id != null && conv.user_id === u.id);
 }
 
 function rowToAttachment(r: AttachmentRow): Attachment {
@@ -146,6 +160,9 @@ router.put('/:id', optionalAuth, (req: AuthRequest, res: Response) => {
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Conversation not found' });
     }
+    if (!canModifyConv(req, existing)) {
+      return res.status(403).json({ success: false, error: 'You do not have permission to modify this conversation' });
+    }
 
     const newTitle = title ?? existing.title;
     const newModel = modelNormalizedName ?? existing.model_normalized_name;
@@ -170,15 +187,19 @@ router.put('/:id', optionalAuth, (req: AuthRequest, res: Response) => {
   }
 });
 
-// DELETE /api/conversations/:id - Delete conversation
-router.delete('/:id', (req: Request, res: Response) => {
+// DELETE /api/conversations/:id - Delete conversation (owner or admin only)
+router.delete('/:id', optionalAuth, (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const db = getDb();
-    const result = db.prepare('DELETE FROM conversations WHERE id = ?').run(id);
-    if (result.changes === 0) {
+    const existing = db.prepare('SELECT * FROM conversations WHERE id = ?').get(id) as ConversationRow | undefined;
+    if (!existing) {
       return res.status(404).json({ success: false, error: 'Conversation not found' });
     }
+    if (!canModifyConv(req, existing)) {
+      return res.status(403).json({ success: false, error: 'You do not have permission to delete this conversation' });
+    }
+    db.prepare('DELETE FROM conversations WHERE id = ?').run(id);
     res.json({ success: true } as ApiResponse);
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: getErrorMessage(err) });
@@ -366,8 +387,8 @@ router.post('/import', optionalAuth, (req: AuthRequest, res: Response) => {
   }
 });
 
-// GET /api/conversations/:id/messages - Get messages (with attachments)
-router.get('/:id/messages', (req: Request, res: Response) => {
+// GET /api/conversations/:id/messages - Get messages (with attachments); read access enforced
+router.get('/:id/messages', optionalAuth, (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const db = getDb();
@@ -375,6 +396,9 @@ router.get('/:id/messages', (req: Request, res: Response) => {
     const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(id) as ConversationRow | undefined;
     if (!conv) {
       console.warn('[getMessages] Conversation not found:', id);
+      return res.status(404).json({ success: false, error: 'Conversation not found' });
+    }
+    if (!canReadConv(req, conv)) {
       return res.status(404).json({ success: false, error: 'Conversation not found' });
     }
 

@@ -7,13 +7,16 @@ function openMemoryDb(): Database.Database {
   db.exec(`
     CREATE TABLE memory_entries (
       id TEXT PRIMARY KEY,
+      conversation_id TEXT,
+      message_id TEXT,
       summary TEXT,
       content TEXT NOT NULL,
       keywords TEXT NOT NULL DEFAULT '[]',
       created_at TEXT NOT NULL,
       role TEXT NOT NULL,
       importance REAL NOT NULL DEFAULT 0.5,
-      embedding TEXT
+      embedding TEXT,
+      user_id TEXT
     );
   `);
   return db;
@@ -23,17 +26,20 @@ function insert(
   db: Database.Database,
   id: string,
   embedding: number[],
-  opts: { summary?: string; importance?: number; content?: string } = {}
+  opts: { summary?: string; importance?: number; content?: string; userId?: string | null } = {}
 ): void {
   db.prepare(`
-    INSERT INTO memory_entries (id, summary, content, keywords, created_at, role, importance, embedding)
-    VALUES (?, ?, ?, '[]', datetime('now'), 'user', ?, ?)
+    INSERT INTO memory_entries (id, conversation_id, message_id, summary, content, keywords, created_at, role, importance, embedding, user_id)
+    VALUES (?, ?, ?, ?, ?, '[]', datetime('now'), 'user', ?, ?, ?)
   `).run(
     id,
+    `conv-${id}`,
+    `msg-${id}`,
     opts.summary ?? `sum-${id}`,
     opts.content ?? `content-${id}`,
     opts.importance ?? 0.5,
-    serializeEmbedding(embedding)
+    serializeEmbedding(embedding),
+    opts.userId ?? null
   );
 }
 
@@ -84,6 +90,32 @@ describe('vectorSearch (SQLite harness)', () => {
     insert(db, 'high', [0.98, 0.02], { importance: 0.9, summary: 'high' });
     const hits = vectorSearch(db, [1, 0], 2, 0.0);
     expect(hits[0].summary).toBe('high');
+    db.close();
+  });
+});
+
+describe('vectorSearch — returned ids + per-user scoping', () => {
+  it('returns id / conversation_id / message_id for each hit', () => {
+    const db = openMemoryDb();
+    insert(db, 'a', [1, 0, 0]);
+    const [hit] = vectorSearch(db, [1, 0, 0], 5, 0.0);
+    expect(hit.id).toBe('a');
+    expect(hit.conversation_id).toBe('conv-a');
+    expect(hit.message_id).toBe('msg-a');
+    db.close();
+  });
+
+  it('with a userId, returns only that user\'s own + legacy (NULL) memories', () => {
+    const db = openMemoryDb();
+    insert(db, 'mine', [1, 0, 0], { userId: 'u1' });
+    insert(db, 'theirs', [1, 0, 0], { userId: 'u2' });
+    insert(db, 'legacy', [1, 0, 0], { userId: null });
+
+    const scoped = vectorSearch(db, [1, 0, 0], 10, 0.0, 'u1').map((r) => r.id).sort();
+    expect(scoped).toEqual(['legacy', 'mine']); // u2's 'theirs' excluded
+
+    const unscoped = vectorSearch(db, [1, 0, 0], 10, 0.0).map((r) => r.id).sort();
+    expect(unscoped).toEqual(['legacy', 'mine', 'theirs']); // no userId → no scoping
     db.close();
   });
 });

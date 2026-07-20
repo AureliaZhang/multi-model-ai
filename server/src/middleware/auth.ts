@@ -3,8 +3,24 @@ import jwt from 'jsonwebtoken';
 import { getDb } from '../database';
 import type { AuthRequest, UserPublic, UserRole } from '../types';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'multi-model-ai-secret-key-change-in-production';
+const DEFAULT_JWT_SECRET = 'multi-model-ai-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET || DEFAULT_JWT_SECRET;
 const JWT_EXPIRES_IN = '7d';
+
+/**
+ * Boot-time security guard — call once at startup.
+ * Refuses to start in production when the built-in default JWT secret is in use
+ * (tokens would be forgeable); warns otherwise.
+ */
+export function assertAuthSecurity(): void {
+  if (JWT_SECRET === DEFAULT_JWT_SECRET) {
+    const msg = 'JWT_SECRET is not set — using the built-in default. Auth tokens are forgeable; set a strong JWT_SECRET.';
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(`[security] ${msg} Refusing to start in production.`);
+    }
+    console.warn(`[security] ${msg}`);
+  }
+}
 
 export function generateToken(userId: string): string {
   return jwt.sign({ userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });

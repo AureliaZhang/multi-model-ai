@@ -1,15 +1,43 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../database';
-import { MemoryEntry, MemoryConfig, ApiResponse } from '../types';
+import { MemoryEntry, MemoryConfig, ApiResponse, AuthRequest } from '../types';
 import type { MemoryEntryRow, MemoryTagRow, MemoryConfigRow } from '../dbRows';
 import { generateEmbedding, serializeEmbedding, vectorSearch } from '../services/embeddings';
+import { requireAuth, requireRole } from '../middleware/auth';
 import { getErrorMessage, isAbortError } from '../utils/errors';
 
 const router = Router();
 
-// GET /api/memories - List all memory entries (with pagination & filters)
-router.get('/', (req: Request, res: Response) => {
+// All memory endpoints require a logged-in user. Each member sees/manages only
+// their own memories (+ legacy rows with no owner); admins see everything.
+router.use(requireAuth);
+
+/**
+ * Row-visibility scope for the caller.
+ * - admin  → no restriction (sees all)
+ * - others → own memories + legacy rows whose user_id is NULL
+ * Returns fragments for appending to an existing WHERE (`and`), a standalone
+ * WHERE (`whereOnly`), plus the bound params.
+ */
+function memScope(req: AuthRequest): { params: string[]; and: string; whereOnly: string } {
+  const u = req.user;
+  if (!u || u.role === 'admin') return { params: [], and: '', whereOnly: '' };
+  return {
+    params: [u.id],
+    and: ' AND (user_id = ? OR user_id IS NULL)',
+    whereOnly: 'WHERE (user_id = ? OR user_id IS NULL)',
+  };
+}
+
+/** The userId to hand vectorSearch (undefined = admin, no scoping). */
+function scopeUserId(req: AuthRequest): string | undefined {
+  const u = req.user;
+  return !u || u.role === 'admin' ? undefined : u.id;
+}
+
+// GET /api/memories - List memory entries (with pagination & filters), scoped to the caller
+router.get('/', (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
     const page = parseInt(req.query.page as string) || 1;
@@ -29,6 +57,9 @@ router.get('/', (req: Request, res: Response) => {
       where += " AND conversation_id = ?";
       params.push(conversationId);
     }
+    const scope = memScope(req);
+    where += scope.and;
+    params.push(...scope.params);
 
     const total = (db.prepare(`SELECT COUNT(*) as count FROM memory_entries WHERE ${where}`).get(...params) as { count: number }).count;
     const rows = db.prepare(`
@@ -49,19 +80,20 @@ router.get('/', (req: Request, res: Response) => {
   }
 });
 
-// GET /api/memories/search?q=keyword - Keyword search
-router.get('/search', (req: Request, res: Response) => {
+// GET /api/memories/search?q=keyword - Keyword search (scoped)
+router.get('/search', (req: AuthRequest, res: Response) => {
   try {
     const q = req.query.q as string;
     if (!q) {
       return res.status(400).json({ success: false, error: 'Query parameter "q" is required' });
     }
     const db = getDb();
+    const scope = memScope(req);
     const rows = db.prepare(`
-      SELECT * FROM memory_entries 
-      WHERE content LIKE ? OR keywords LIKE ? OR summary LIKE ?
+      SELECT * FROM memory_entries
+      WHERE (content LIKE ? OR keywords LIKE ? OR summary LIKE ?)${scope.and}
       ORDER BY created_at DESC LIMIT 50
-    `).all(`%${q}%`, `%${q}%`, `%${q}%`) as MemoryEntryRow[];
+    `).all(`%${q}%`, `%${q}%`, `%${q}%`, ...scope.params) as MemoryEntryRow[];
 
     const entries = rows.map(rowToMemoryEntry);
     res.json({ success: true, data: entries } as ApiResponse<MemoryEntry[]>);
@@ -70,8 +102,8 @@ router.get('/search', (req: Request, res: Response) => {
   }
 });
 
-// POST /api/memories/search/semantic - Semantic search using vector embeddings
-router.post('/search/semantic', async (req: Request, res: Response) => {
+// POST /api/memories/search/semantic - Semantic search using vector embeddings (scoped)
+router.post('/search/semantic', async (req: AuthRequest, res: Response) => {
   try {
     const { query, limit: limitParam } = req.body;
     if (!query) {
@@ -79,6 +111,7 @@ router.post('/search/semantic', async (req: Request, res: Response) => {
     }
     const db = getDb();
     const limit = limitParam || 10;
+    const scope = memScope(req);
 
     // Try vector search first
     const embeddingCount = (db.prepare(
@@ -88,15 +121,15 @@ router.post('/search/semantic', async (req: Request, res: Response) => {
     if (embeddingCount > 0) {
       try {
         const queryEmbedding = await generateEmbedding(query);
-        const vectorResults = vectorSearch(db, queryEmbedding, limit, 0.15);
+        const vectorResults = vectorSearch(db, queryEmbedding, limit, 0.15, scopeUserId(req));
         if (vectorResults.length > 0) {
-          const entries = vectorResults.map((r: any) => ({
+          const entries = vectorResults.map((r) => ({
             id: r.id || '',
             conversationId: r.conversation_id || '',
             messageId: r.message_id || '',
-            role: r.role,
+            role: r.role as MemoryEntry['role'],
             content: r.content,
-            summary: r.summary,
+            summary: r.summary ?? undefined,
             keywords: typeof r.keywords === 'string' ? JSON.parse(r.keywords) : (r.keywords || []),
             tags: [],
             importance: r.importance || 0.5,
@@ -110,12 +143,12 @@ router.post('/search/semantic', async (req: Request, res: Response) => {
       }
     }
 
-    // Fallback to keyword search
+    // Fallback to keyword search (scoped)
     const rows = db.prepare(`
       SELECT * FROM memory_entries
-      WHERE content LIKE ? OR keywords LIKE ?
+      WHERE (content LIKE ? OR keywords LIKE ?)${scope.and}
       ORDER BY importance DESC, created_at DESC LIMIT ?
-    `).all(`%${query}%`, `%${query}%`, limit) as MemoryEntryRow[];
+    `).all(`%${query}%`, `%${query}%`, ...scope.params, limit) as MemoryEntryRow[];
 
     const entries = rows.map(rowToMemoryEntry);
     res.json({ success: true, data: entries, method: 'keyword' });
@@ -124,12 +157,13 @@ router.post('/search/semantic', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/memories/context?q=query&limit=5 - Retrieve relevant memories for context injection
-router.get('/context', async (req: Request, res: Response) => {
+// GET /api/memories/context?q=query&limit=5 - Retrieve relevant memories for context injection (scoped)
+router.get('/context', async (req: AuthRequest, res: Response) => {
   try {
     const q = req.query.q as string;
     const limitParam = parseInt(req.query.limit as string) || 5;
     const db = getDb();
+    const scope = memScope(req);
 
     const config = db.prepare('SELECT * FROM memory_config WHERE id = 1').get() as MemoryConfigRow;
     const maxMemories = Math.min(limitParam, config?.max_context_memories || 5);
@@ -145,15 +179,15 @@ router.get('/context', async (req: Request, res: Response) => {
       if (embeddingCount > 0) {
         try {
           const queryEmbedding = await generateEmbedding(q);
-          const vectorResults = vectorSearch(db, queryEmbedding, maxMemories, 0.15);
+          const vectorResults = vectorSearch(db, queryEmbedding, maxMemories, 0.15, scopeUserId(req));
           if (vectorResults.length > 0) {
-            entries = vectorResults.map((r: any) => ({
+            entries = vectorResults.map((r) => ({
               id: r.id || '',
               conversationId: r.conversation_id || '',
               messageId: r.message_id || '',
-              role: r.role,
+              role: r.role as MemoryEntry['role'],
               content: r.content,
-              summary: r.summary,
+              summary: r.summary ?? undefined,
               keywords: typeof r.keywords === 'string' ? JSON.parse(r.keywords) : (r.keywords || []),
               tags: [],
               importance: r.importance || 0.5,
@@ -167,18 +201,19 @@ router.get('/context', async (req: Request, res: Response) => {
         }
       }
 
-      // Fallback to keyword search
+      // Fallback to keyword search (scoped)
       const rows = db.prepare(`
         SELECT * FROM memory_entries
-        WHERE content LIKE ? OR keywords LIKE ?
+        WHERE (content LIKE ? OR keywords LIKE ?)${scope.and}
         ORDER BY importance DESC, created_at DESC LIMIT ?
-      `).all(`%${q}%`, `%${q}%`, maxMemories) as MemoryEntryRow[];
+      `).all(`%${q}%`, `%${q}%`, ...scope.params, maxMemories) as MemoryEntryRow[];
       entries = rows.map(rowToMemoryEntry);
     } else {
       const rows = db.prepare(`
         SELECT * FROM memory_entries
+        ${scope.whereOnly}
         ORDER BY importance DESC, created_at DESC LIMIT ?
-      `).all(maxMemories) as MemoryEntryRow[];
+      `).all(...scope.params, maxMemories) as MemoryEntryRow[];
       entries = rows.map(rowToMemoryEntry);
     }
 
@@ -188,8 +223,8 @@ router.get('/context', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/memories/tags - List all memory tags
-router.get('/tags', (_req: Request, res: Response) => {
+// GET /api/memories/tags - List all memory tags (global aggregate; low-sensitivity topic labels)
+router.get('/tags', (_req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
     const rows = db.prepare('SELECT * FROM memory_tags ORDER BY entry_count DESC').all() as MemoryTagRow[];
@@ -199,12 +234,12 @@ router.get('/tags', (_req: Request, res: Response) => {
   }
 });
 
-// GET /api/memories/config - Get memory configuration (with embedding stats)
-router.get('/config', (_req: Request, res: Response) => {
+// GET /api/memories/config - Get memory configuration (instance-wide; any authed user may read)
+router.get('/config', (_req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
     const row = db.prepare('SELECT * FROM memory_config WHERE id = 1').get() as MemoryConfigRow;
-    
+
     // Count entries with and without embeddings
     const totalEntries = (db.prepare('SELECT COUNT(*) as cnt FROM memory_entries').get() as { cnt: number }).cnt;
     const embeddedEntries = (db.prepare(
@@ -230,8 +265,8 @@ router.get('/config', (_req: Request, res: Response) => {
   }
 });
 
-// PUT /api/memories/config - Update memory configuration
-router.put('/config', (req: Request, res: Response) => {
+// PUT /api/memories/config - Update memory configuration (instance-wide → admin only)
+router.put('/config', requireRole('admin'), (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
     const updates = req.body as Partial<MemoryConfig>;
@@ -263,8 +298,8 @@ router.put('/config', (req: Request, res: Response) => {
   }
 });
 
-// POST /api/memories/fetch-embedding-models - Fetch embedding models from a given base URL
-router.post('/fetch-embedding-models', async (req: Request, res: Response) => {
+// POST /api/memories/fetch-embedding-models - Fetch embedding models from a base URL (admin only)
+router.post('/fetch-embedding-models', requireRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const { baseUrl, apiKey } = req.body;
     if (!baseUrl || !apiKey) {
@@ -274,7 +309,7 @@ router.post('/fetch-embedding-models', async (req: Request, res: Response) => {
     const cleanUrl = baseUrl.replace(/\/+$/, '');
     const modelsUrl = `${cleanUrl}/models`;
 
-    let response: any;
+    let response: { ok: boolean; status: number; json: () => Promise<unknown> };
     try {
       response = await fetch(modelsUrl, {
         headers: {
@@ -299,11 +334,11 @@ router.post('/fetch-embedding-models', async (req: Request, res: Response) => {
 
     // Filter to only embedding-capable models
     const embeddingModels = allModels
-      .filter((m: any) => {
+      .filter((m) => {
         const id = (m.id || m.name || '').toLowerCase();
         return id.includes('embedding') || id.includes('embed');
       })
-      .map((m: any) => ({ id: m.id || m.name, name: m.name || m.id }));
+      .map((m) => ({ id: m.id || m.name, name: m.name || m.id }));
 
     res.json({ success: true, data: embeddingModels });
   } catch (err: unknown) {
@@ -311,13 +346,13 @@ router.post('/fetch-embedding-models', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/memories/:id - Get a single memory entry
-router.get('/:id', (req: Request, res: Response) => {
+// GET /api/memories/:id - Get a single memory entry (owner or admin only)
+router.get('/:id', (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const db = getDb();
     const row = db.prepare('SELECT * FROM memory_entries WHERE id = ?').get(id) as MemoryEntryRow | undefined;
-    if (!row) {
+    if (!row || !canAccessRow(req, row)) {
       return res.status(404).json({ success: false, error: 'Memory entry not found' });
     }
     res.json({ success: true, data: rowToMemoryEntry(row) } as ApiResponse<MemoryEntry>);
@@ -326,12 +361,13 @@ router.get('/:id', (req: Request, res: Response) => {
   }
 });
 
-// DELETE /api/memories/:id - Delete a memory entry
-router.delete('/:id', (req: Request, res: Response) => {
+// DELETE /api/memories/:id - Delete a memory entry (owner or admin only)
+router.delete('/:id', (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const db = getDb();
-    const result = db.prepare('DELETE FROM memory_entries WHERE id = ?').run(id);
+    const scope = memScope(req);
+    const result = db.prepare(`DELETE FROM memory_entries WHERE id = ?${scope.and}`).run(id, ...scope.params);
     if (result.changes === 0) {
       return res.status(404).json({ success: false, error: 'Memory entry not found' });
     }
@@ -341,23 +377,25 @@ router.delete('/:id', (req: Request, res: Response) => {
   }
 });
 
-// DELETE /api/memories/conversation/:convId - Delete all memories for a conversation
-router.delete('/conversation/:convId', (req: Request, res: Response) => {
+// DELETE /api/memories/conversation/:convId - Delete all of the caller's memories for a conversation
+router.delete('/conversation/:convId', (req: AuthRequest, res: Response) => {
   try {
     const { convId } = req.params;
     const db = getDb();
-    const result = db.prepare('DELETE FROM memory_entries WHERE conversation_id = ?').run(convId);
+    const scope = memScope(req);
+    const result = db.prepare(`DELETE FROM memory_entries WHERE conversation_id = ?${scope.and}`).run(convId, ...scope.params);
     res.json({ success: true, data: { deleted: result.changes } });
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
 
-// POST /api/memories/export - Export all memories to JSON
-router.post('/export', (_req: Request, res: Response) => {
+// POST /api/memories/export - Export the caller's memories to JSON
+router.post('/export', (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const rows = db.prepare('SELECT * FROM memory_entries ORDER BY created_at DESC').all() as MemoryEntryRow[];
+    const scope = memScope(req);
+    const rows = db.prepare(`SELECT * FROM memory_entries ${scope.whereOnly} ORDER BY created_at DESC`).all(...scope.params) as MemoryEntryRow[];
     const entries = rows.map(rowToMemoryEntry);
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', 'attachment; filename=memories-export.json');
@@ -367,17 +405,18 @@ router.post('/export', (_req: Request, res: Response) => {
   }
 });
 
-// POST /api/memories/import - Import memories from JSON
-router.post('/import', (req: Request, res: Response) => {
+// POST /api/memories/import - Import memories from JSON (owned by the importing user)
+router.post('/import', (req: AuthRequest, res: Response) => {
   try {
     const entries = req.body as Partial<MemoryEntry>[];
     if (!Array.isArray(entries)) {
       return res.status(400).json({ success: false, error: 'Body must be an array of memory entries' });
     }
     const db = getDb();
+    const ownerId = req.user?.id || null;
     const insert = db.prepare(`
-      INSERT OR IGNORE INTO memory_entries (id, conversation_id, message_id, role, content, summary, keywords, tags, model_used, importance, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR IGNORE INTO memory_entries (id, conversation_id, message_id, role, content, summary, keywords, tags, model_used, importance, user_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     let imported = 0;
@@ -394,6 +433,7 @@ router.post('/import', (req: Request, res: Response) => {
           JSON.stringify(entry.tags || []),
           entry.modelUsed || null,
           entry.importance ?? 0.5,
+          ownerId,
           entry.createdAt || new Date().toISOString(),
           entry.updatedAt || new Date().toISOString()
         );
@@ -409,8 +449,8 @@ router.post('/import', (req: Request, res: Response) => {
   }
 });
 
-// POST /api/memories/backfill-embeddings - Generate embeddings for entries that don't have them
-router.post('/backfill-embeddings', async (req: Request, res: Response) => {
+// POST /api/memories/backfill-embeddings - Generate embeddings for entries missing them (admin: instance maintenance)
+router.post('/backfill-embeddings', requireRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
     const batchSize = Math.min(req.body.batchSize || 10, 50); // Max 50 at a time
@@ -468,14 +508,15 @@ router.post('/backfill-embeddings', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/memories/summarize/:convId - Generate summary for a conversation's memories
-router.post('/summarize/:convId', (req: Request, res: Response) => {
+// POST /api/memories/summarize/:convId - Generate summary for the caller's memories of a conversation
+router.post('/summarize/:convId', (req: AuthRequest, res: Response) => {
   try {
     const { convId } = req.params;
     const db = getDb();
+    const scope = memScope(req);
     const rows = db.prepare(
-      'SELECT * FROM memory_entries WHERE conversation_id = ? ORDER BY created_at ASC'
-    ).all(convId) as MemoryEntryRow[];
+      `SELECT * FROM memory_entries WHERE conversation_id = ?${scope.and} ORDER BY created_at ASC`
+    ).all(convId, ...scope.params) as MemoryEntryRow[];
 
     if (rows.length === 0) {
       return res.status(404).json({ success: false, error: 'No memories found for this conversation' });
@@ -495,6 +536,13 @@ router.post('/summarize/:convId', (req: Request, res: Response) => {
     res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });
+
+/** Can the caller see this row? admin → yes; else own or legacy (NULL owner). */
+function canAccessRow(req: AuthRequest, row: MemoryEntryRow): boolean {
+  const u = req.user;
+  if (!u || u.role === 'admin') return true;
+  return row.user_id === u.id || row.user_id == null;
+}
 
 // Helper: map DB row to MemoryEntry
 function rowToMemoryEntry(row: MemoryEntryRow): MemoryEntry {

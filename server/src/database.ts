@@ -10,6 +10,7 @@ export function getDb(): Database.Database {
   if (!db) {
     db = new Database(DB_PATH);
     db.pragma('journal_mode = WAL');
+    db.pragma('busy_timeout = 5000');
     db.pragma('foreign_keys = ON');
     initTables(db);
     seedDefaultAdmin(db);
@@ -686,12 +687,22 @@ function seedDefaultAdmin(db: Database.Database): void {
   const existing = db.prepare('SELECT id FROM users WHERE role = ?').get('admin');
   if (!existing) {
     const { v4: uuidv4 } = require('uuid');
-    const passwordHash = bcrypt.hashSync('admin123', 10);
+    const envPassword = process.env.ADMIN_PASSWORD?.trim();
+    // Fresh production start must set an explicit admin password.
+    if (!envPassword && process.env.NODE_ENV === 'production') {
+      throw new Error('[security] No admin user exists and ADMIN_PASSWORD is not set. Set ADMIN_PASSWORD before first start in production.');
+    }
+    const password = envPassword || 'admin123';
+    const passwordHash = bcrypt.hashSync(password, 10);
     db.prepare(`
       INSERT INTO users (id, username, email, password_hash, display_name, role)
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(uuidv4(), 'admin', 'admin@localhost', passwordHash, 'Administrator', 'admin');
-    console.log('🔑 Default admin user created (username: admin, password: admin123)');
+    if (envPassword) {
+      console.log('🔑 Default admin user created (username: admin, password: from ADMIN_PASSWORD env)');
+    } else {
+      console.warn('🔑 Default admin created (username: admin, password: admin123) — CHANGE THIS. Set ADMIN_PASSWORD to override.');
+    }
   }
 }
 

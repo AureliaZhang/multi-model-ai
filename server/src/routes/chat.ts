@@ -132,6 +132,12 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
     if (!conv) {
       return res.status(404).json({ success: false, error: 'Conversation not found' });
     }
+    // Only the owner (or admin) may send into an owned conversation.
+    // Ownerless rows (legacy / guest-created) stay open so those flows keep working.
+    const sender = req.user;
+    if (conv.user_id != null && !(sender && (sender.role === 'admin' || sender.id === conv.user_id))) {
+      return res.status(403).json({ success: false, error: 'You do not have permission to send messages in this conversation' });
+    }
 
     // Save user message
     const userMsgId = uuidv4();
@@ -285,7 +291,8 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
     }
 
     // Inject relevant memories as system context (vector search)
-    const relevantMemories = await retrieveRelevantMemories(db, message, 5);
+    // Scoped to the conversation owner so members never see each other's memories.
+    const relevantMemories = await retrieveRelevantMemories(db, message, 5, conv.user_id);
     if (relevantMemories.length > 0) {
       const memoryContext = relevantMemories
         .filter((m) => m.summary)
@@ -720,12 +727,16 @@ async function autoSaveMemory(
 }
 
 // Retrieve relevant memories for context injection using vector similarity
-async function retrieveRelevantMemories(db: Database.Database, query: string, limit: number = 5): Promise<MemoryContextRow[]> {
+async function retrieveRelevantMemories(db: Database.Database, query: string, limit: number = 5, userId?: string | null): Promise<MemoryContextRow[]> {
   try {
     const config = db.prepare('SELECT * FROM memory_config WHERE id = 1').get() as MemoryConfigRow | undefined;
     if (!config || !config.context_injection) return [];
 
     const maxMemories = Math.min(limit, config.max_context_memories || 5);
+    // Privacy scoping: when the chat's owner is known, only use their own + legacy (NULL) memories,
+    // so one member's saved memories are never injected into another member's chat.
+    const scopeUser = typeof userId === 'string' && userId.length > 0;
+    const userClause = scopeUser ? ' AND (user_id = ? OR user_id IS NULL)' : '';
 
     // Check if we have any embeddings stored
     const embeddingCount = db.prepare(
@@ -737,7 +748,7 @@ async function retrieveRelevantMemories(db: Database.Database, query: string, li
       console.log(`[memory] Using vector search (${embeddingCount.cnt} entries with embeddings)`);
       try {
         const queryEmbedding = await generateEmbedding(query);
-        const results = vectorSearch(db, queryEmbedding, maxMemories, 0.2);
+        const results = vectorSearch(db, queryEmbedding, maxMemories, 0.2, userId);
         if (results.length > 0) {
           console.log(`[memory] Vector search found ${results.length} relevant memories`);
           return results;
@@ -754,10 +765,10 @@ async function retrieveRelevantMemories(db: Database.Database, query: string, li
       return db.prepare(`
         SELECT summary, content, keywords, created_at, role
         FROM memory_entries
-        WHERE summary IS NOT NULL AND summary != ''
+        WHERE summary IS NOT NULL AND summary != ''${userClause}
         ORDER BY importance DESC, created_at DESC
         LIMIT ?
-      `).all(maxMemories) as MemoryContextRow[];
+      `).all(...(scopeUser ? [userId, maxMemories] : [maxMemories])) as MemoryContextRow[];
     }
 
     const conditions = keywords.map(() => '(content LIKE ? OR keywords LIKE ? OR summary LIKE ?)').join(' OR ');
@@ -765,12 +776,13 @@ async function retrieveRelevantMemories(db: Database.Database, query: string, li
     for (const kw of keywords) {
       params.push(`%${kw}%`, `%${kw}%`, `%${kw}%`);
     }
+    if (scopeUser) params.push(userId as string);
     params.push(maxMemories);
 
     return db.prepare(`
       SELECT summary, content, keywords, created_at, role
       FROM memory_entries
-      WHERE ${conditions}
+      WHERE (${conditions})${userClause}
       ORDER BY importance DESC, created_at DESC
       LIMIT ?
     `).all(...params) as MemoryContextRow[];

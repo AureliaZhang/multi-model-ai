@@ -60,9 +60,13 @@
 <!-- > **Last Updated**: 2026-07-19 (v0.7.31 — chore: eliminate all 4 no-explicit-any lint errors → eslint 0 errors (12 set-state-in-effect warnings remain); see §12 change log) -->
 <!-- > **Version**: 0.7.32 -->
 <!-- > **Last Updated**: 2026-07-19 (v0.7.32 — refactor: single shared <MarkdownMessage> for assistant markdown, dedup 3 react-markdown call sites → 1 (MessageBubble + group-chat column c + exportAiReplies); evaluated lazy-loading it but rolldown-vite still preloads vendor-markdown, so kept eager; see §12 change log) -->
-> **Version**: 0.7.33
+<!-- > **Version**: 0.7.33 -->
+<!-- > **Last Updated**: 2026-07-20 (v0.7.33 — feature: per-conversation system prompt / persona (conversations.system_prompt column + migration; injected as leading system message before file/memory RAG; create/update/export v2/import carry it; ChatArea 人设/Persona button + SystemPromptModal; +3 server tests → 80); see §12 change log) -->
+<!-- > **Version**: 0.7.34 -->
+<!-- > **Last Updated**: 2026-07-20 (v0.7.34 — team-readiness kickoff: recorded §9 impl status + §10.8 security/isolation audit; first fix batch — memory cross-user leak now scoped on the AI chat path (retrieveRelevantMemories→vectorSearch by conversation owner + legacy NULL), vectorSearch returns id/conversation_id/message_id (fixes blank-id semantic results), CORS lockable via CORS_ORIGIN env, SQLite busy_timeout=5s; +2 tests → 82; see §12 change log) -->
+> **Version**: 0.7.35
 > **Created**: 2026-06-15
-> **Last Updated**: 2026-07-20 (v0.7.33 — feature: per-conversation system prompt / persona (conversations.system_prompt column + migration; injected as leading system message before file/memory RAG; create/update/export v2/import carry it; ChatArea 人设/Persona button + SystemPromptModal; +3 server tests → 80); see §12 change log)
+> **Last Updated**: 2026-07-20 (v0.7.35 — Phase 1 security batch (§10.8 TC0/TC1): memories router requireAuth + per-user scoping (admin all; config/maintenance admin-only); conversation + chat ownership guards (DELETE was unauthenticated); file/folder mutation owner-gated; JWT-secret boot guard + ADMIN_PASSWORD guardrails; dependency-free rate limiter on /api/chat + /api/arena; +3 tests → 85; see §12 change log)
 <!-- > **Last Updated**: 2026-07-12 (v0.7.2 — bug/breakpoint sweep across shipped work; wired the already-built group-chat UI (§10.6) into the app; fixed 4 real bugs; see §12 change log) -->
 > **Rule**: This file must be kept in sync with every development step. Content is NEVER deleted, only commented out with `<!-- ... -->` when superseded. Other files may be freely modified.
 
@@ -579,13 +583,15 @@ Steps:
 
 ## 9. Security Considerations
 
-| # | Concern | Mitigation |
-|---|---------|------------|
-| 1 | API keys stored locally | Encrypt at rest using AES-256; never expose in frontend |
-| 2 | File upload risks | Validate file type, limit size (50MB), scan for malware |
-| 3 | Prompt injection | Sanitize file content before sending to model |
-| 4 | Rate limiting | Implement per-model and per-station rate limits |
-| 5 | CORS | Restrict to frontend origin only |
+| # | Concern | Mitigation | Status (audited 2026-07-20) |
+|---|---------|------------|------------------------------|
+| 1 | API keys stored locally | Encrypt at rest using AES-256; never expose in frontend | ❌ station `apiKey` stored **plaintext** in SQLite (no crypto anywhere). Not sent to frontend (ok). |
+| 2 | File upload risks | Validate file type, limit size (50MB), scan for malware | 🟡 `files.ts` multer `fileSize` **20MB** only; no type allowlist, no malware scan. |
+| 3 | Prompt injection | Sanitize file content before sending to model | ❌ extracted file text injected verbatim (not line-audited, but no sanitizer present). |
+| 4 | Rate limiting | Implement per-model and per-station rate limits | 🟡 dependency-free per-user/IP limiter on `/api/chat` + `/api/arena` (v0.7.35); per-model/per-station granularity still todo. |
+| 5 | CORS | Restrict to frontend origin only | 🟡 now lockable via `CORS_ORIGIN` env (default still `*` so local dev unbroken) — v0.7.34. |
+
+> **Audit note (2026-07-20):** §9 was written for the original single-user "personal assistant". Cross-checked against code during the team-readiness review — **most mitigations were never implemented**. See §10.8 for the ranked backlog (this table's ❌ items are TC1 there).
 
 ---
 
@@ -903,6 +909,85 @@ Suggested building blocks (for later implementation; not started):
 
 ---
 
+## 10.8 Team-readiness backlog — security & multi-user isolation (audit 2026-07-20)
+
+> **Why this exists:** the owner pivoted the goal to an **internal tool for a real team** (multiple users), not a solo personal assistant. A backend audit (2026-07-20) cross-checked the code against §9 + §4.6/§4.8. **Root cause of most items:** the original spec was single-user (§4.6 `MemoryEntry` had no `userId`; §1 "personal assistant"); multi-user (admin/user/guest) + `user_id` columns were **retrofitted**, but per-endpoint auth and per-user data scoping were only partly applied. Nothing here blocks solo use; several become **privacy/integrity holes once teammates share one instance**. Backend findings ranked by value (impact ÷ effort). Frontend/product findings (UX + team features) to be appended from the parallel review.
+>
+> Line numbers are as-audited on 2026-07-20 and may drift — treat as pointers.
+
+### TC0 — Data-isolation / auth holes (close BEFORE real teammates share it)
+
+| # | Item | Where | Fix |
+|---|------|-------|-----|
+| 1 | **Memory retrieval leaks across users** | `chat.ts:288` → `embeddings.ts` `vectorSearch` / `retrieveRelevantMemories` | Loads ALL `memory_entries`, no `user_id` filter → one member's memories injected into another's chat. Thread `userId` + `WHERE user_id = ? OR user_id IS NULL`. **Prereq:** `vectorSearch` must also SELECT/return `id`/`conversation_id`/`message_id` (currently omitted → blank ids in semantic-search results, can't open/delete). **✅ Done v0.7.34** — AI chat path scoped by `conv.user_id` (+ legacy NULL); vectorSearch now returns the ids. *(The `/api/memories` HTTP endpoints' own auth/scoping = finding #2, still open.)* |
+| 2 | **`routes/memories.ts` has no auth + no scoping** | whole router (`index.ts:44`) | Unauthenticated caller can list/read/**delete**/export everyone's memories. Add `router.use(requireAuth)` + scope by `user_id` (admin sees all). Infra exists — arena already uses `requireAuth`+`requireRole`. **✅ Done v0.7.35** (full router requireAuth + own/legacy scoping; config & maintenance admin-only). |
+| 3 | **Conversation ownership not enforced** | `conversations.ts` DELETE `:174` (no auth), PUT `:139`, GET `/:id/messages`; `chat.ts` POST `:119` | Anyone with an id can read/edit/delete another member's private conversation (or flip it public). List/export already scope by user+visibility; mutate/read-by-id don't. Add `requireAuth` + owner/admin guard. **✅ Done v0.7.35** (`canReadConv`/`canModifyConv`; chat send also owner-gated). |
+| 4 | **File library: any member can delete any file** | `files.ts` DELETE `:407` | `uploaded_by` recorded but never enforced. Product decision first: shared team KB vs per-user; then guard mutate accordingly. **🟡 Partial v0.7.35** — mutate (delete/reindex/folder rename+delete) now owner|admin; reads still shared team-wide (personal-vs-team split = Phase 4 FE-B). |
+| 5 | **Hardcoded fallback JWT secret + default admin creds** | `middleware/auth.ts:6`; `database.ts` seed (~`:689`) | `JWT_SECRET` falls back to a known literal → forgeable admin tokens; seeded `admin`/`admin123`. Refuse to boot in prod without a real `JWT_SECRET`; force admin password change on first login. **🟡 Partial v0.7.35** — boot-time guards done (`assertAuthSecurity` refuses prod on default secret; `ADMIN_PASSWORD` env + prod refusal). Forced-password-change-on-first-login UI still todo. |
+
+### TC1 — §9 security items specified but never implemented (see §9 status table)
+
+| # | Item | §9 ref | Note |
+|---|------|--------|------|
+| 1 | CORS restrict to origin | §9#5 | `cors({origin:'*'})` → set to deployed frontend origin(s). **✅ Done v0.7.34** — `CORS_ORIGIN` env (comma-separated; default still open). |
+| 2 | Rate limiting | §9#4 | none → `express-rate-limit` on `/api/chat` + arena; optional per-user daily token cap vs `api_usage_logs`. **✅ Done v0.7.35** — dependency-free `rateLimit` middleware on chat (60/min) + arena (120/min), per-user/IP, env-tunable. (Per-user *token/day cap* still todo → Phase 3.) |
+| 3 | API key encryption at rest | §9#1, §4.1 | plaintext → encrypt station `apiKey` (e.g. AES-256-GCM, key from env). |
+| 4 | File upload hardening | §9#2 | 20MB limit only → add type allowlist; malware scan optional. |
+| 5 | Memory retention purge | §4.8 `retentionDays`, F-MEM10 | config stored + surfaced in UI but **never enforced** → periodic purge job (`0` = keep forever). |
+
+### TC2 — Performance / hardening (new scope; not in original spec)
+
+| # | Item | Where | Note |
+|---|------|-------|------|
+| 1 | **chat history N+1 + re-parses historical PDFs every turn** | `chat.ts:52-116, 224-227` | Per-history-msg attachment query (N+1) **and** `extractFileText` re-decodes every historical PDF (`pdf-parse`, CPU-blocking) on every turn. Batch attachments once; only extract the NEW message. Biggest pure-perf win; worse under team load. |
+| 2 | Full history sent to model, no `LIMIT` | `chat.ts:168-170` | Unbounded prompt size / cost / latency as threads grow. Cap to last N turns — weigh vs §3.3 "maintain context". |
+| 3 | Vector search = unbounded full scan + `JSON.parse` per row | `embeddings.ts:249` | Bound by recency/importance as `memory_entries` grows across all users. |
+| 4 | No `busy_timeout` pragma | `database.ts:12` (getDb) | `db.pragma('busy_timeout = 5000')` — cheap insurance vs `SQLITE_BUSY` (backup / 2nd process). **✅ Done v0.7.34.** |
+| 5 | Redundant per-turn embeddings | `chat.ts:271, 739` (+ 2 auto-save) | Same query embedded 2–4× per turn; dedupe the query embedding. Also `resolveModel` (`:173`) does a station scan whose result is unused (recomputed at `:311`). |
+
+### Data safety (team) — not yet specified anywhere
+
+- **Schema migrations** — still the §13 open question. Current: a stack of `try/catch ALTER TABLE` (`database.ts:258-363`), no `schema_version`, no down-path. For real team data, add a versioned migration table/runner.
+- **Backups** — never in the framework. Add a backup story (litestream, or periodic `.backup`) — silent data loss is unacceptable for a shared team DB.
+
+### Frontend / product — team features & UX (self-assessed 2026-07-20)
+
+> The parallel frontend-review agent hung (~50 min no output, no result, self-terminated), so this is a lighter self-assessment from the client inventory + targeted spot-checks — not a full per-file audit; revisit deeper per chosen item. **Verified gaps:** `MessageBubble` has no copy/regenerate/edit; `Sidebar` has no conversation search; `UsageLogsPage` shows totals (count/tokens/errors) but no per-user / per-model or cost($) breakdown; no user-facing shared prompt/persona library (arena prompts are admin-only battle tooling). Almost all of FE-B is **new scope from the team pivot** — the only collaboration feature the framework actually built is group chat (§10.6).
+
+**FE-A — UX polish (missing standard affordances)**
+
+| Item | Where | Effort | Value | Note |
+|------|-------|--------|-------|------|
+| Message actions: copy / regenerate / edit-and-resend | `MessageBubble.tsx` | S–M | high | ChatGPT-standard; used constantly; none exist today. |
+| Conversation search | `Sidebar.tsx` | M | med–high | No way to find an old chat once the list grows (team pain). |
+| Code-block copy button | `common/MarkdownMessage.tsx` | S | med | Confirm presence; add if missing. |
+| Organize chats: pin / folders / tags | `Sidebar.tsx`, `chatStore` | M | med | Many chats become unmanageable for a team. |
+
+**FE-B — Team / collaboration features (new scope)**
+
+| Item | Where | Effort | Value | Note |
+|------|-------|--------|-------|------|
+| Shared prompt / persona library | new `chat` UI + table | M | high | Builds on v0.7.33 persona: team-reusable roles ("文案","代码审查","翻译") members apply in one click. |
+| Admin usage & **cost** dashboard | `admin/UsageLogsPage.tsx` + API agg | M | high | Per-user / per-model aggregation + $ cost. Data already in `api_usage_logs`. Top team concern. |
+| Per-user quota / budget (UI + backend) | settings + `chat` guard | M+M | high | Monthly token cap per member; pairs with §10.8 TC1 rate/quota. |
+| File library: team-shared vs private (ownership UI) | `files/FileBrowser.tsx` + backend | M | high | Do together with the TC0#4 backend isolation decision. |
+| Member invite / onboarding | `admin/UserManagement.tsx` + `guide` | M | med | Invite link + role assign + first-run guide (`GuideOverlay` exists). |
+
+> **Classification for the owner (2026-07-20):** TC0 = mostly *incomplete multi-user retrofit* (user_id added, enforcement not); TC1 = *specified in §9 but never built* (遗漏); TC2 + backups = *never planned* (new scope); migrations = §13 *known-open*.
+
+### Recommended sequencing (roadmap, 2026-07-20)
+
+Ordered for a team rollout — *make it safe to invite people → don't lose data → see & control spend → collaborate → polish.* (Owner picked "give me the roadmap".)
+
+- **Phase 0 — ✅ done (v0.7.34):** worst memory cross-user leak closed on the AI path; CORS lockable; `busy_timeout`.
+- **Phase 1 — ✅ done (v0.7.35)** "safe to invite teammates" (privacy / authz): TC0 #2 memories auth + per-user scoping, #3 conversation ownership guards, #4 file-delete authz, #5 JWT secret enforcement + default-admin-password (boot guards; forced-change UI deferred); TC1 #2 rate limiting. Effort: M.
+- **Phase 2 — "won't lose data":** backups + versioned schema migrations (§13 open). **Before accumulating real team data.** Effort: M.
+- **Phase 3 — "see & control spend":** admin usage + **cost** dashboard (FE-B; data already in `api_usage_logs`), per-user quota/budget (FE-B + TC1), API-key encryption at rest (TC1 #3). Effort: M.
+- **Phase 4 — "nice to use together":** shared prompt/persona library (FE-B), team-vs-private file library (FE-B + TC0 #4), message actions copy/regenerate/edit (FE-A), conversation search (FE-A). Effort: M–L (splittable).
+- **Phase 5 — polish:** TC2 perf (chat N+1 + historical re-parse, history `LIMIT`, vector-scan bound, dedupe embeddings), retention purge (TC1 #5), member invite/onboarding (FE-B), chat organize/pin/folders (FE-A), a11y/keyboard/ARIA. Effort: many small.
+
+---
+
 ## 11. Configuration File Format
 
 ```yaml
@@ -971,6 +1056,8 @@ settings:
 | 2026-07-19 | 0.7.31 | **Chore: eliminate all `no-explicit-any` lint errors (eslint 5→0 errors; the 5th was the v0.7.30 rules-of-hooks fix).** Four `any` casts replaced with real types, no behavior change: `api.ts` export-error body → `(err as { error?: string })`; `memoryStore.fetchTags` `getTags().map((t: any) => …)` → dropped the redundant annotation (`getTags` is already typed `{id;name;color?;entryCount}[]`); `regexStore.importPreset(data as any)` → `data as RegexExportData` (the API's declared param type, + import); `RegexManager` placement `<select>` `e.target.value as any` → `as RegexScript['placement']`. Verified: eslint **0 errors** (12 `set-state-in-effect` warnings remain, tracked for later), client `tsc -b && vite build` + vitest (client 9 / server 77) all green. | Claude |
 | 2026-07-19 | 0.7.32 | **Refactor: one shared `<MarkdownMessage>` for assistant markdown (dedup).** The `react-markdown` + `remarkGfm` + `normalizeMarkdown` + `.table-wrapper` pipeline was copy-pasted in three places (`MessageBubble`, group-chat column c in `GroupChatLayout`, and `exportAiReplies.replyToHtml`); extracted to `components/common/MarkdownMessage.tsx` as the single source of truth — `react-markdown` import sites **3 → 1**. Also evaluated lazy-loading it to pull `vendor-markdown` (~46 kB gz) off first paint: built a `lazy()` + `Suspense` wrapper, but rolldown-vite still hoists `vendor-markdown` into the entry `<link rel=modulepreload>` (it aggressively preloads near-entry dynamic deps), so the wrapper added indirection with **no initial-load win** — reverted to an eager shared component. No behavior change. Verified: eslint **0 errors**, client `tsc -b && vite build` + vitest (client 9 / server 77) green. | Claude |
 | 2026-07-20 | 0.7.33 | **Feature: per-conversation system prompt (persona).** New `conversations.system_prompt` column (idempotent `ALTER TABLE ... ADD COLUMN` in `database.ts`; on `ConversationRow`/server `Conversation` + client `Conversation` type). `routes/chat.ts` injects it as the **leading** `role:system` message — unshifted after the file-RAG + memory-context blocks so the persona sits *before* retrieval context and frames the whole exchange; empty/whitespace = no injection. `routes/conversations.ts`: create & update read/write it (update semantics: `undefined`=keep existing, empty string→`null` clears), export `version:2` carries it automatically via `rowToConversation`, import restores it (v1 / older files → `null`). Self-review proofreading pass unchanged (keeps its own fixed prompt); group chat (rooms) intentionally out of scope. **Client:** `components/chat/SystemPromptModal.tsx` (textarea + Save/Clear; parent mounts it on demand so initial state seeds from the conversation with no set-state-in-effect) opened from a `Wand2` **人设 / Persona** button in the `ChatArea` header (accent-colored when a persona is active); saving when no conversation exists yet lazily creates one from the selected model (`localStorage['selected_model']`) so the persona applies from message #1. `persona.*` i18n (zh/en). Also: exported pure `initTables` from `database.ts` for testability (no behavior change). **Tests:** +3 `database.persona.test.ts` (in-memory `initTables` migration → column present; insert/clear round-trip; legacy insert omitting the column defaults to `null`) → server **80** passed. Verified: server `tsc --noEmit` + vitest 80; client `tsc -b` + `vite build` (index **~142 KB / 36 KB gz**) + eslint **0 errors** (12 `set-state-in-effect` warnings, unchanged baseline). | Claude |
+| 2026-07-20 | 0.7.34 | **Team-readiness kickoff — audit + first security batch.** Owner pivoted the goal to an internal team tool; recorded the §9 implementation-status column + new **§10.8** backlog (TC0 isolation/auth holes, TC1 §9-specified-but-unbuilt, TC2 perf, data-safety). **Code (batch 1):** (1) **Memory cross-user leak closed on the AI chat path** — `retrieveRelevantMemories` (`chat.ts`) now takes the conversation owner's id and scopes both vector + keyword-fallback queries to `(user_id = ? OR user_id IS NULL)`; passed `conv.user_id` at the call site so one member's saved memories are never injected into another member's chat (private-chat AI path; the `/api/memories` HTTP endpoints' own auth/scoping is a separate, behaviour-changing follow-up — deferred). (2) **`vectorSearch` correctness** — SELECT+return now include `id`/`conversation_id`/`message_id` (were omitted → blank ids in semantic-search results, couldn't open/delete); added optional `userId` scoping param (omitted = unchanged behaviour). (3) **CORS lockable** — `index.ts` `cors({origin:'*'})` → `CORS_ORIGIN` env (comma-separated origins; default still open so nothing breaks locally). (4) **`busy_timeout=5000`** pragma in `getDb` (cheap `SQLITE_BUSY` insurance). Tests: extended `embeddings.vectorSearch.test.ts` harness (conversation_id/message_id/user_id cols) +2 (returned ids; per-user scoping incl. legacy NULL) → server **82** passed. `tsc --noEmit` clean. No client changes. §10.8 TC0#1 + prereq, TC1#1, TC2#4 marked done. | Claude |
+| 2026-07-20 | 0.7.35 | **Phase 1 security batch — multi-user isolation & guardrails (§10.8 TC0/TC1).** (1) **`memories.ts`:** whole router now `requireAuth`; list/search/semantic/context/get/delete/export/summarize scoped to the caller's own (+ legacy NULL) rows, admin sees all; `PUT /config` + `/backfill-embeddings` + `/fetch-embedding-models` are admin-only; `import` stamps `user_id`. (2) **`conversations.ts` + `chat.ts`:** `canReadConv`/`canModifyConv` — `DELETE /:id` (was **unauthenticated**), `PUT /:id`, `GET /:id/messages` now owner|admin (public/legacy still readable); chat `POST` refuses to send into someone else's owned conversation. (3) **`files.ts`:** file delete/reindex + folder rename/delete gated to owner (`uploaded_by`/`created_by`) or admin (reads stay shared team-wide for now). (4) **JWT/admin guardrails:** `assertAuthSecurity()` refuses to boot in production on the default JWT secret (warns in dev); default-admin seed honours `ADMIN_PASSWORD` env, refuses a fresh **prod** start without it, loud warning otherwise. (5) **Rate limiting:** new dependency-free `middleware/rateLimit.ts` (in-memory fixed window, keyed by user id / IP) on `/api/chat` (60/min) + `/api/arena` (120/min), env-tunable (`RATE_LIMIT_*_PER_MIN`); `optionalAuth` mounted first for per-user keys. Tests +3 (rate limiter) → server **85** passed; `tsc` clean; **no client changes**. **Behaviour changes (intended for team):** members see/manage only their own memories, conversations & files; memory config is admin-only; can't write into others' private chats. §10.8 TC0 #2–#5 + TC1 #2 + §9 #4 marked done. | Claude |
 
 ---
 

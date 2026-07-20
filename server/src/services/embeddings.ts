@@ -243,19 +243,24 @@ export function vectorSearch(
   db: Database.Database,
   queryEmbedding: number[],
   limit: number = 5,
-  threshold: number = 0.3
-): Array<{ summary: string | null; content: string; keywords: string; created_at: string; role: string; importance: number }> {
+  threshold: number = 0.3,
+  userId?: string | null
+): Array<{ id: string; conversation_id: string; message_id: string; summary: string | null; content: string; keywords: string; created_at: string; role: string; importance: number }> {
+  // Scope to a user's own + legacy (NULL) memories when a userId is given.
+  // Omitted / empty → no scoping (unchanged for callers that don't pass it).
+  const scopeUser = typeof userId === 'string' && userId.length > 0;
   // Load all entries that have embeddings
   const rows = db.prepare(`
-    SELECT id, summary, content, keywords, created_at, role, importance, embedding
+    SELECT id, conversation_id, message_id, summary, content, keywords, created_at, role, importance, embedding
     FROM memory_entries
     WHERE embedding IS NOT NULL AND embedding != ''
-  `).all() as Array<Pick<MemoryEntryRow, 'id' | 'summary' | 'content' | 'keywords' | 'created_at' | 'role' | 'importance' | 'embedding'>>;
+    ${scopeUser ? 'AND (user_id = ? OR user_id IS NULL)' : ''}
+  `).all(...(scopeUser ? [userId] : [])) as Array<Pick<MemoryEntryRow, 'id' | 'conversation_id' | 'message_id' | 'summary' | 'content' | 'keywords' | 'created_at' | 'role' | 'importance' | 'embedding'>>;
 
   if (rows.length === 0) return [];
 
   // Compute similarity for each entry
-  const scored: { row: Pick<MemoryEntryRow, 'id' | 'summary' | 'content' | 'keywords' | 'created_at' | 'role' | 'importance' | 'embedding'>; similarity: number }[] = [];
+  const scored: { row: Pick<MemoryEntryRow, 'id' | 'conversation_id' | 'message_id' | 'summary' | 'content' | 'keywords' | 'created_at' | 'role' | 'importance' | 'embedding'>; similarity: number }[] = [];
 
   for (const row of rows) {
     try {
@@ -279,6 +284,9 @@ export function vectorSearch(
 
   // Return top N results (without the embedding column to save bandwidth)
   return scored.slice(0, limit).map(({ row }) => ({
+    id: row.id,
+    conversation_id: row.conversation_id,
+    message_id: row.message_id,
     summary: row.summary,
     content: row.content,
     keywords: row.keywords,

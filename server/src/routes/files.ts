@@ -127,6 +127,9 @@ router.put('/folders/:id', requireAuth, (req: AuthRequest, res: Response) => {
     if (!row) {
       return res.status(404).json({ success: false, error: 'Folder not found' });
     }
+    if (!canMutateOwn(req, row.created_by)) {
+      return res.status(403).json({ success: false, error: 'You do not have permission to rename this folder' });
+    }
 
     const now = new Date().toISOString();
     db.prepare('UPDATE file_folders SET name = ?, updated_at = ? WHERE id = ?').run(name.trim(), now, req.params.id);
@@ -148,6 +151,9 @@ router.delete('/folders/:id', requireAuth, (req: AuthRequest, res: Response) => 
     const row = db.prepare('SELECT * FROM file_folders WHERE id = ?').get(req.params.id) as FileFolderRow | undefined;
     if (!row) {
       return res.status(404).json({ success: false, error: 'Folder not found' });
+    }
+    if (!canMutateOwn(req, row.created_by)) {
+      return res.status(403).json({ success: false, error: 'You do not have permission to delete this folder' });
     }
 
     // Move files in this folder to root (folder_id = NULL)
@@ -400,9 +406,17 @@ router.patch('/:id/move', requireAuth, (req: AuthRequest, res: Response) => {
   }
 });
 
+/** Mutate access: admin, or the real owner. Legacy ownerless rows → admin only.
+ *  (File/folder reads stay shared team-wide; only mutation is owner-gated for now.) */
+function canMutateOwn(req: AuthRequest, ownerId: string | null): boolean {
+  const u = req.user;
+  if (!u) return false;
+  return u.role === 'admin' || (ownerId != null && ownerId === u.id);
+}
+
 /**
  * DELETE /api/files/:id
- * Delete a file and its chunks
+ * Delete a file and its chunks (owner or admin only)
  */
 router.delete('/:id', requireAuth, (req: AuthRequest, res: Response) => {
   try {
@@ -410,6 +424,9 @@ router.delete('/:id', requireAuth, (req: AuthRequest, res: Response) => {
     const row = db.prepare('SELECT * FROM file_library WHERE id = ?').get(req.params.id) as FileLibraryRow | undefined;
     if (!row) {
       return res.status(404).json({ success: false, error: 'File not found' });
+    }
+    if (!canMutateOwn(req, row.uploaded_by)) {
+      return res.status(403).json({ success: false, error: 'You do not have permission to delete this file' });
     }
 
     // Delete file from disk
@@ -441,6 +458,9 @@ router.post('/:id/reindex', requireAuth, async (req: AuthRequest, res: Response)
     const row = db.prepare('SELECT * FROM file_library WHERE id = ?').get(req.params.id) as FileLibraryRow | undefined;
     if (!row) {
       return res.status(404).json({ success: false, error: 'File not found' });
+    }
+    if (!canMutateOwn(req, row.uploaded_by)) {
+      return res.status(403).json({ success: false, error: 'You do not have permission to reindex this file' });
     }
 
     const filePath = path.join(UPLOADS_DIR, row.stored_name);
