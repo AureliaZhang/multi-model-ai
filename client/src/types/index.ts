@@ -70,6 +70,7 @@ export interface Conversation {
   modelNormalizedName: string;
   visibility: ConversationVisibility;
   selfReview: boolean;
+  systemPrompt?: string | null;
   userId?: string;
   createdAt: string;
   updatedAt: string;

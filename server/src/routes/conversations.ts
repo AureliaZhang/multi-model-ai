@@ -25,6 +25,7 @@ function rowToConversation(r: ConversationRow): Conversation {
     modelNormalizedName: r.model_normalized_name,
     visibility: (r.visibility as ConversationVisibility) || 'public',
     selfReview: Boolean(r.self_review),
+    systemPrompt: r.system_prompt ?? null,
     userId: r.user_id || undefined,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -108,7 +109,7 @@ router.get('/', optionalAuth, (req: AuthRequest, res: Response) => {
 // POST /api/conversations - Create conversation
 router.post('/', optionalAuth, (req: AuthRequest, res: Response) => {
   try {
-    const { title, modelNormalizedName, visibility, selfReview } = req.body;
+    const { title, modelNormalizedName, visibility, selfReview, systemPrompt } = req.body;
     if (!modelNormalizedName) {
       return res.status(400).json({ success: false, error: 'modelNormalizedName is required' });
     }
@@ -117,11 +118,12 @@ router.post('/', optionalAuth, (req: AuthRequest, res: Response) => {
     const now = new Date().toISOString();
     const vis: ConversationVisibility = visibility === 'private' ? 'private' : 'public';
     const review = selfReview ? 1 : 0;
+    const sysPrompt = typeof systemPrompt === 'string' && systemPrompt.trim() ? systemPrompt : null;
     const userId = req.user?.id || null;
 
     db.prepare(
-      'INSERT INTO conversations (id, title, model_normalized_name, visibility, self_review, user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(id, title || 'New Conversation', modelNormalizedName, vis, review, userId, now, now);
+      'INSERT INTO conversations (id, title, model_normalized_name, visibility, self_review, system_prompt, user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(id, title || 'New Conversation', modelNormalizedName, vis, review, sysPrompt, userId, now, now);
 
     const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(id) as ConversationRow;
     res.status(201).json({
@@ -137,7 +139,7 @@ router.post('/', optionalAuth, (req: AuthRequest, res: Response) => {
 router.put('/:id', optionalAuth, (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { title, modelNormalizedName, visibility, selfReview } = req.body;
+    const { title, modelNormalizedName, visibility, selfReview, systemPrompt } = req.body;
     const db = getDb();
 
     const existing = db.prepare('SELECT * FROM conversations WHERE id = ?').get(id) as ConversationRow | undefined;
@@ -149,10 +151,14 @@ router.put('/:id', optionalAuth, (req: AuthRequest, res: Response) => {
     const newModel = modelNormalizedName ?? existing.model_normalized_name;
     const newVisibility = (visibility === 'public' || visibility === 'private') ? visibility : existing.visibility;
     const newSelfReview = selfReview !== undefined ? (selfReview ? 1 : 0) : existing.self_review;
+    // undefined = not sent (keep existing); string/null = set or clear (empty → null)
+    const newSystemPrompt = systemPrompt !== undefined
+      ? (typeof systemPrompt === 'string' && systemPrompt.trim() ? systemPrompt : null)
+      : existing.system_prompt;
     const now = new Date().toISOString();
 
-    db.prepare('UPDATE conversations SET title = ?, model_normalized_name = ?, visibility = ?, self_review = ?, updated_at = ? WHERE id = ?')
-      .run(newTitle, newModel, newVisibility, newSelfReview, now, id);
+    db.prepare('UPDATE conversations SET title = ?, model_normalized_name = ?, visibility = ?, self_review = ?, system_prompt = ?, updated_at = ? WHERE id = ?')
+      .run(newTitle, newModel, newVisibility, newSelfReview, newSystemPrompt, now, id);
 
     const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(id) as ConversationRow;
     res.json({
@@ -272,8 +278,8 @@ router.post('/import', optionalAuth, (req: AuthRequest, res: Response) => {
 
     const insertConv = db.prepare(`
       INSERT OR IGNORE INTO conversations
-        (id, title, model_normalized_name, visibility, self_review, user_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (id, title, model_normalized_name, visibility, self_review, system_prompt, user_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const insertMsg = db.prepare(`
       INSERT OR IGNORE INTO messages
@@ -297,6 +303,7 @@ router.post('/import', optionalAuth, (req: AuthRequest, res: Response) => {
         const now = new Date().toISOString();
         const vis = c.visibility === 'private' ? 'private' : 'public';
         const review = c.selfReview ? 1 : 0;
+        const sysPrompt = typeof c.systemPrompt === 'string' && c.systemPrompt.trim() ? c.systemPrompt : null;
 
         const cr = insertConv.run(
           convId,
@@ -304,6 +311,7 @@ router.post('/import', optionalAuth, (req: AuthRequest, res: Response) => {
           c.modelNormalizedName,
           vis,
           review,
+          sysPrompt,
           userId,
           c.createdAt || now,
           c.updatedAt || now

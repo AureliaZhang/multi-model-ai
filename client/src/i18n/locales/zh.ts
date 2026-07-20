@@ -105,6 +105,13 @@ const zh = {
   'chat.aiDisclaimer': 'AI 可能会出错，请核实重要信息。',
   'chat.loadMore': '加载 {count} 条更多消息',
 
+  // 对话人设 / 系统提示
+  'persona.button': '人设',
+  'persona.title': '对话人设',
+  'persona.desc': '给这个对话设定一个固定角色或规则，之后每条消息都会自动带上，AI 全程保持这个设定。例如「你是我的英语老师，只用简单英语回答」。',
+  'persona.placeholder': '例如：你是一位耐心的中文写作老师，回复简洁、多举例子。',
+  'persona.clear': '清除人设',
+
   // 消息气泡
   'message.you': '你',
   'message.assistant': '助手',

@@ -300,6 +300,13 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // Inject this conversation's custom system prompt (persona) as the LEADING system message.
+    // Unshifted last so it lands before file/memory context — the persona should frame the
+    // whole exchange, with retrieval context following it. Empty/whitespace-only = no injection.
+    if (conv.system_prompt && conv.system_prompt.trim()) {
+      apiMessages.unshift({ role: 'system', content: conv.system_prompt });
+    }
+
     // Try stations with failover
     const stations = roundRobin(modelNormalizedName, getStationsForModel(db, modelNormalizedName, isAdmin));
     let assistantContent = '';

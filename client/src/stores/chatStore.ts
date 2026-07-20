@@ -175,7 +175,7 @@ interface ChatState {
   createConversation: (modelNormalizedName: string, title?: string, visibility?: ConversationVisibility, selfReview?: boolean) => Promise<string>;
   deleteConversation: (id: string) => Promise<void>;
   selectConversation: (id: string) => Promise<void>;
-  updateConversation: (id: string, data: { title?: string; visibility?: ConversationVisibility; selfReview?: boolean }) => Promise<void>;
+  updateConversation: (id: string, data: { title?: string; visibility?: ConversationVisibility; selfReview?: boolean; systemPrompt?: string | null }) => Promise<void>;
   sendMessage: (message: string, modelNormalizedName: string, attachments?: PendingAttachment[], fileIds?: string[]) => void;
   doSendMessage: (convId: string, message: string, modelNormalizedName: string, attachments?: PendingAttachment[], fileIds?: string[]) => void;
   /** Re-run the last failed send without inserting a duplicate user message. */

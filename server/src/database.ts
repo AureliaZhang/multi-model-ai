@@ -19,7 +19,9 @@ export function getDb(): Database.Database {
   return db;
 }
 
-function initTables(db: Database.Database): void {
+/** Creates all tables and runs idempotent column migrations. Pure DDL — safe to
+ *  run against a fresh (including in-memory) DB without seeding. Exported for tests. */
+export function initTables(db: Database.Database): void {
   db.exec(`
     -- Users table
     CREATE TABLE IF NOT EXISTS users (
@@ -270,6 +272,14 @@ function initTables(db: Database.Database): void {
   // Migration: add self_review column to conversations if not exists
   try {
     db.exec(`ALTER TABLE conversations ADD COLUMN self_review INTEGER NOT NULL DEFAULT 0`);
+  } catch {
+    // Column already exists
+  }
+
+  // Migration: add system_prompt column to conversations if not exists
+  // Per-conversation persona / system instruction injected as the leading system message.
+  try {
+    db.exec(`ALTER TABLE conversations ADD COLUMN system_prompt TEXT`);
   } catch {
     // Column already exists
   }

@@ -3,8 +3,9 @@ import { useChatStore } from '../../stores/chatStore';
 import { ModelSelector } from '../chat/ModelSelector';
 import { ChatInput } from '../chat/ChatInput';
 import { MessageBubble } from '../chat/MessageBubble';
+import { SystemPromptModal } from '../chat/SystemPromptModal';
 import { ErrorBoundary } from '../ErrorBoundary';
-import { Sparkles, ChevronUp, PanelLeft } from 'lucide-react';
+import { Sparkles, ChevronUp, PanelLeft, Wand2 } from 'lucide-react';
 import { useTranslation } from '../../i18n';
 
 interface ChatAreaProps {
@@ -28,6 +29,8 @@ export function ChatArea({ isGuest = false, onSignIn, sidebarCollapsed = false, 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { t } = useTranslation();
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [personaOpen, setPersonaOpen] = useState(false);
+  const conversations = useChatStore(s => s.conversations);
 
   // Reset visible count when conversation changes
   const prevConversationId = useRef<string | null>(null);
@@ -59,6 +62,8 @@ export function ChatArea({ isGuest = false, onSignIn, sidebarCollapsed = false, 
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streamingContent]);
 
+  const hasPersona = !!conversations.find(c => c.id === currentConversationId)?.systemPrompt?.trim();
+
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
       {/* Header: open-sidebar (when collapsed) + model selector — same row, no overlap */}
@@ -80,7 +85,25 @@ export function ChatArea({ isGuest = false, onSignIn, sidebarCollapsed = false, 
         <div className="min-w-0 flex-1">
           <ModelSelector />
         </div>
+        {!isGuest && (
+          <button
+            type="button"
+            onClick={() => setPersonaOpen(true)}
+            className={`flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              hasPersona
+                ? 'text-[var(--color-accent-main)] bg-[var(--overlay-5)] hover:bg-[var(--overlay-6)]'
+                : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--overlay-5)]'
+            }`}
+            title={t('persona.title')}
+            aria-label={t('persona.title')}
+          >
+            <Wand2 size={16} strokeWidth={1.75} />
+            <span className="hidden sm:inline">{t('persona.button')}</span>
+          </button>
+        )}
       </div>
+
+      {personaOpen && <SystemPromptModal onClose={() => setPersonaOpen(false)} />}
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto">

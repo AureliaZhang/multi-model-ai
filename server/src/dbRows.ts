@@ -15,6 +15,8 @@ export interface ConversationRow {
   visibility: string;
   /** 0 | 1 integer flag */
   self_review: number;
+  /** Added by migration; per-conversation persona / system prompt. Null when unset. */
+  system_prompt: string | null;
   user_id: string | null;
   created_at: string;
   updated_at: string;
@@ -46,6 +48,7 @@ export interface ConversationImportItem {
   modelNormalizedName?: string;
   visibility?: string;
   selfReview?: boolean;
+  systemPrompt?: string | null;
   createdAt?: string;
   updatedAt?: string;
   messages?: MessageImportItem[];

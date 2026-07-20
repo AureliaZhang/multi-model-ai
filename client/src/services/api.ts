@@ -131,9 +131,9 @@ export const modelApi = {
 // --- Conversations ---
 export const conversationApi = {
   list: () => request<Conversation[]>('/conversations'),
-  create: (data: { title?: string; modelNormalizedName: string; visibility?: 'public' | 'private'; selfReview?: boolean }) =>
+  create: (data: { title?: string; modelNormalizedName: string; visibility?: 'public' | 'private'; selfReview?: boolean; systemPrompt?: string | null }) =>
     request<Conversation>('/conversations', { method: 'POST', body: JSON.stringify(data) }),
-  update: (id: string, data: { title?: string; modelNormalizedName?: string; visibility?: 'public' | 'private'; selfReview?: boolean }) =>
+  update: (id: string, data: { title?: string; modelNormalizedName?: string; visibility?: 'public' | 'private'; selfReview?: boolean; systemPrompt?: string | null }) =>
     request<Conversation>(`/conversations/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id: string) =>
     request(`/conversations/${id}`, { method: 'DELETE' }),

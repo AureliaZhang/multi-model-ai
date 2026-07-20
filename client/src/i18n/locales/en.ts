@@ -105,6 +105,13 @@ const en = {
   'chat.aiDisclaimer': 'AI can make mistakes. Verify important information.',
   'chat.loadMore': 'Load {count} more messages',
 
+  // Conversation persona / system prompt
+  'persona.button': 'Persona',
+  'persona.title': 'Chat persona',
+  'persona.desc': 'Set a fixed role or rules for this conversation. It’s sent with every message automatically and the AI keeps it for the whole chat. e.g. “You are my English tutor; reply only in simple English.”',
+  'persona.placeholder': 'e.g. You are a patient writing tutor. Keep replies concise and use examples.',
+  'persona.clear': 'Clear persona',
+
   // Message Bubble
   'message.you': 'You',
   'message.assistant': 'Assistant',
