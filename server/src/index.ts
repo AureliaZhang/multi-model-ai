@@ -19,7 +19,9 @@ import prefsRoutes from './routes/prefs';
 import mediaRoutes from './routes/media';
 import roomRoutes from './routes/rooms';
 import usageRoutes from './routes/usage';
+import backupRoutes from './routes/backup';
 import { startHealthCheckJob, stopHealthCheckJob } from './services/healthCheck';
+import { startBackupJob, stopBackupJob } from './services/backup';
 import { attachRoomHub } from './services/roomHub';
 import { assertAuthSecurity, optionalAuth } from './middleware/auth';
 import { rateLimit } from './middleware/rateLimit';
@@ -64,6 +66,7 @@ app.use('/api/prefs', prefsRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/usage', usageRoutes);
+app.use('/api/backups', backupRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {
@@ -110,17 +113,22 @@ server.listen(PORT, () => {
   // Begin periodic station health checks so unhealthy stations are auto-detected
   // and auto-recovered without a manual check (§8.3).
   startHealthCheckJob();
+  // Periodic DB snapshots so a shared team DB is never a single point of loss
+  // (§10.8 Phase 2). Env-tunable; skipped for in-memory DBs.
+  startBackupJob();
 });
 
 // Graceful shutdown
 process.on('SIGINT', () => {
   stopHealthCheckJob();
+  stopBackupJob();
   closeDb();
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
   stopHealthCheckJob();
+  stopBackupJob();
   closeDb();
   process.exit(0);
 });

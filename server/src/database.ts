@@ -1,10 +1,29 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import bcrypt from 'bcryptjs';
+import { runMigrations, type Migration } from './migrations';
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'app.db');
+export const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'app.db');
 
 let db: Database.Database;
+
+/**
+ * Ordered, append-only schema migration list (§10.8 Phase 2). Applied by
+ * `runMigrations` via the `schema_migrations` ledger — each entry runs exactly
+ * once, ever, in a transaction.
+ *
+ * v1 "baseline-schema" is the ENTIRE pre-migration-runner schema (`initTables`,
+ * which is fully idempotent: CREATE TABLE IF NOT EXISTS + guarded ALTERs). It
+ * therefore safely absorbs BOTH a brand-new DB and any existing production DB
+ * created before the ledger existed (the guarded ALTERs no-op on columns that
+ * are already there), then records itself as v1.
+ *
+ * From here on, EVERY schema change is a NEW entry (v2, v3, …) with a single-run
+ * `up` — never edit v1, never add another swallow-everything `try { ALTER }`.
+ */
+export const SCHEMA_MIGRATIONS: Migration[] = [
+  { version: 1, name: 'baseline-schema', up: (d) => initTables(d) },
+];
 
 export function getDb(): Database.Database {
   if (!db) {
@@ -12,7 +31,9 @@ export function getDb(): Database.Database {
     db.pragma('journal_mode = WAL');
     db.pragma('busy_timeout = 5000');
     db.pragma('foreign_keys = ON');
-    initTables(db);
+    runMigrations(db, SCHEMA_MIGRATIONS);
+    // Per-boot reconciliation (NOT a migration — must run every start; see fn doc).
+    refreshModelCapabilities(db);
     seedDefaultAdmin(db);
     seedVirtualPlaceholderUser(db);
     seedDefaultStation(db);
@@ -20,8 +41,10 @@ export function getDb(): Database.Database {
   return db;
 }
 
-/** Creates all tables and runs idempotent column migrations. Pure DDL — safe to
- *  run against a fresh (including in-memory) DB without seeding. Exported for tests. */
+/** The v1 "baseline" schema (see `SCHEMA_MIGRATIONS`): creates every table and
+ *  runs the idempotent column back-fills. Pure DDL — no seeding, no requires —
+ *  so it is safe to run against a fresh (including in-memory) DB and idempotent
+ *  against an existing one. Exported for tests. */
 export function initTables(db: Database.Database): void {
   db.exec(`
     -- Users table
@@ -668,15 +691,23 @@ export function initTables(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_room_notepad_editors_room ON room_notepad_editors(room_id);
     CREATE INDEX IF NOT EXISTS idx_room_notepad_requests_room ON room_notepad_requests(room_id, status);
   `);
+}
 
-  // Refresh capabilities for known specialty model names (seeded rows may only say ["text"])
+/**
+ * Per-boot reconciliation of `station_models.capabilities` with the
+ * `detectCapabilities()` heuristics. Kept OUT of the versioned baseline
+ * migration on purpose: seeded / freshly-pulled rows may carry only `["text"]`,
+ * and this must re-run on EVERY boot to refine them (a one-time migration would
+ * miss rows seeded after it ran). Guarded so a require cycle during first load
+ * is a harmless no-op.
+ */
+function refreshModelCapabilities(db: Database.Database): void {
   try {
     const { detectCapabilities } = require('./routes/stations');
     const rows = db.prepare('SELECT id, model_id FROM station_models').all() as { id: string; model_id: string }[];
     const upd = db.prepare('UPDATE station_models SET capabilities = ? WHERE id = ?');
     for (const r of rows) {
-      const caps = detectCapabilities(r.model_id);
-      upd.run(JSON.stringify(caps), r.id);
+      upd.run(JSON.stringify(detectCapabilities(r.model_id)), r.id);
     }
   } catch {
     /* ignore if circular during first load */
