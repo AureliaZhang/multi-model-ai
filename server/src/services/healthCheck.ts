@@ -20,6 +20,7 @@
 
 import type Database from 'better-sqlite3';
 import { getDb } from '../database';
+import { decryptSecret } from '../utils/crypto';
 
 const DEFAULT_INTERVAL_MS = 60_000;
 const PING_TIMEOUT_MS = 10_000;
@@ -50,7 +51,7 @@ export async function checkStationHealth(
   let detail = '';
   try {
     const response = await fetch(modelsUrl, {
-      headers: { Authorization: `Bearer ${station.api_key}` },
+      headers: { Authorization: `Bearer ${decryptSecret(station.api_key)}` },
       signal: AbortSignal.timeout(PING_TIMEOUT_MS),
     });
     if (response.ok) {

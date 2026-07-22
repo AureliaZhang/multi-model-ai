@@ -12,6 +12,7 @@ import { ApiResponse } from '../types';
 import { loadEnabledMcpTools, resolveToolCall, executeToolCall } from '../services/mcpClient';
 import { generateEmbedding, serializeEmbedding, vectorSearch } from '../services/embeddings';
 import { roundRobin } from '../services/loadBalancer';
+import { decryptSecret } from '../utils/crypto';
 import { getActiveScripts, applyRegexScripts } from '../services/regexEngine';
 import { getErrorMessage } from '../utils/errors';
 import { searchFileChunks } from '../services/fileProcessor';
@@ -673,7 +674,7 @@ function getStationsForModel(db: Database.Database, normalizedName: string, admi
   return rows
     .filter((r) => normalizeModelName(r.model_id) === normalizedName)
     .map((r) => ({
-      station: { id: r.id, name: r.name, baseUrl: r.base_url, apiKey: r.api_key, healthStatus: r.health_status },
+      station: { id: r.id, name: r.name, baseUrl: r.base_url, apiKey: decryptSecret(r.api_key), healthStatus: r.health_status },
       modelId: r.model_id,
     }));
 }

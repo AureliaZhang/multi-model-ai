@@ -2,6 +2,8 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import bcrypt from 'bcryptjs';
 import { runMigrations, type Migration } from './migrations';
+import { encryptSecret, isEncrypted, encryptionEnabled } from './utils/crypto';
+import { getErrorMessage } from './utils/errors';
 
 export const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'app.db');
 
@@ -37,6 +39,9 @@ export function getDb(): Database.Database {
     seedDefaultAdmin(db);
     seedVirtualPlaceholderUser(db);
     seedDefaultStation(db);
+    // If ENCRYPTION_KEY is configured, upgrade any legacy plaintext station keys
+    // to ciphertext in place (self-healing whenever the key is first set).
+    encryptPlaintextStationKeys(db);
   }
   return db;
 }
@@ -714,6 +719,28 @@ function refreshModelCapabilities(db: Database.Database): void {
   }
 }
 
+/**
+ * One-way upgrade of any plaintext station API keys to encrypted-at-rest
+ * (§10.8 TC1 #3). No-op unless `ENCRYPTION_KEY` is set. Runs every boot so it
+ * self-heals the first time the key is configured; already-encrypted rows are
+ * left untouched. Wrapped in a transaction; failures are logged, not fatal.
+ */
+function encryptPlaintextStationKeys(db: Database.Database): void {
+  if (!encryptionEnabled()) return;
+  try {
+    const rows = db.prepare('SELECT id, api_key FROM stations').all() as { id: string; api_key: string }[];
+    const plaintext = rows.filter((r) => !isEncrypted(r.api_key));
+    if (plaintext.length === 0) return;
+    const upd = db.prepare('UPDATE stations SET api_key = ? WHERE id = ?');
+    db.transaction(() => {
+      for (const r of plaintext) upd.run(encryptSecret(r.api_key), r.id);
+    })();
+    console.log(`🔐 Encrypted ${plaintext.length} plaintext station key(s) at rest`);
+  } catch (err) {
+    console.error('[crypto] station key encryption sweep failed:', getErrorMessage(err));
+  }
+}
+
 function seedDefaultAdmin(db: Database.Database): void {
   const existing = db.prepare('SELECT id FROM users WHERE role = ?').get('admin');
   if (!existing) {
@@ -797,7 +824,7 @@ function seedDefaultStation(db: Database.Database): void {
   db.prepare(`
     INSERT INTO stations (id, name, base_url, api_key, enabled, health_status, created_at, updated_at)
     VALUES (?, ?, ?, ?, 1, 'unknown', ?, ?)
-  `).run(stationId, 'mimo', baseUrl, apiKey, now, now);
+  `).run(stationId, 'mimo', baseUrl, encryptSecret(apiKey), now, now);
 
   // Seed known models (ids only — no secrets)
   const models = [

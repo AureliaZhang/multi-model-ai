@@ -10,6 +10,7 @@
 
 import { getDb } from '../database';
 import { getErrorMessage } from '../utils/errors';
+import { decryptSecret } from '../utils/crypto';
 import type Database from 'better-sqlite3';
 import type { MemoryConfigRow, MemoryEntryRow, StationRow } from '../dbRows';
 
@@ -100,7 +101,7 @@ async function generateApiEmbedding(text: string): Promise<number[] | null> {
           const response = await fetch(`${station.base_url}/embeddings`, {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${station.api_key}`,
+              'Authorization': `Bearer ${decryptSecret(station.api_key)}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({

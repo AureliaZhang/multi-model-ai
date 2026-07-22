@@ -10,6 +10,7 @@ import { getDb } from '../database';
 import { normalizeModelName } from './normalizeModelName';
 import { roundRobin } from './loadBalancer';
 import { getErrorMessage, isAbortError } from '../utils/errors';
+import { decryptSecret } from '../utils/crypto';
 import type { StationModelJoinRow } from '../dbRows';
 
 export interface ChatMessage {
@@ -82,7 +83,7 @@ export function filterStationsForModel(
         id: r.id,
         name: r.name,
         baseUrl: r.base_url,
-        apiKey: r.api_key,
+        apiKey: decryptSecret(r.api_key),
         healthStatus: r.health_status,
       },
       modelId: r.model_id,

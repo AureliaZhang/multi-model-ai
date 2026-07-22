@@ -7,6 +7,7 @@ import type { AuthRequest } from '../types';
 import type { StationRow, StationModelRow } from '../dbRows';
 import { checkStationHealth } from '../services/healthCheck';
 import { getErrorMessage, isAbortError } from '../utils/errors';
+import { encryptSecret, decryptSecret } from '../utils/crypto';
 
 const router = Router();
 
@@ -59,7 +60,7 @@ router.post('/', (req: Request, res: Response) => {
     const now = new Date().toISOString();
     db.prepare(
       'INSERT INTO stations (id, name, base_url, api_key, enabled, health_status, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, ?)'
-    ).run(id, name, baseUrl, apiKey, 'unknown', now, now);
+    ).run(id, name, baseUrl, encryptSecret(apiKey), 'unknown', now, now);
 
     const station = db.prepare('SELECT * FROM stations WHERE id = ?').get(id) as StationRow;
     res.status(201).json({ success: true, data: rowToStation(station) } as ApiResponse<Station>);
@@ -82,7 +83,8 @@ router.put('/:id', (req: Request, res: Response) => {
 
     const name = updates.name ?? existing.name;
     const baseUrl = updates.baseUrl ?? existing.base_url;
-    const apiKey = updates.apiKey ?? existing.api_key;
+    // Encrypt only a newly-provided key; otherwise keep the stored (already-encrypted) value as-is.
+    const apiKey = updates.apiKey !== undefined ? encryptSecret(updates.apiKey) : existing.api_key;
     const enabled = updates.enabled !== undefined ? (updates.enabled ? 1 : 0) : existing.enabled;
     const now = new Date().toISOString();
 
@@ -254,7 +256,7 @@ router.post('/:id/pull-models', async (req: Request, res: Response) => {
     try {
       response = await fetch(modelsUrl, {
         headers: {
-          Authorization: `Bearer ${station.api_key}`,
+          Authorization: `Bearer ${decryptSecret(station.api_key)}`,
           'Content-Type': 'application/json',
         },
         signal: AbortSignal.timeout(15000),
@@ -379,7 +381,7 @@ function rowToStation(row: StationRow): Station {
     id: row.id,
     name: row.name,
     baseUrl: row.base_url,
-    apiKey: row.api_key,
+    apiKey: decryptSecret(row.api_key),
     enabled: row.enabled === 1,
     healthStatus: row.health_status as Station['healthStatus'],
     lastHealthCheck: row.last_health_check,
