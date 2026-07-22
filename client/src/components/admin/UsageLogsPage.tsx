@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { usageApi } from '../../services/api';
-import type { UsageLogItem } from '../../types';
+import type { UsageLogItem, UsageSummary } from '../../types';
 import { useTranslation } from '../../i18n';
-import { ArrowLeft, RefreshCw } from 'lucide-react';
+import { ArrowLeft, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
 
 interface Props {
   onBack: () => void;
@@ -14,6 +14,8 @@ export function UsageLogsPage({ onBack }: Props) {
   const [total, setTotal] = useState(0);
   const [errors, setErrors] = useState(0);
   const [totalTokens, setTotalTokens] = useState(0);
+  const [summary, setSummary] = useState<UsageSummary | null>(null);
+  const [showSummary, setShowSummary] = useState(true);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('');
   const [kind, setKind] = useState('');
@@ -38,6 +40,12 @@ export function UsageLogsPage({ onBack }: Props) {
         setTotalTokens(res.data.summary.totalTokens);
         setOffset(nextOffset);
       }
+      // Aggregated dashboard (respects kind/username; not status/paging).
+      const sumRes = await usageApi.getSummary({
+        kind: kind || undefined,
+        username: username || undefined,
+      });
+      if (sumRes.success && sumRes.data) setSummary(sumRes.data);
     } finally {
       setLoading(false);
     }
@@ -118,6 +126,83 @@ export function UsageLogsPage({ onBack }: Props) {
           <span className="text-[var(--color-text-error)]">{t('usage.errors')}: {errors}</span>
           <span>{t('usage.tokens')}: {totalTokens}</span>
         </div>
+      </div>
+
+      {/* Aggregated dashboard: per-user + per-model token usage (§10.8 Phase 3) */}
+      <div className="border-b border-[var(--color-border-light)]">
+        <button
+          type="button"
+          onClick={() => setShowSummary((v) => !v)}
+          className="w-full flex items-center gap-2 px-4 py-2 text-xs font-medium text-[var(--color-text-secondary)] hover:bg-[var(--overlay-3)]"
+        >
+          {showSummary ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          {t('usage.summaryTitle')}
+          {summary && (
+            <span className="ml-2 text-[10px] text-[var(--color-text-tertiary)] font-normal">
+              {t('usage.summaryMeta', { users: summary.totals.users, tokens: summary.totals.tokens.toLocaleString() })}
+            </span>
+          )}
+        </button>
+        {showSummary && summary && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 px-4 pb-4">
+            {/* By user */}
+            <div>
+              <div className="text-[11px] font-medium text-[var(--color-text-tertiary)] mb-1">{t('usage.byUser')}</div>
+              <div className="overflow-x-auto max-h-52 overflow-y-auto rounded-lg border border-[var(--color-border-light)]">
+                <table className="w-full text-left text-[11px] border-collapse min-w-[320px]">
+                  <thead className="text-[var(--color-text-tertiary)] sticky top-0 bg-[var(--color-main-surface-primary)]">
+                    <tr>
+                      <th className="py-1.5 px-2 font-medium">{t('usage.user')}</th>
+                      <th className="py-1.5 px-2 font-medium text-right">{t('usage.requests')}</th>
+                      <th className="py-1.5 px-2 font-medium text-right">{t('usage.tokens')}</th>
+                      <th className="py-1.5 px-2 font-medium text-right">{t('usage.errors')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {summary.byUser.map((u) => (
+                      <tr key={u.userId || 'none'} className="border-t border-[var(--color-border-light)]/50">
+                        <td className="py-1.5 px-2 text-[var(--color-text-primary)]">{u.username || '—'}</td>
+                        <td className="py-1.5 px-2 text-right text-[var(--color-text-secondary)]">{u.requests}</td>
+                        <td className="py-1.5 px-2 text-right text-[var(--color-text-secondary)]">{u.tokens.toLocaleString()}</td>
+                        <td className="py-1.5 px-2 text-right text-[var(--color-text-error)]">{u.errors || ''}</td>
+                      </tr>
+                    ))}
+                    {summary.byUser.length === 0 && (
+                      <tr><td colSpan={4} className="py-4 text-center text-[var(--color-text-tertiary)]">{t('usage.empty')}</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            {/* By model */}
+            <div>
+              <div className="text-[11px] font-medium text-[var(--color-text-tertiary)] mb-1">{t('usage.byModel')}</div>
+              <div className="overflow-x-auto max-h-52 overflow-y-auto rounded-lg border border-[var(--color-border-light)]">
+                <table className="w-full text-left text-[11px] border-collapse min-w-[320px]">
+                  <thead className="text-[var(--color-text-tertiary)] sticky top-0 bg-[var(--color-main-surface-primary)]">
+                    <tr>
+                      <th className="py-1.5 px-2 font-medium">{t('usage.model')}</th>
+                      <th className="py-1.5 px-2 font-medium text-right">{t('usage.requests')}</th>
+                      <th className="py-1.5 px-2 font-medium text-right">{t('usage.tokens')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {summary.byModel.map((m) => (
+                      <tr key={m.modelNormalized || 'none'} className="border-t border-[var(--color-border-light)]/50">
+                        <td className="py-1.5 px-2 text-[var(--color-text-primary)] max-w-[180px] truncate" title={m.modelNormalized || ''}>{m.modelNormalized || '—'}</td>
+                        <td className="py-1.5 px-2 text-right text-[var(--color-text-secondary)]">{m.requests}</td>
+                        <td className="py-1.5 px-2 text-right text-[var(--color-text-secondary)]">{m.tokens.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                    {summary.byModel.length === 0 && (
+                      <tr><td colSpan={3} className="py-4 text-center text-[var(--color-text-tertiary)]">{t('usage.empty')}</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-auto p-3">

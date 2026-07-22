@@ -5,6 +5,7 @@ import type {
   UpdateStationRequest,
   StationModelRow,
   UsageLogItem,
+  UsageSummary,
   AggregatedModel,
   Conversation,
   Message,
@@ -736,5 +737,13 @@ export const usageApi = {
       offset: number;
       summary: { errors: number; totalTokens: number };
     }>(`/usage?${q}`);
+  },
+  getSummary: (params?: { kind?: string; username?: string; from?: string; to?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.kind) q.set('kind', params.kind);
+    if (params?.username) q.set('username', params.username);
+    if (params?.from) q.set('from', params.from);
+    if (params?.to) q.set('to', params.to);
+    return request<UsageSummary>(`/usage/summary?${q}`);
   },
 };

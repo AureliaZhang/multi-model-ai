@@ -507,6 +507,11 @@ const zh = {
   'usage.empty': '暂无日志（产生调用后会出现）',
   'usage.prev': '上一页',
   'usage.next': '下一页',
+  'usage.summaryTitle': '用量汇总',
+  'usage.summaryMeta': '{users} 人 · {tokens} tokens',
+  'usage.byUser': '按用户',
+  'usage.byModel': '按模型',
+  'usage.requests': '次数',
 
   // §10.6 群聊 / 群组
   'sidebar.rooms': '我的群聊',

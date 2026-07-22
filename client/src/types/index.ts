@@ -54,6 +54,28 @@ export interface UsageLogItem {
   createdAt: string;
 }
 
+export interface UsageUserAgg {
+  userId?: string | null;
+  username?: string | null;
+  requests: number;
+  tokens: number;
+  promptTokens: number;
+  completionTokens: number;
+  errors: number;
+}
+export interface UsageModelAgg {
+  modelNormalized?: string | null;
+  requests: number;
+  tokens: number;
+  promptTokens: number;
+  completionTokens: number;
+}
+export interface UsageSummary {
+  byUser: UsageUserAgg[];
+  byModel: UsageModelAgg[];
+  totals: { requests: number; tokens: number; errors: number; users: number };
+}
+
 
 export interface AggregatedModel {
   displayName: string;

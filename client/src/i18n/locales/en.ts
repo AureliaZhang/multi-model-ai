@@ -507,6 +507,11 @@ const en = {
   'usage.empty': 'No logs yet',
   'usage.prev': 'Prev',
   'usage.next': 'Next',
+  'usage.summaryTitle': 'Usage summary',
+  'usage.summaryMeta': '{users} users · {tokens} tokens',
+  'usage.byUser': 'By user',
+  'usage.byModel': 'By model',
+  'usage.requests': 'Requests',
 
   // §10.6 Group chat / rooms
   'sidebar.rooms': 'My groups',
