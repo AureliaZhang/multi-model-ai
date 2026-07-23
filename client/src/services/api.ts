@@ -140,6 +140,9 @@ export const conversationApi = {
     request(`/conversations/${id}`, { method: 'DELETE' }),
   getMessages: (id: string) =>
     request<Message[]>(`/conversations/${id}/messages`),
+  // Search in-scope conversations by title + message content.
+  search: (q: string) =>
+    request<Conversation[]>(`/conversations/search?q=${encodeURIComponent(q)}`),
   // Delete a message and every message after it (powers edit-resend / regenerate).
   truncate: (id: string, messageId: string) =>
     request<{ deleted: number }>(`/conversations/${id}/truncate`, {

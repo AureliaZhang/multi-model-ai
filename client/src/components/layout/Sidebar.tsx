@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useChatStore } from '../../stores/chatStore';
 import { useAuthStore } from '../../stores/authStore';
-import { MessageSquarePlus, Settings, Trash2, LogOut, Users, Users2, Shield, User, Brain, Globe, Lock, Eye, EyeOff, FolderOpen, X, Swords, PanelLeftClose, ScrollText, Download, Upload } from 'lucide-react';
+import { MessageSquarePlus, Settings, Trash2, LogOut, Users, Users2, Shield, User, Brain, Globe, Lock, Eye, EyeOff, FolderOpen, X, Swords, PanelLeftClose, ScrollText, Download, Upload, Search } from 'lucide-react';
 import { useTranslation } from '../../i18n';
-import type { ConversationVisibility } from '../../types';
+import { conversationApi } from '../../services/api';
+import type { ConversationVisibility, Conversation } from '../../types';
 
 interface SidebarProps {
   isGuest?: boolean;
@@ -39,6 +40,32 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [showNewMenu, setShowNewMenu] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
+
+  // Conversation search (title + message content, server-side). Debounced; when
+  // the query is empty we fall back to the full conversation list.
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<Conversation[]>([]);
+  const [searching, setSearching] = useState(false);
+  const trimmedQuery = query.trim();
+
+  useEffect(() => {
+    // Empty query → displayList falls back to `conversations`; nothing to reset
+    // (stale results/searching are ignored while trimmedQuery is empty).
+    if (!trimmedQuery) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await conversationApi.search(trimmedQuery);
+        if (!cancelled && res.success && res.data) setResults(res.data);
+      } finally {
+        if (!cancelled) setSearching(false);
+      }
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [trimmedQuery]);
+
+  const displayList = trimmedQuery ? results : conversations;
 
   const handleExport = async () => {
     try {
@@ -199,6 +226,30 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
         </div>
       )}
 
+      {/* Conversation search */}
+      {!isGuest && (
+        <div className="px-2 pt-1 pb-1.5">
+          <div className="relative">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t('sidebar.searchPlaceholder')}
+              className="w-full pl-8 pr-7 py-1.5 rounded-lg bg-[var(--overlay-4)] border border-[var(--color-border-light)] text-[13px] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[var(--color-accent-main)]"
+            />
+            {query && (
+              <button
+                onClick={() => setQuery('')}
+                title={t('common.cancel')}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)]"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Conversation list */}
       <div className="flex-1 overflow-y-auto px-2 py-0.5">
         {isGuest ? (
@@ -208,7 +259,7 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
           </div>
         ) : (
           <>
-            {conversations.map(conv => (
+            {displayList.map(conv => (
               <div
                 key={conv.id}
                 onClick={() => { selectConversation(conv.id); onNavigate?.(); }}
@@ -270,9 +321,11 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
               </div>
             ))}
 
-            {conversations.length === 0 && (
+            {displayList.length === 0 && (
               <div className="text-center text-[var(--color-text-tertiary)] text-[13px] py-8">
-                {t('sidebar.noConversations')}
+                {trimmedQuery
+                  ? (searching ? t('sidebar.searching') : t('sidebar.noSearchResults'))
+                  : t('sidebar.noConversations')}
               </div>
             )}
           </>

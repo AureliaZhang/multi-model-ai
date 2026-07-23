@@ -258,6 +258,49 @@ router.post('/:id/truncate', optionalAuth, (req: AuthRequest, res: Response) => 
   }
 });
 
+/**
+ * Search a user's in-scope conversations by title OR any message content.
+ * Scope mirrors the list endpoint (authed: own all-visibility + public + legacy
+ * ownerless; guest: public only). LIKE wildcards in `q` are escaped. Exported
+ * for testing.
+ */
+export function searchConversations(
+  db: Database.Database,
+  userId: string | undefined,
+  q: string,
+  limit = 50
+): ConversationRow[] {
+  const like = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
+  const match = `(c.title LIKE ? ESCAPE '\\' OR EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND m.content LIKE ? ESCAPE '\\'))`;
+  if (userId) {
+    return db.prepare(
+      `SELECT c.* FROM conversations c
+       WHERE (c.user_id = ? OR c.visibility = 'public' OR c.user_id IS NULL) AND ${match}
+       ORDER BY c.updated_at DESC LIMIT ?`
+    ).all(userId, like, like, limit) as ConversationRow[];
+  }
+  return db.prepare(
+    `SELECT c.* FROM conversations c
+     WHERE c.visibility = 'public' AND ${match}
+     ORDER BY c.updated_at DESC LIMIT ?`
+  ).all(like, like, limit) as ConversationRow[];
+}
+
+// GET /api/conversations/search?q= - Search in-scope conversations by title + message content
+router.get('/search', optionalAuth, (req: AuthRequest, res: Response) => {
+  try {
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    if (!q) {
+      return res.json({ success: true, data: [] } as ApiResponse<Conversation[]>);
+    }
+    const db = getDb();
+    const rows = searchConversations(db, req.user?.id, q);
+    res.json({ success: true, data: rows.map(rowToConversation) } as ApiResponse<Conversation[]>);
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
+  }
+});
+
 // GET /api/conversations/export - Export conversations (+ messages + attachments) as JSON download
 // Scope mirrors the list endpoint: authed users get their own (all visibility) + public;
 // guests get public only.
