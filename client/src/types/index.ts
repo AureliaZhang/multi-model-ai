@@ -252,6 +252,8 @@ export interface UserPublic {
   createdAt: string;
   /** System seat-filler for group create; cannot log in. */
   isVirtual?: boolean;
+  /** Monthly token cap (0 = unlimited). Admin-set. */
+  monthlyTokenLimit?: number;
 }
 
 export interface RegisterRequest {
@@ -289,6 +291,7 @@ export interface UpdateUserRequest {
   role?: UserRole;
   isActive?: boolean;
   password?: string;
+  monthlyTokenLimit?: number;
 }
 
 // --- File Library ---

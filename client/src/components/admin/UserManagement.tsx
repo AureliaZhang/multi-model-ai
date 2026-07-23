@@ -3,11 +3,96 @@ import type { UserPublic, UserRole, CreateUserRequest } from '../../types';
 import { userApi } from '../../services/auth';
 import { useAuthStore } from '../../stores/authStore';
 import { useTranslation } from '../../i18n';
-import { ArrowLeft, Shield, ShieldOff, Trash2, UserCheck, UserX, Users, UserPlus, X, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Shield, ShieldOff, Trash2, UserCheck, UserX, Users, UserPlus, X, Eye, EyeOff, Gauge, Pencil, Check } from 'lucide-react';
 import { getErrorMessage } from '../../utils/errors';
 
 interface UserManagementProps {
   onBack: () => void;
+}
+
+/**
+ * Inline editor for a member's monthly token cap (§10.8 Phase 3). Shows the
+ * current limit (0 = unlimited) with a pencil affordance; clicking reveals a
+ * number input + save/cancel. Saves via `userApi.update({ monthlyTokenLimit })`
+ * then asks the parent to reload. Only meaningful for non-admin members (admins
+ * are exempt from the quota), so the caller renders it for them only.
+ */
+function QuotaCell({ user, onSaved }: { user: UserPublic; onSaved: () => void }) {
+  const { t } = useTranslation();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+  const limit = user.monthlyTokenLimit ?? 0;
+
+  const start = () => {
+    setDraft(limit > 0 ? String(limit) : '');
+    setEditing(true);
+  };
+
+  const save = async () => {
+    const val = Math.max(0, Math.floor(Number(draft) || 0));
+    setSaving(true);
+    try {
+      const res = await userApi.update(user.id, { monthlyTokenLimit: val });
+      if (res.success) {
+        setEditing(false);
+        onSaved();
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1 mt-1">
+        <Gauge size={12} className="text-[var(--color-text-tertiary)] flex-shrink-0" />
+        <input
+          type="number"
+          min={0}
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') save();
+            if (e.key === 'Escape') setEditing(false);
+          }}
+          placeholder={t('users.quotaUnlimited')}
+          className="w-24 px-1.5 py-0.5 rounded bg-[var(--overlay-4)] border border-[var(--color-border-light)] text-xs"
+        />
+        <button
+          onClick={save}
+          disabled={saving}
+          className="p-1 rounded hover:bg-[var(--button-ghost-hover)] text-[var(--color-text-success)] disabled:opacity-40"
+          title={t('common.save')}
+        >
+          <Check size={13} />
+        </button>
+        <button
+          onClick={() => setEditing(false)}
+          className="p-1 rounded hover:bg-[var(--button-ghost-hover)] text-[var(--color-text-tertiary)]"
+          title={t('common.cancel')}
+        >
+          <X size={13} />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={start}
+      className="flex items-center gap-1 mt-1 text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] group"
+      title={t('users.quotaEdit')}
+    >
+      <Gauge size={12} className="flex-shrink-0" />
+      <span>
+        {t('users.quotaLabel')}: {limit > 0 ? limit.toLocaleString() : t('users.quotaUnlimited')}
+      </span>
+      <Pencil size={10} className="opacity-0 group-hover:opacity-100" />
+    </button>
+  );
 }
 
 export function UserManagement({ onBack }: UserManagementProps) {
@@ -302,6 +387,9 @@ export function UserManagement({ onBack }: UserManagementProps) {
                           {user.email && <div className="truncate">{user.email}</div>}
                         </div>
                       )}
+                      {user.role !== 'admin' && user.username !== 'virtual-placeholder' && (
+                        <QuotaCell user={user} onSaved={fetchUsers} />
+                      )}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       {user.id !== currentUser?.id && user.username !== 'virtual-placeholder' ? (
@@ -358,6 +446,9 @@ export function UserManagement({ onBack }: UserManagementProps) {
                 <div>
                   <div className="text-sm font-medium">{user.displayName || user.username}</div>
                   <div className="text-xs text-[var(--color-text-tertiary)]">@{user.username}</div>
+                  {user.role !== 'admin' && user.username !== 'virtual-placeholder' && (
+                    <QuotaCell user={user} onSaved={fetchUsers} />
+                  )}
                 </div>
 
                 {/* Phone */}
