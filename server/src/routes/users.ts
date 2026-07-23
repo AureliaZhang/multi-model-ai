@@ -24,7 +24,8 @@ router.get('/', (req: AuthRequest, res: Response) => {
     const rows = db.prepare(`
       SELECT id, username, email, phone, display_name as displayName, role,
              is_active as isActive, last_login as lastLogin,
-             created_at as createdAt, updated_at as updatedAt
+             created_at as createdAt, updated_at as updatedAt,
+             monthly_token_limit as monthlyTokenLimit
       FROM users ORDER BY created_at DESC
     `).all() as UserPublicRow[];
 
@@ -38,6 +39,7 @@ router.get('/', (req: AuthRequest, res: Response) => {
       isActive: Boolean(row.isActive),
       lastLogin: row.lastLogin,
       createdAt: row.createdAt,
+      monthlyTokenLimit: row.monthlyTokenLimit ?? 0,
     }));
 
     res.json({ success: true, data: users });
@@ -175,7 +177,7 @@ router.put('/:id', (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
     const userId = req.params.id;
-    const { email, phone, displayName, role, isActive, password } = req.body as UpdateUserRequest;
+    const { email, phone, displayName, role, isActive, password, monthlyTokenLimit } = req.body as UpdateUserRequest;
 
     // Check user exists
     const existing = db.prepare('SELECT id, username FROM users WHERE id = ?').get(userId) as { id: string; username: string } | undefined;
@@ -210,6 +212,11 @@ router.put('/:id', (req: AuthRequest, res: Response) => {
     if (role !== undefined) { updates.push('role = ?'); values.push(role); }
     if (isActive !== undefined) { updates.push('is_active = ?'); values.push(isActive ? 1 : 0); }
     if (password) { updates.push('password_hash = ?'); values.push(bcrypt.hashSync(password, 10)); }
+    if (monthlyTokenLimit !== undefined) {
+      // Clamp to a non-negative integer; 0 = unlimited.
+      const lim = Math.max(0, Math.floor(Number(monthlyTokenLimit) || 0));
+      updates.push('monthly_token_limit = ?'); values.push(lim);
+    }
 
     if (updates.length === 0) {
       res.status(400).json({ success: false, error: 'No fields to update' });
@@ -224,7 +231,7 @@ router.put('/:id', (req: AuthRequest, res: Response) => {
     const row = db.prepare(`
       SELECT id, username, email, phone, display_name as displayName, role,
              is_active as isActive, last_login as lastLogin,
-             created_at as createdAt
+             created_at as createdAt, monthly_token_limit as monthlyTokenLimit
       FROM users WHERE id = ?
     `).get(userId) as UserPublicRow;
 
@@ -240,6 +247,7 @@ router.put('/:id', (req: AuthRequest, res: Response) => {
         isActive: Boolean(row.isActive),
         lastLogin: row.lastLogin,
         createdAt: row.createdAt,
+        monthlyTokenLimit: row.monthlyTokenLimit ?? 0,
       },
     });
   } catch (err: unknown) {

@@ -25,6 +25,13 @@ let db: Database.Database;
  */
 export const SCHEMA_MIGRATIONS: Migration[] = [
   { version: 1, name: 'baseline-schema', up: (d) => initTables(d) },
+  // v2: per-user monthly token quota (§10.8 Phase 3). 0 = unlimited (no cap).
+  // First real incremental migration on top of the baseline — single-run, recorded.
+  {
+    version: 2,
+    name: 'users-monthly-token-limit',
+    up: (d) => d.exec(`ALTER TABLE users ADD COLUMN monthly_token_limit INTEGER NOT NULL DEFAULT 0`),
+  },
 ];
 
 export function getDb(): Database.Database {

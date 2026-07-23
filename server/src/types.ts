@@ -32,6 +32,7 @@ export interface UserPublic {
   isActive: boolean;
   lastLogin: string | null;
   createdAt: string;
+  monthlyTokenLimit?: number;
 }
 
 export interface RegisterRequest {
@@ -69,6 +70,7 @@ export interface UpdateUserRequest {
   role?: UserRole;
   isActive?: boolean;
   password?: string;
+  monthlyTokenLimit?: number;
 }
 
 export interface AuthRequest extends Request {

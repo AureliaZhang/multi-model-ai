@@ -13,6 +13,7 @@ import { loadEnabledMcpTools, resolveToolCall, executeToolCall } from '../servic
 import { generateEmbedding, serializeEmbedding, vectorSearch } from '../services/embeddings';
 import { roundRobin } from '../services/loadBalancer';
 import { decryptSecret } from '../utils/crypto';
+import { checkUserQuota } from '../services/quota';
 import { getActiveScripts, applyRegexScripts } from '../services/regexEngine';
 import { getErrorMessage } from '../utils/errors';
 import { searchFileChunks } from '../services/fileProcessor';
@@ -138,6 +139,20 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
     const sender = req.user;
     if (conv.user_id != null && !(sender && (sender.role === 'admin' || sender.id === conv.user_id))) {
       return res.status(403).json({ success: false, error: 'You do not have permission to send messages in this conversation' });
+    }
+
+    // Per-user monthly token quota (§10.8 Phase 3). Admins are exempt; members
+    // with a cap set (monthly_token_limit > 0) are hard-blocked once they've
+    // spent it this month. Checked before any work is done.
+    if (sender && sender.role !== 'admin') {
+      const quota = checkUserQuota(db, sender.id);
+      if (quota.exceeded) {
+        return res.status(429).json({
+          success: false,
+          error: `Monthly token quota reached (${quota.used.toLocaleString()} / ${quota.limit.toLocaleString()} tokens). Contact an admin to raise your limit.`,
+          quota,
+        });
+      }
     }
 
     // Save user message

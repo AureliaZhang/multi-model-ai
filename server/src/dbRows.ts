@@ -362,6 +362,7 @@ export interface UserPublicRow {
   lastLogin: string | null;
   createdAt: string;
   updatedAt?: string;
+  monthlyTokenLimit?: number | null;
   /** auth login only */
   passwordHash?: string;
 }

@@ -109,15 +109,19 @@ describe('runMigrations', () => {
   });
 });
 
-describe('SCHEMA_MIGRATIONS (real baseline)', () => {
-  it('v1 baseline builds the full schema on a fresh DB and records version 1', () => {
+describe('SCHEMA_MIGRATIONS (real migration set)', () => {
+  const versions = SCHEMA_MIGRATIONS.map((m) => m.version).sort((a, b) => a - b);
+
+  it('builds the full schema on a fresh DB and records every version', () => {
     const db = mem();
     db.pragma('foreign_keys = ON');
     const res = runMigrations(db, SCHEMA_MIGRATIONS);
 
-    expect(res.currentVersion).toBe(1);
-    expect(getAppliedVersions(db).has(1)).toBe(true);
-    // Spot-check tables from across the schema (users, rooms, arena, migration ledger).
+    expect(res.applied).toEqual(versions);
+    expect(res.currentVersion).toBe(Math.max(...versions));
+    for (const v of versions) expect(getAppliedVersions(db).has(v)).toBe(true);
+
+    // Spot-check tables from across the baseline (users, rooms, arena, ledger).
     const names = db
       .prepare("SELECT name FROM sqlite_master WHERE type='table'")
       .all()
@@ -125,42 +129,45 @@ describe('SCHEMA_MIGRATIONS (real baseline)', () => {
     for (const t of ['users', 'conversations', 'rooms', 'arena_battle_sessions', 'schema_migrations']) {
       expect(names).toContain(t);
     }
+    // v2 column present.
+    const cols = db.prepare('PRAGMA table_info(users)').all().map((r) => (r as { name: string }).name);
+    expect(cols).toContain('monthly_token_limit');
   });
 
-  it('re-running the baseline against an already-migrated DB is a clean no-op', () => {
+  it('re-running against an already-migrated DB is a clean no-op', () => {
     const db = mem();
     db.pragma('foreign_keys = ON');
     runMigrations(db, SCHEMA_MIGRATIONS);
     const res = runMigrations(db, SCHEMA_MIGRATIONS);
     expect(res.applied).toEqual([]);
-    expect(res.skipped).toEqual([1]);
+    expect(res.skipped).toEqual(versions);
   });
 
-  it('records exactly one baseline row (no duplicate ledger entries across runs)', () => {
+  it('records exactly one ledger row per migration (no duplicates across runs)', () => {
     const db = mem();
     runMigrations(db, SCHEMA_MIGRATIONS);
     runMigrations(db, SCHEMA_MIGRATIONS);
     const count = db.prepare('SELECT COUNT(*) AS n FROM schema_migrations').get() as { n: number };
-    expect(count.n).toBe(1);
+    expect(count.n).toBe(SCHEMA_MIGRATIONS.length);
   });
 
-  it('absorbs an existing pre-ledger DB: stamps v1 over a populated schema with no data loss', () => {
+  it('absorbs an existing pre-ledger DB: applies all migrations over a populated schema with no data loss', () => {
     const db = mem();
     db.pragma('foreign_keys = ON');
 
     // Simulate a production DB created BEFORE the migration ledger existed:
-    // the full schema is present and has rows, but there is NO schema_migrations
-    // table yet (initTables does not create one).
+    // the baseline schema is present and has rows, but there is NO
+    // schema_migrations table yet (initTables does not create one).
     initTables(db);
     db.prepare("INSERT INTO users (id, username, password_hash, role) VALUES ('u1', 'alice', 'h', 'user')").run();
     expect(() => db.prepare('SELECT 1 FROM schema_migrations').get()).toThrow(); // ledger absent → truly pre-ledger
 
     // Upgrading: the runner creates the ledger, safely re-runs the idempotent
-    // baseline over the already-populated schema, and records v1 — no throw
-    // (the guarded ALTERs no-op on existing columns), no data loss.
+    // baseline + any incremental migrations over the populated schema, records
+    // every version — no throw, no data loss.
     const res = runMigrations(db, SCHEMA_MIGRATIONS);
-    expect(res.applied).toEqual([1]);
-    expect(res.currentVersion).toBe(1);
+    expect(res.applied).toEqual(versions);
+    expect(res.currentVersion).toBe(Math.max(...versions));
     const row = db.prepare('SELECT username FROM users WHERE id = ?').get('u1') as { username: string };
     expect(row.username).toBe('alice');
   });
