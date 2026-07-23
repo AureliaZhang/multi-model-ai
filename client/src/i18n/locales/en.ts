@@ -115,6 +115,10 @@ const en = {
   // Message Bubble
   'message.you': 'You',
   'message.assistant': 'Assistant',
+  'message.copy': 'Copy',
+  'message.regenerate': 'Regenerate',
+  'message.edit': 'Edit',
+  'message.saveResend': 'Save & resend',
 
   // Model Selector
   'model.select': 'Select model',

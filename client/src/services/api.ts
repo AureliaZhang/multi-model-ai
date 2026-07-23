@@ -140,6 +140,12 @@ export const conversationApi = {
     request(`/conversations/${id}`, { method: 'DELETE' }),
   getMessages: (id: string) =>
     request<Message[]>(`/conversations/${id}/messages`),
+  // Delete a message and every message after it (powers edit-resend / regenerate).
+  truncate: (id: string, messageId: string) =>
+    request<{ deleted: number }>(`/conversations/${id}/truncate`, {
+      method: 'POST',
+      body: JSON.stringify({ messageId }),
+    }),
   // Download all in-scope conversations (+ messages) as a JSON file.
   downloadExport: async () => {
     const token = getToken();

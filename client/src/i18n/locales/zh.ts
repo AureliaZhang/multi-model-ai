@@ -115,6 +115,10 @@ const zh = {
   // 消息气泡
   'message.you': '你',
   'message.assistant': '助手',
+  'message.copy': '复制',
+  'message.regenerate': '重新生成',
+  'message.edit': '编辑',
+  'message.saveResend': '保存并重发',
 
   // 模型选择器
   'model.select': '选择模型',

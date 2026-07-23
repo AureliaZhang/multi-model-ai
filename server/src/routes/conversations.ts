@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import type Database from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../database';
 import { Conversation, ConversationVisibility, ApiResponse, AuthRequest, Message, Attachment } from '../types';
@@ -201,6 +202,57 @@ router.delete('/:id', optionalAuth, (req: AuthRequest, res: Response) => {
     }
     db.prepare('DELETE FROM conversations WHERE id = ?').run(id);
     res.json({ success: true } as ApiResponse);
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
+  }
+});
+
+/**
+ * Delete `messageId` and every message inserted after it in the conversation
+ * (attachments cascade via FK). Uses `rowid` — monotonic with insert order — so
+ * truncation is exact regardless of `created_at` ties. Exported for testing.
+ * Returns `{ found: false }` when the message isn't in the conversation.
+ */
+export function truncateMessagesFrom(
+  db: Database.Database,
+  conversationId: string,
+  messageId: string
+): { found: boolean; deleted: number } {
+  const target = db
+    .prepare('SELECT rowid AS rid FROM messages WHERE id = ? AND conversation_id = ?')
+    .get(messageId, conversationId) as { rid: number } | undefined;
+  if (!target) return { found: false, deleted: 0 };
+  const info = db
+    .prepare('DELETE FROM messages WHERE conversation_id = ? AND rowid >= ?')
+    .run(conversationId, target.rid);
+  return { found: true, deleted: info.changes };
+}
+
+// POST /api/conversations/:id/truncate  { messageId }
+router.post('/:id/truncate', optionalAuth, (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { messageId } = req.body as { messageId?: string };
+    if (!messageId) {
+      return res.status(400).json({ success: false, error: 'messageId is required' });
+    }
+    const db = getDb();
+    const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(id) as ConversationRow | undefined;
+    if (!conv) {
+      return res.status(404).json({ success: false, error: 'Conversation not found' });
+    }
+    const u = req.user;
+    if (conv.user_id != null && !(u && (u.role === 'admin' || u.id === conv.user_id))) {
+      return res.status(403).json({ success: false, error: 'You do not have permission to modify this conversation' });
+    }
+
+    const result = truncateMessagesFrom(db, id, messageId);
+    if (!result.found) {
+      return res.status(404).json({ success: false, error: 'Message not found in this conversation' });
+    }
+    db.prepare("UPDATE conversations SET updated_at = datetime('now') WHERE id = ?").run(id);
+
+    res.json({ success: true, data: { deleted: result.deleted } });
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: getErrorMessage(err) });
   }

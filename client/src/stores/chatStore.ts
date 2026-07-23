@@ -157,6 +157,28 @@ interface FailedSend {
   fileIds?: string[];
 }
 
+/**
+ * Map a (possibly client-ephemeral) message id in the local list to its real DB
+ * id on the server. Real DB ids (uuids) are returned as-is; ephemeral ids
+ * (`temp-`/`assistant-`/`tts-`) are resolved by position among persisted
+ * (non-tts) messages — the server list is exactly the persisted turns in order,
+ * and client-only TTS bubbles are the only local entries not on the server.
+ */
+async function resolveServerMessageId(
+  get: StoreApi<ChatState>['getState'],
+  convId: string,
+  clientMessageId: string,
+): Promise<string | null> {
+  const local = get().messages;
+  const idx = local.findIndex((m) => m.id === clientMessageId);
+  if (idx < 0) return null;
+  if (!/^(temp|assistant|tts)-/.test(clientMessageId)) return clientMessageId; // already a real DB id
+  const persistedIndex = local.slice(0, idx + 1).filter((m) => !m.id.startsWith('tts-')).length - 1;
+  const res = await conversationApi.getMessages(convId);
+  if (!res.success || !res.data) return null;
+  return res.data[persistedIndex]?.id ?? null;
+}
+
 interface ChatState {
   conversations: Conversation[];
   currentConversationId: string | null;
@@ -180,6 +202,10 @@ interface ChatState {
   doSendMessage: (convId: string, message: string, modelNormalizedName: string, attachments?: PendingAttachment[], fileIds?: string[]) => void;
   /** Re-run the last failed send without inserting a duplicate user message. */
   retryLastSend: () => void;
+  /** Regenerate the assistant reply for the user turn at/preceding `messageId`. */
+  regenerateMessage: (messageId: string) => Promise<void>;
+  /** Replace a user message's text and resend, truncating the rest of the thread. */
+  editMessage: (messageId: string, newContent: string) => Promise<void>;
   /** Download all visible conversations (+ messages) as a JSON file. */
   exportConversations: () => Promise<void>;
   /** Import conversations from a parsed export file; refreshes the list. Returns a summary. */
@@ -417,6 +443,50 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { lastFailedSend, isStreaming } = get();
     if (!lastFailedSend || isStreaming) return;
     startStream(set, get, lastFailedSend);
+  },
+
+  regenerateMessage: async (messageId: string) => {
+    const { messages, currentConversationId, isStreaming, conversations } = get();
+    if (isStreaming || !currentConversationId) return;
+    const idx = messages.findIndex((m) => m.id === messageId);
+    if (idx < 0) return;
+    // Find the user turn that prompted this assistant reply.
+    let userIdx = -1;
+    for (let i = idx; i >= 0; i--) {
+      if (messages[i].role === 'user') { userIdx = i; break; }
+    }
+    if (userIdx < 0) return;
+    const userMsg = messages[userIdx];
+    const model =
+      localStorage.getItem('selected_model') ||
+      conversations.find((c) => c.id === currentConversationId)?.modelNormalizedName ||
+      '';
+    if (!model) { set({ error: 'No model selected' }); return; }
+
+    // Truncate the old turn on the server (best-effort), drop it locally, resend.
+    const dbId = await resolveServerMessageId(get, currentConversationId, userMsg.id);
+    if (dbId) await conversationApi.truncate(currentConversationId, dbId);
+    set({ messages: messages.slice(0, userIdx) }); // doSendMessage re-adds the user message
+    get().doSendMessage(currentConversationId, userMsg.content, model);
+  },
+
+  editMessage: async (messageId: string, newContent: string) => {
+    const { messages, currentConversationId, isStreaming, conversations } = get();
+    if (isStreaming || !currentConversationId) return;
+    const text = newContent.trim();
+    if (!text) return;
+    const idx = messages.findIndex((m) => m.id === messageId);
+    if (idx < 0 || messages[idx].role !== 'user') return;
+    const model =
+      localStorage.getItem('selected_model') ||
+      conversations.find((c) => c.id === currentConversationId)?.modelNormalizedName ||
+      '';
+    if (!model) { set({ error: 'No model selected' }); return; }
+
+    const dbId = await resolveServerMessageId(get, currentConversationId, messages[idx].id);
+    if (dbId) await conversationApi.truncate(currentConversationId, dbId);
+    set({ messages: messages.slice(0, idx) });
+    get().doSendMessage(currentConversationId, text, model);
   },
 
   stopStreaming: () => {
