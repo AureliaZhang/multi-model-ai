@@ -72,6 +72,17 @@ export const SCHEMA_MIGRATIONS: Migration[] = [
       d.exec(`CREATE INDEX IF NOT EXISTS idx_file_library_visibility ON file_library(visibility)`);
     },
   },
+  // v5: cache extracted text per attachment (§10.8 TC2 #1 perf). Non-image
+  // attachments (PDF/text/code) were re-extracted on EVERY chat turn — a PDF in
+  // turn 1 got re-parsed (CPU-blocking pdf-parse) on turns 2..N. We now extract
+  // once and store the result here; historical turns read the column instead of
+  // re-parsing. NULL = not yet extracted (lazily filled on first use); empty
+  // string is a valid "extracted, but no text" result (distinct from NULL).
+  {
+    version: 5,
+    name: 'attachments-extracted-text-cache',
+    up: (d) => d.exec(`ALTER TABLE attachments ADD COLUMN extracted_text TEXT`),
+  },
 ];
 
 export function getDb(): Database.Database {

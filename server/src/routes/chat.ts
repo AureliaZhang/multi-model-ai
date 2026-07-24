@@ -192,6 +192,50 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
       'SELECT id, role, content FROM messages WHERE conversation_id = ? ORDER BY created_at ASC'
     ).all(conversationId) as Array<Pick<MessageRow, 'id' | 'role' | 'content'>>;
 
+    // Batch-load every historical message's attachments in ONE query (was an N+1
+    // query per message inside the build loop), grouped by message_id. Each row
+    // carries the cached `extracted_text` so historical PDFs/text files are never
+    // re-parsed turn after turn (see the extraction cache below).
+    const attachmentsByMessage = new Map<
+      string,
+      Array<{ id: string; type: string; filename: string; mime_type: string; url: string; extracted_text: string | null }>
+    >();
+    if (history.length > 0) {
+      const historyIds = history.map((h) => h.id);
+      const placeholders = historyIds.map(() => '?').join(',');
+      const allAtts = db.prepare(
+        `SELECT id, message_id, type, filename, mime_type, url, extracted_text
+         FROM attachments WHERE message_id IN (${placeholders})`
+      ).all(...historyIds) as Array<{
+        id: string;
+        message_id: string;
+        type: string;
+        filename: string;
+        mime_type: string;
+        url: string;
+        extracted_text: string | null;
+      }>;
+      for (const att of allAtts) {
+        const list = attachmentsByMessage.get(att.message_id) || [];
+        list.push({ id: att.id, type: att.type, filename: att.filename, mime_type: att.mime_type, url: att.url, extracted_text: att.extracted_text });
+        attachmentsByMessage.set(att.message_id, list);
+      }
+    }
+
+    // Return the extracted text for a saved attachment, using the cached column
+    // when present and only parsing (+ persisting the result) on a cache miss.
+    const cacheExtractStmt = db.prepare('UPDATE attachments SET extracted_text = ? WHERE id = ?');
+    const extractCached = async (att: { id: string; filename: string; mime_type: string; url: string; extracted_text: string | null }): Promise<string | null> => {
+      if (att.extracted_text !== null) return att.extracted_text || null;
+      const base64Match = att.url.match(/^data:[^;]+;base64,(.+)$/);
+      if (!base64Match) return null;
+      const extracted = await extractFileText(att.mime_type, base64Match[1], att.filename || 'file');
+      // Persist even an empty result ('') so a genuinely-empty/unsupported file
+      // isn't re-parsed every turn; '' reads back as "no text" via `|| null`.
+      try { cacheExtractStmt.run(extracted ?? '', att.id); } catch { /* non-fatal */ }
+      return extracted;
+    };
+
     // Resolve model to a station using round-robin + failover
     const resolved = resolveModel(db, modelNormalizedName);
     if (!resolved) {
@@ -218,7 +262,8 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
         // Build multimodal content for the current user message with attachments
         const contentParts: ChatContentPart[] = [];
         let textContent = msgContent;
-        for (const att of attachments) {
+        for (let ai = 0; ai < attachments.length; ai++) {
+          const att = attachments[ai];
           if (att.mimeType.startsWith('image/')) {
             contentParts.push({
               type: 'image_url',
@@ -228,6 +273,13 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
             // Extract text from non-image files (PDF, text, code, etc.)
             const extracted = await extractFileText(att.mimeType, att.base64, att.filename);
             console.log(`[chat] File "${att.filename}" extraction result: ${extracted ? extracted.length + ' chars' : 'null'}`);
+            // Persist to the extraction cache so NEXT turn (when this becomes a
+            // historical message) never re-parses it. attachmentMeta is in the
+            // same order as `attachments` (both built from the same input array).
+            const attId = attachmentMeta[ai]?.id;
+            if (attId) {
+              try { cacheExtractStmt.run(extracted ?? '', attId); } catch { /* non-fatal */ }
+            }
             if (extracted) {
               textContent += `\n\n--- [Attached File: ${att.filename}] ---\n${extracted}\n--- [End of ${att.filename}] ---`;
             } else {
@@ -244,10 +296,10 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
           apiMessages.push({ role: m.role, content: textContent });
         }
       } else {
-        // Check if this message has saved attachments
-        const msgAttachments = db.prepare(
-          'SELECT type, filename, mime_type, url FROM attachments WHERE message_id = ?'
-        ).all(m.id) as Array<{ id: string; type: string; filename: string; mime_type: string; url: string }>;
+        // Historical message: read its attachments from the prefetched map (no
+        // per-message query) and resolve file text through the extraction cache
+        // (no re-parsing of historical PDFs/text files turn after turn).
+        const msgAttachments = attachmentsByMessage.get(m.id) || [];
         if (msgAttachments.length > 0) {
           const contentParts: ChatContentPart[] = [];
           let textContent = msgContent;
@@ -260,14 +312,9 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
                 image_url: { url: att.url },
               });
             } else {
-              // Extract text from non-image saved attachments
-              // url is stored as data:mime;base64,xxxxx — extract the base64 part
-              const base64Match = att.url.match(/^data:[^;]+;base64,(.+)$/);
-              if (base64Match) {
-                const extracted = await extractFileText(att.mime_type, base64Match[1], att.filename || 'file');
-                if (extracted) {
-                  textContent += `\n\n--- [Attached File: ${att.filename || 'file'}] ---\n${extracted}\n--- [End of ${att.filename || 'file'}] ---`;
-                }
+              const extracted = await extractCached(att);
+              if (extracted) {
+                textContent += `\n\n--- [Attached File: ${att.filename || 'file'}] ---\n${extracted}\n--- [End of ${att.filename || 'file'}] ---`;
               }
             }
           }
@@ -296,10 +343,14 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
       fileIds && Array.isArray(fileIds) && fileIds.length > 0
         ? filterVisibleFileIds(db, fileIds, req.user)
         : [];
+    // Compute the query embedding at most ONCE per turn and reuse it for both the
+    // file-library RAG search and the memory vector search (same query text was
+    // being embedded 2× per turn). Populated lazily by whichever runs first.
+    let sharedQueryEmbedding: number[] | null = null;
     if (visibleFileIds.length > 0) {
       try {
-        const queryEmbedding = await generateEmbedding(message);
-        const relevantChunks = searchFileChunks(queryEmbedding, visibleFileIds, 5);
+        sharedQueryEmbedding = await generateEmbedding(message);
+        const relevantChunks = searchFileChunks(sharedQueryEmbedding, visibleFileIds, 5);
         if (relevantChunks.length > 0) {
           const fileContext = relevantChunks
             .map((c: { fileName: string; content: string }) => `[${c.fileName}] ${c.content}`)
@@ -316,7 +367,7 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
 
     // Inject relevant memories as system context (vector search)
     // Scoped to the conversation owner so members never see each other's memories.
-    const relevantMemories = await retrieveRelevantMemories(db, message, 5, conv.user_id);
+    const relevantMemories = await retrieveRelevantMemories(db, message, 5, conv.user_id, sharedQueryEmbedding);
     if (relevantMemories.length > 0) {
       const memoryContext = relevantMemories
         .filter((m) => m.summary)
@@ -751,7 +802,7 @@ async function autoSaveMemory(
 }
 
 // Retrieve relevant memories for context injection using vector similarity
-async function retrieveRelevantMemories(db: Database.Database, query: string, limit: number = 5, userId?: string | null): Promise<MemoryContextRow[]> {
+async function retrieveRelevantMemories(db: Database.Database, query: string, limit: number = 5, userId?: string | null, precomputedEmbedding?: number[] | null): Promise<MemoryContextRow[]> {
   try {
     const config = db.prepare('SELECT * FROM memory_config WHERE id = 1').get() as MemoryConfigRow | undefined;
     if (!config || !config.context_injection) return [];
@@ -771,7 +822,9 @@ async function retrieveRelevantMemories(db: Database.Database, query: string, li
       // Use vector similarity search
       console.log(`[memory] Using vector search (${embeddingCount.cnt} entries with embeddings)`);
       try {
-        const queryEmbedding = await generateEmbedding(query);
+        // Reuse the query embedding computed earlier (e.g. for file RAG) when
+        // available, so the same query isn't embedded twice in one turn.
+        const queryEmbedding = precomputedEmbedding ?? (await generateEmbedding(query));
         const results = vectorSearch(db, queryEmbedding, maxMemories, 0.2, userId);
         if (results.length > 0) {
           console.log(`[memory] Vector search found ${results.length} relevant memories`);

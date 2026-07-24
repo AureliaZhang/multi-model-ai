@@ -135,6 +135,9 @@ describe('SCHEMA_MIGRATIONS (real migration set)', () => {
     // v4 column present.
     const fileCols = db.prepare('PRAGMA table_info(file_library)').all().map((r) => (r as { name: string }).name);
     expect(fileCols).toContain('visibility');
+    // v5 column present.
+    const attCols = db.prepare('PRAGMA table_info(attachments)').all().map((r) => (r as { name: string }).name);
+    expect(attCols).toContain('extracted_text');
   });
 
   it('re-running against an already-migrated DB is a clean no-op', () => {

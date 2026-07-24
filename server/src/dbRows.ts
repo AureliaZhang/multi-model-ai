@@ -39,6 +39,10 @@ export interface AttachmentRow {
   mime_type: string;
   /** Often a data: URL (base64) for chat uploads. */
   url: string;
+  /** Cached text extracted from a non-image attachment (PDF/text/code), so the
+   *  chat history builder never re-parses the same file every turn. NULL = not
+   *  yet extracted; empty string = extracted but yielded no usable text. */
+  extracted_text?: string | null;
 }
 
 /** Import payload entry (camelCase, from export JSON or bare array). */
