@@ -84,6 +84,18 @@ export interface AggregatedModel {
   stations: { stationId: string; stationName: string; modelId: string; healthy: boolean }[];
 }
 
+/** Team-shared reusable persona from the persona library (§10.8 Phase 4). */
+export interface Persona {
+  id: string;
+  title: string;
+  body: string;
+  description: string | null;
+  createdBy: string | null;
+  ownerUsername: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type ConversationVisibility = 'public' | 'private';
 
 export interface Conversation {

@@ -19,6 +19,7 @@ import prefsRoutes from './routes/prefs';
 import mediaRoutes from './routes/media';
 import roomRoutes from './routes/rooms';
 import usageRoutes from './routes/usage';
+import personaRoutes from './routes/personas';
 import backupRoutes from './routes/backup';
 import { startHealthCheckJob, stopHealthCheckJob } from './services/healthCheck';
 import { startBackupJob, stopBackupJob } from './services/backup';
@@ -66,6 +67,7 @@ app.use('/api/prefs', prefsRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/usage', usageRoutes);
+app.use('/api/personas', personaRoutes);
 app.use('/api/backups', backupRoutes);
 
 // Health check

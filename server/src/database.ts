@@ -32,6 +32,28 @@ export const SCHEMA_MIGRATIONS: Migration[] = [
     name: 'users-monthly-token-limit',
     up: (d) => d.exec(`ALTER TABLE users ADD COLUMN monthly_token_limit INTEGER NOT NULL DEFAULT 0`),
   },
+  // v3: shared persona / system-prompt library (§10.8 Phase 4 FE-B). Team-visible
+  // reusable roles ("文案","代码审查","翻译") a member applies to a conversation in
+  // one click. Distinct from arena_prompts (admin battle tooling) and from the
+  // per-conversation conversations.system_prompt (v0.7.33) this library feeds into.
+  {
+    version: 3,
+    name: 'persona-library',
+    up: (d) =>
+      d.exec(`
+        CREATE TABLE IF NOT EXISTS persona_library (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          body TEXT NOT NULL,
+          description TEXT,
+          created_by TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_persona_library_created ON persona_library(created_at);
+      `),
+  },
 ];
 
 export function getDb(): Database.Database {

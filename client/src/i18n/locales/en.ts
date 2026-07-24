@@ -114,6 +114,13 @@ const en = {
   'persona.desc': 'Set a fixed role or rules for this conversation. It’s sent with every message automatically and the AI keeps it for the whole chat. e.g. “You are my English tutor; reply only in simple English.”',
   'persona.placeholder': 'e.g. You are a patient writing tutor. Keep replies concise and use examples.',
   'persona.clear': 'Clear persona',
+  'persona.libraryTitle': 'Team persona library',
+  'persona.libraryDesc': 'Shared reusable roles for the team. Click Apply to load one above, tweak it, then save. You can rename or delete the ones you created.',
+  'persona.libraryEmpty': 'No shared personas yet. Write one above and click “Save as team persona” so everyone can apply it in one click.',
+  'persona.apply': 'Apply',
+  'persona.saveAs': 'Save as team persona',
+  'persona.namePlaceholder': 'Name it, e.g. “Copywriter”, “Code review”, “Translator”',
+  'persona.rename': 'Rename',
 
   // Message Bubble
   'message.you': 'You',

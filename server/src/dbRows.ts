@@ -367,6 +367,18 @@ export interface UserPublicRow {
   passwordHash?: string;
 }
 
+/** Team-shared persona library entry (`persona_library`). Join alias `owner_username`. */
+export interface PersonaLibraryRow {
+  id: string;
+  title: string;
+  body: string;
+  description: string | null;
+  created_by: string | null;
+  owner_username?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface UserModelPrefsRow {
   userId: string;
   chatModel: string | null;

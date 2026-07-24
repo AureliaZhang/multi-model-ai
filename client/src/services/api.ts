@@ -8,6 +8,7 @@ import type {
   UsageSummary,
   AggregatedModel,
   Conversation,
+  Persona,
   Message,
   MemoryEntry,
   MemoryConfig,
@@ -185,6 +186,17 @@ export const conversationApi = {
       '/conversations/import',
       { method: 'POST', body: JSON.stringify(payload) }
     ),
+};
+
+// Team-shared persona / system-prompt library (everyone reads & uses; creator
+// or admin edits/deletes). Distinct from the per-conversation persona.
+export const personaApi = {
+  list: () => request<Persona[]>('/personas'),
+  create: (data: { title: string; body: string; description?: string | null }) =>
+    request<Persona>('/personas', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: { title?: string; body?: string; description?: string | null }) =>
+    request<Persona>(`/personas/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request(`/personas/${id}`, { method: 'DELETE' }),
 };
 
 // --- Chat (SSE streaming) ---

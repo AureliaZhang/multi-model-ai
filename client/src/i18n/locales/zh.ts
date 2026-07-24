@@ -114,6 +114,13 @@ const zh = {
   'persona.desc': '给这个对话设定一个固定角色或规则，之后每条消息都会自动带上，AI 全程保持这个设定。例如「你是我的英语老师，只用简单英语回答」。',
   'persona.placeholder': '例如：你是一位耐心的中文写作老师，回复简洁、多举例子。',
   'persona.clear': '清除人设',
+  'persona.libraryTitle': '团队人设库',
+  'persona.libraryDesc': '团队共享的常用角色，点「套用」即可载入到上方，可微调后保存。你自己创建的可以改名或删除。',
+  'persona.libraryEmpty': '还没有共享人设。在上方写好后点「存为团队人设」，全团队都能一键套用。',
+  'persona.apply': '套用',
+  'persona.saveAs': '存为团队人设',
+  'persona.namePlaceholder': '起个名字，例如「文案」「代码审查」「翻译」',
+  'persona.rename': '重命名',
 
   // 消息气泡
   'message.you': '你',
