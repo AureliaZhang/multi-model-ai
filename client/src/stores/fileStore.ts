@@ -3,12 +3,17 @@ import type { FileLibraryEntry, FileFolder } from '../types';
 import { fileApi } from '../services/api';
 import { getErrorMessage } from '../utils/errors';
 
+/** Which library view: the caller's own files (browsable by folder) or the flat
+ *  team-shared list (visibility='team'). Default 'mine' (default-private model). */
+export type FileScope = 'mine' | 'team';
+
 interface FileState {
   files: FileLibraryEntry[];
   folders: FileFolder[];
   currentFolderId: string | null;
   breadcrumb: { id: string; name: string }[];
   selectedFileIds: string[];
+  scope: FileScope;
   loading: boolean;
   uploading: boolean;
   error: string | null;
@@ -21,6 +26,8 @@ interface FileState {
   uploadFiles: (files: File[], folderId?: string | null) => Promise<void>;
   deleteFile: (id: string) => Promise<void>;
   reindexFile: (id: string) => Promise<void>;
+  setScope: (scope: FileScope) => Promise<void>;
+  setVisibility: (id: string, visibility: 'private' | 'team') => Promise<void>;
   setSelectedFiles: (ids: string[]) => void;
   toggleSelectedFile: (id: string) => void;
   clearSelection: () => void;
@@ -32,15 +39,23 @@ export const useFileStore = create<FileState>((set, get) => ({
   currentFolderId: null,
   breadcrumb: [],
   selectedFileIds: [],
+  scope: 'mine',
   loading: false,
   uploading: false,
   error: null,
 
   fetchFiles: async (folderId?: string | null) => {
-    const targetFolderId = folderId !== undefined ? folderId : get().currentFolderId;
+    const scope = get().scope;
+    // In the flat team view there are no folders to browse into.
+    const targetFolderId =
+      scope === 'team' ? null : folderId !== undefined ? folderId : get().currentFolderId;
     set({ loading: true, error: null });
     try {
-      const res = await fileApi.list({ limit: 100, folderId: targetFolderId || undefined });
+      const res = await fileApi.list({
+        limit: 100,
+        scope,
+        folderId: targetFolderId || undefined,
+      });
       if (res.success && res.data) {
         set({
           folders: res.data.folders || [],
@@ -53,6 +68,34 @@ export const useFileStore = create<FileState>((set, get) => ({
       }
     } catch (err: unknown) {
       set({ error: getErrorMessage(err), loading: false });
+    }
+  },
+
+  setScope: async (scope) => {
+    if (get().scope === scope) return;
+    // Switching view resets folder navigation + selection.
+    set({ scope, currentFolderId: null, breadcrumb: [], selectedFileIds: [] });
+    await get().fetchFiles(null);
+  },
+
+  setVisibility: async (id, visibility) => {
+    try {
+      const res = await fileApi.setVisibility(id, visibility);
+      if (res.success) {
+        // In "mine" view the file stays (just re-badged); in "team" view a file
+        // flipped back to private should drop out — simplest is to refresh.
+        if (get().scope === 'team' && visibility === 'private') {
+          set((state) => ({ files: state.files.filter((f) => f.id !== id) }));
+        } else {
+          set((state) => ({
+            files: state.files.map((f) => (f.id === id ? { ...f, visibility } : f)),
+          }));
+        }
+      } else {
+        set({ error: res.error || 'Failed to change visibility' });
+      }
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) });
     }
   },
 

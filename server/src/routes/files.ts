@@ -198,8 +198,16 @@ router.get('/folders/:id/path', requireAuth, (req: AuthRequest, res: Response) =
 // ──────────────────────────────────────────────
 
 /**
- * GET /api/files
- * List files and folders in a given folder (or root)
+ * GET /api/files?scope=mine|team&folder_id=&page=&limit=
+ *
+ * Two views (default-private, opt-in team-shared library — §10.8 Phase 4):
+ *  - scope=mine (default): the caller's OWN files, browsable by folder. Folders
+ *    are those the caller created; files are those they uploaded. Even admins see
+ *    only their own here (their moderation power is on mutate, not on browsing
+ *    everyone's private files).
+ *  - scope=team: a FLAT list of every file shared to the team (visibility='team'),
+ *    ignoring folders entirely (a shared file may live in someone's private
+ *    folder, so folder structure can't be shown coherently). No folders returned.
  */
 router.get('/', requireAuth, (req: AuthRequest, res: Response) => {
   try {
@@ -207,25 +215,52 @@ router.get('/', requireAuth, (req: AuthRequest, res: Response) => {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 50;
     const offset = (page - 1) * limit;
-    const folderId = req.query.folder_id as string | undefined;
+    const scope = req.query.scope === 'team' ? 'team' : 'mine';
+    const userId = req.user!.id;
 
-    // Get folders in current directory
-    let folderQuery = 'SELECT * FROM file_folders';
-    let fileQuery = 'SELECT * FROM file_library';
-    let countQuery = 'SELECT COUNT(*) as total FROM file_library';
-    const folderParams: any[] = [];
-    const fileParams: any[] = [];
+    if (scope === 'team') {
+      // Flat: all team-shared files, no folder scoping.
+      const rows = db
+        .prepare(
+          `SELECT * FROM file_library WHERE visibility = 'team'
+           ORDER BY created_at DESC LIMIT ? OFFSET ?`
+        )
+        .all(limit, offset) as FileLibraryRow[];
+      const countRow = db
+        .prepare(`SELECT COUNT(*) as total FROM file_library WHERE visibility = 'team'`)
+        .get() as { total: number };
+
+      return res.json({
+        success: true,
+        data: {
+          folders: [],
+          files: rows.map(rowToFile),
+          total: countRow.total,
+          page,
+          limit,
+          totalPages: Math.ceil(countRow.total / limit),
+        },
+      });
+    }
+
+    // scope=mine: own files, browsable by folder.
+    const folderId = req.query.folder_id as string | undefined;
+    const folderParams: (string | number)[] = [userId];
+    const fileParams: (string | number)[] = [userId];
+    let folderQuery = 'SELECT * FROM file_folders WHERE created_by = ?';
+    let fileQuery = 'SELECT * FROM file_library WHERE uploaded_by = ?';
+    let countQuery = 'SELECT COUNT(*) as total FROM file_library WHERE uploaded_by = ?';
 
     if (folderId) {
-      folderQuery += ' WHERE parent_id = ?';
-      fileQuery += ' WHERE folder_id = ?';
-      countQuery += ' WHERE folder_id = ?';
+      folderQuery += ' AND parent_id = ?';
+      fileQuery += ' AND folder_id = ?';
+      countQuery += ' AND folder_id = ?';
       folderParams.push(folderId);
       fileParams.push(folderId);
     } else {
-      folderQuery += ' WHERE parent_id IS NULL';
-      fileQuery += ' WHERE folder_id IS NULL';
-      countQuery += ' WHERE folder_id IS NULL';
+      folderQuery += ' AND parent_id IS NULL';
+      fileQuery += ' AND folder_id IS NULL';
+      countQuery += ' AND folder_id IS NULL';
     }
 
     folderQuery += ' ORDER BY name ASC';
@@ -235,13 +270,11 @@ router.get('/', requireAuth, (req: AuthRequest, res: Response) => {
     const rows = db.prepare(fileQuery).all(...fileParams, limit, offset) as FileLibraryRow[];
     const countRow = db.prepare(countQuery).get(...fileParams) as { total: number };
 
-    const files: FileLibraryEntry[] = rows.map(rowToFile);
-
     res.json({
       success: true,
       data: {
         folders: folders.map(rowToFolder),
-        files,
+        files: rows.map(rowToFile),
         total: countRow.total,
         page,
         limit,
@@ -262,7 +295,7 @@ router.get('/:id', requireAuth, (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
     const row = db.prepare('SELECT * FROM file_library WHERE id = ?').get(req.params.id) as FileLibraryRow | undefined;
-    if (!row) {
+    if (!row || !canSeeFile(req.user, row)) {
       return res.status(404).json({ success: false, error: 'File not found' });
     }
     res.json({ success: true, data: rowToFile(row) });
@@ -281,6 +314,17 @@ router.get('/:id/chunks', requireAuth, (req: AuthRequest, res: Response) => {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
     const offset = (page - 1) * limit;
+
+    // Read gate: don't leak another member's private file content via chunks.
+    const owner = db.prepare('SELECT uploaded_by, visibility FROM file_library WHERE id = ?').get(req.params.id) as
+      | Pick<FileLibraryRow, 'uploaded_by' | 'visibility'>
+      | undefined;
+    if (!owner) {
+      return res.status(404).json({ success: false, error: 'File not found' });
+    }
+    if (!canSeeFile(req.user, owner)) {
+      return res.status(404).json({ success: false, error: 'File not found' });
+    }
 
     const rows = db.prepare(`
       SELECT id, file_id, chunk_index, content, token_count, created_at
@@ -356,6 +400,7 @@ router.post('/upload', requireAuth, upload.array('files', 20), async (req: AuthR
         errorMessage: null,
         folderId,
         uploadedBy: req.user?.id || null,
+        visibility: 'private',
         createdAt: now,
         updatedAt: now,
       });
@@ -406,12 +451,43 @@ router.patch('/:id/move', requireAuth, (req: AuthRequest, res: Response) => {
   }
 });
 
-/** Mutate access: admin, or the real owner. Legacy ownerless rows → admin only.
- *  (File/folder reads stay shared team-wide; only mutation is owner-gated for now.) */
+/** Mutate access: admin, or the real owner. Legacy ownerless rows → admin only. */
 function canMutateOwn(req: AuthRequest, ownerId: string | null): boolean {
   const u = req.user;
   if (!u) return false;
   return u.role === 'admin' || (ownerId != null && ownerId === u.id);
+}
+
+/** Read access for a file (default-private model, §10.8 Phase 4):
+ *  admin sees all; the uploader sees their own; anyone sees a 'team' file;
+ *  legacy ownerless rows are treated as team-visible (they were migrated to
+ *  'team', so this only matters for rows inserted without an owner). */
+export function canSeeFile(
+  user: { id: string; role: string } | null | undefined,
+  row: Pick<FileLibraryRow, 'uploaded_by' | 'visibility'>
+): boolean {
+  if (!user) return false;
+  if (user.role === 'admin') return true;
+  if (row.uploaded_by != null && row.uploaded_by === user.id) return true;
+  if (row.visibility === 'team') return true;
+  return row.uploaded_by == null; // legacy ownerless → shared
+}
+
+/** Given a client-supplied list of file ids, return only the ones the caller may
+ *  actually read. This is the RAG isolation gate — both the chat file-context
+ *  injection and POST /search must pass ids through here so a member can never
+ *  read another member's private file by guessing/forging its id. */
+export function filterVisibleFileIds(
+  db: import('better-sqlite3').Database,
+  fileIds: string[],
+  user: { id: string; role: string } | null | undefined
+): string[] {
+  if (!user || fileIds.length === 0) return [];
+  const placeholders = fileIds.map(() => '?').join(',');
+  const rows = db
+    .prepare(`SELECT id, uploaded_by, visibility FROM file_library WHERE id IN (${placeholders})`)
+    .all(...fileIds) as Pick<FileLibraryRow, 'id' | 'uploaded_by' | 'visibility'>[];
+  return rows.filter((r) => canSeeFile(user, r)).map((r) => r.id);
 }
 
 /**
@@ -487,6 +563,33 @@ router.post('/:id/reindex', requireAuth, async (req: AuthRequest, res: Response)
 });
 
 /**
+ * PATCH /api/files/:id/visibility  { visibility: 'private' | 'team' }
+ * Share a file with the team or make it private again. Owner or admin only.
+ */
+router.patch('/:id/visibility', requireAuth, (req: AuthRequest, res: Response) => {
+  try {
+    const { visibility } = req.body as { visibility?: string };
+    if (visibility !== 'private' && visibility !== 'team') {
+      return res.status(400).json({ success: false, error: "visibility must be 'private' or 'team'" });
+    }
+    const db = getDb();
+    const row = db.prepare('SELECT * FROM file_library WHERE id = ?').get(req.params.id) as FileLibraryRow | undefined;
+    if (!row) {
+      return res.status(404).json({ success: false, error: 'File not found' });
+    }
+    if (!canMutateOwn(req, row.uploaded_by)) {
+      return res.status(403).json({ success: false, error: 'You do not have permission to change this file' });
+    }
+    const now = new Date().toISOString();
+    db.prepare('UPDATE file_library SET visibility = ?, updated_at = ? WHERE id = ?').run(visibility, now, req.params.id);
+    res.json({ success: true, data: { ...rowToFile(row), visibility, updatedAt: now } });
+  } catch (err: unknown) {
+    console.error('[files] Error changing visibility:', getErrorMessage(err));
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
+  }
+});
+
+/**
  * POST /api/files/search
  * Search file chunks by semantic similarity
  */
@@ -545,6 +648,7 @@ function rowToFile(row: FileLibraryRow): FileLibraryEntry {
     errorMessage: row.error_message,
     folderId: row.folder_id || null,
     uploadedBy: row.uploaded_by,
+    visibility: (row.visibility === 'team' ? 'team' : 'private'),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

@@ -205,6 +205,8 @@ export interface FileLibraryRow {
   error_message: string | null;
   folder_id: string | null;
   uploaded_by: string | null;
+  /** 'private' (uploader + admin only) | 'team' (everyone). Migration v4; older rows migrated to 'team'. */
+  visibility: string;
   created_at: string;
   updated_at: string;
 }

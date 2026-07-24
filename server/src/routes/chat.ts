@@ -17,6 +17,7 @@ import { checkUserQuota } from '../services/quota';
 import { getActiveScripts, applyRegexScripts } from '../services/regexEngine';
 import { getErrorMessage } from '../utils/errors';
 import { searchFileChunks } from '../services/fileProcessor';
+import { filterVisibleFileIds } from './files';
 
 /** OpenAI-style multimodal content part for chat completions. */
 type ChatContentPart =
@@ -287,11 +288,18 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
       res.write(`data: ${JSON.stringify({ attachments: attachmentMeta })}\n\n`);
     }
 
-    // Inject relevant file library chunks as system context (RAG)
-    if (fileIds && Array.isArray(fileIds) && fileIds.length > 0) {
+    // Inject relevant file library chunks as system context (RAG).
+    // Gate the client-supplied fileIds through the visibility filter so the
+    // sender can never pull another member's private file into context by
+    // forging its id (default-private file library — §10.8 Phase 4).
+    const visibleFileIds =
+      fileIds && Array.isArray(fileIds) && fileIds.length > 0
+        ? filterVisibleFileIds(db, fileIds, req.user)
+        : [];
+    if (visibleFileIds.length > 0) {
       try {
         const queryEmbedding = await generateEmbedding(message);
-        const relevantChunks = searchFileChunks(queryEmbedding, fileIds, 5);
+        const relevantChunks = searchFileChunks(queryEmbedding, visibleFileIds, 5);
         if (relevantChunks.length > 0) {
           const fileContext = relevantChunks
             .map((c: { fileName: string; content: string }) => `[${c.fileName}] ${c.content}`)

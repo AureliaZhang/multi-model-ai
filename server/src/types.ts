@@ -274,6 +274,8 @@ export interface FileLibraryEntry {
   errorMessage: string | null;
   folderId: string | null;
   uploadedBy: string | null;
+  /** 'private' = only the uploader + admins; 'team' = everyone. */
+  visibility: 'private' | 'team';
   createdAt: string;
   updatedAt: string;
 }

@@ -397,16 +397,22 @@ export const fileApi = {
     getPath: (id: string) => request<{ id: string; name: string }[]>(`/files/folders/${id}/path`),
   },
   // File operations
-  list: (params?: { page?: number; limit?: number; folderId?: string }) => {
+  list: (params?: { page?: number; limit?: number; folderId?: string; scope?: 'mine' | 'team' }) => {
     const searchParams = new URLSearchParams();
     if (params?.page) searchParams.set('page', String(params.page));
     if (params?.limit) searchParams.set('limit', String(params.limit));
     if (params?.folderId) searchParams.set('folder_id', params.folderId);
+    if (params?.scope) searchParams.set('scope', params.scope);
     return request<FileLibraryResponse>(`/files?${searchParams}`);
   },
   getOne: (id: string) => request<FileLibraryEntry>(`/files/${id}`),
   delete: (id: string) => request(`/files/${id}`, { method: 'DELETE' }),
   reindex: (id: string) => request<{ status: string }>(`/files/${id}/reindex`, { method: 'POST' }),
+  setVisibility: (id: string, visibility: 'private' | 'team') =>
+    request<FileLibraryEntry>(`/files/${id}/visibility`, {
+      method: 'PATCH',
+      body: JSON.stringify({ visibility }),
+    }),
   moveFile: (id: string, folderId: string | null) =>
     request<FileLibraryEntry>(`/files/${id}/move`, {
       method: 'PATCH',

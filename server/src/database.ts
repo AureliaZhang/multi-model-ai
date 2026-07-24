@@ -54,6 +54,24 @@ export const SCHEMA_MIGRATIONS: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_persona_library_created ON persona_library(created_at);
       `),
   },
+  // v4: per-file visibility for the "default-private, opt-in team-shared" file
+  // library (§10.8 Phase 4 FE-B + TC0 #4). New uploads default to 'private' (only
+  // the uploader + admins see them); a member may flip a file to 'team' to share
+  // it with everyone. EXISTING files are migrated to 'team' so the current
+  // team-wide-readable behaviour is preserved (nothing suddenly disappears);
+  // only NEW uploads after this migration start out private.
+  {
+    version: 4,
+    name: 'file-library-visibility',
+    up: (d) => {
+      d.exec(
+        `ALTER TABLE file_library ADD COLUMN visibility TEXT NOT NULL DEFAULT 'private' CHECK(visibility IN ('private','team'))`
+      );
+      // Preserve prior behaviour: everything that already existed stays visible team-wide.
+      d.exec(`UPDATE file_library SET visibility = 'team'`);
+      d.exec(`CREATE INDEX IF NOT EXISTS idx_file_library_visibility ON file_library(visibility)`);
+    },
+  },
 ];
 
 export function getDb(): Database.Database {

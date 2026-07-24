@@ -132,6 +132,9 @@ describe('SCHEMA_MIGRATIONS (real migration set)', () => {
     // v2 column present.
     const cols = db.prepare('PRAGMA table_info(users)').all().map((r) => (r as { name: string }).name);
     expect(cols).toContain('monthly_token_limit');
+    // v4 column present.
+    const fileCols = db.prepare('PRAGMA table_info(file_library)').all().map((r) => (r as { name: string }).name);
+    expect(fileCols).toContain('visibility');
   });
 
   it('re-running against an already-migrated DB is a clean no-op', () => {
@@ -170,5 +173,31 @@ describe('SCHEMA_MIGRATIONS (real migration set)', () => {
     expect(res.currentVersion).toBe(Math.max(...versions));
     const row = db.prepare('SELECT username FROM users WHERE id = ?').get('u1') as { username: string };
     expect(row.username).toBe('alice');
+  });
+
+  it('v4: migrates pre-existing files to team-visible, new rows default to private', () => {
+    const db = mem();
+    db.pragma('foreign_keys = ON');
+
+    // Pre-ledger DB with a file already in the library (before visibility existed).
+    initTables(db);
+    db.prepare(
+      `INSERT INTO file_library (id, original_name, stored_name, mime_type, file_size, status)
+       VALUES ('f1', 'old.pdf', 's1.pdf', 'application/pdf', 100, 'ready')`
+    ).run();
+
+    runMigrations(db, SCHEMA_MIGRATIONS);
+
+    // The existing file is now team-visible (prior team-wide behaviour preserved).
+    const existing = db.prepare('SELECT visibility FROM file_library WHERE id = ?').get('f1') as { visibility: string };
+    expect(existing.visibility).toBe('team');
+
+    // A brand-new row (no explicit visibility) defaults to private.
+    db.prepare(
+      `INSERT INTO file_library (id, original_name, stored_name, mime_type, file_size, status)
+       VALUES ('f2', 'new.pdf', 's2.pdf', 'application/pdf', 100, 'ready')`
+    ).run();
+    const fresh = db.prepare('SELECT visibility FROM file_library WHERE id = ?').get('f2') as { visibility: string };
+    expect(fresh.visibility).toBe('private');
   });
 });

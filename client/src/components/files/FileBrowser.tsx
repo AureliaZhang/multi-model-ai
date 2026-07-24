@@ -4,9 +4,10 @@ import {
   ArrowLeft, Upload, FileText, File, FileCode, FileImage, FileArchive,
   Trash2, RefreshCw, Loader, CheckCircle2, AlertCircle,
   HardDrive, Clock, Layers, FolderPlus, Folder, ChevronRight,
-  FolderOpen, Edit2, X
+  FolderOpen, Edit2, X, Lock, Users
 } from 'lucide-react';
 import { useFileStore } from '../../stores/fileStore';
+import { useAuthStore } from '../../stores/authStore';
 import type { FileLibraryEntry, FileFolder } from '../../types';
 
 interface FileBrowserProps {
@@ -28,6 +29,10 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
   const deleteFolder = useFileStore(s => s.deleteFolder);
   const renameFolder = useFileStore(s => s.renameFolder);
   const navigateToFolder = useFileStore(s => s.navigateToFolder);
+  const scope = useFileStore(s => s.scope);
+  const setScope = useFileStore(s => s.setScope);
+  const setVisibility = useFileStore(s => s.setVisibility);
+  const user = useAuthStore(s => s.user);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -46,6 +51,7 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
 
   useEffect(() => {
     navigateToFolder(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // File upload (individual files)
@@ -235,6 +241,40 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
     }
   };
 
+  // Visibility badge + (for own files / admin) a click-to-toggle private⇄team.
+  const canChangeVisibility = (file: FileLibraryEntry) =>
+    user?.role === 'admin' || (file.uploadedBy != null && file.uploadedBy === user?.id);
+
+  const renderVisibility = (file: FileLibraryEntry) => {
+    const isTeam = file.visibility === 'team';
+    const Icon = isTeam ? Users : Lock;
+    const label = isTeam ? t('files.visTeam') : t('files.visPrivate');
+    if (!canChangeVisibility(file)) {
+      return (
+        <span
+          className="inline-flex items-center gap-1 text-[11px] text-[var(--color-text-tertiary)]"
+          title={label}
+        >
+          <Icon size={11} /> {label}
+        </span>
+      );
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => setVisibility(file.id, isTeam ? 'private' : 'team')}
+        title={isTeam ? t('files.makePrivate') : t('files.makeTeam')}
+        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] transition-colors ${
+          isTeam
+            ? 'text-[var(--color-accent-main)] hover:bg-[var(--overlay-5)]'
+            : 'text-[var(--color-text-tertiary)] hover:bg-[var(--overlay-5)] hover:text-[var(--color-text-secondary)]'
+        }`}
+      >
+        <Icon size={11} /> {label}
+      </button>
+    );
+  };
+
   // Stats (current folder files only)
   const readyCount = files.filter(f => f.status === 'ready').length;
   const processingCount = files.filter(f => f.status === 'processing').length;
@@ -263,6 +303,9 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
           </div>
         </div>
 
+        {/* Uploads / folder creation only in the "mine" view (new files are private;
+            the team view is a flat read-only listing of what's been shared). */}
+        {scope === 'mine' && (
         <div className="flex items-center gap-2">
           {/* New Folder button */}
           <button
@@ -302,6 +345,7 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
             )}
           </button>
         </div>
+        )}
 
         <input
           ref={fileInputRef}
@@ -322,7 +366,34 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
         />
       </div>
 
-      {/* Breadcrumb navigation */}
+      {/* Scope tabs: my files (browsable by folder) vs the flat team-shared list */}
+      <div className="flex items-center gap-1 px-5 pt-2.5 border-b border-[var(--color-border-light)] bg-[var(--color-bg-secondary)] flex-shrink-0">
+        <button
+          onClick={() => setScope('mine')}
+          className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            scope === 'mine'
+              ? 'border-[var(--color-accent-main)] text-[var(--color-text-primary)]'
+              : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+          }`}
+        >
+          <Lock size={14} />
+          {t('files.scopeMine')}
+        </button>
+        <button
+          onClick={() => setScope('team')}
+          className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            scope === 'team'
+              ? 'border-[var(--color-accent-main)] text-[var(--color-text-primary)]'
+              : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+          }`}
+        >
+          <Users size={14} />
+          {t('files.scopeTeam')}
+        </button>
+      </div>
+
+      {/* Breadcrumb navigation (only meaningful in the folder-browsable "mine" view) */}
+      {scope === 'mine' && (
       <div className="flex items-center gap-1 px-5 py-2 border-b border-[var(--color-border-light)] bg-[var(--color-bg-secondary)] flex-shrink-0 text-sm">
         <button
           onClick={() => navigateToFolder(null)}
@@ -347,6 +418,7 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
           </span>
         ))}
       </div>
+      )}
 
       {/* Stats bar */}
       {files.length > 0 && (
@@ -535,7 +607,10 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
                           <span>·</span>
                           <span>{formatDate(file.createdAt)}</span>
                         </div>
-                        <div className="mt-1.5">{getStatusBadge(file.status)}</div>
+                        <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                          {getStatusBadge(file.status)}
+                          {renderVisibility(file)}
+                        </div>
                         {file.status === 'error' && file.errorMessage && (
                           <div className="text-[11px] text-red-400 mt-1 truncate">{file.errorMessage}</div>
                         )}
@@ -668,8 +743,11 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
                 <div className="flex items-center gap-3 min-w-0">
                   {getFileIcon(file.mimeType, file.originalName)}
                   <div className="min-w-0">
-                    <div className="text-sm text-[var(--color-text-primary)] truncate" title={file.originalName}>
-                      {file.originalName}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-sm text-[var(--color-text-primary)] truncate" title={file.originalName}>
+                        {file.originalName}
+                      </span>
+                      {renderVisibility(file)}
                     </div>
                     {file.status === 'ready' && file.chunkCount > 0 && (
                       <div className="text-[11px] text-[var(--color-text-tertiary)]">
