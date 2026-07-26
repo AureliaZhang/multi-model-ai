@@ -2,17 +2,15 @@ import { Router, Request, Response } from 'express';
 import { optionalAuth } from '../middleware/auth';
 import { logApiUsage } from '../services/usageLog';
 import type { AuthRequest } from '../types';
-import type { ConversationRow, MessageRow, MemoryConfigRow, StationModelJoinRow } from '../dbRows';
+import type { ConversationRow, MessageRow, MemoryConfigRow } from '../dbRows';
 import { v4 as uuidv4 } from 'uuid';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string; numpages: number; numrender: number; info: unknown; metadata: unknown; version: string }>;
 import { getDb } from '../database';
-import { normalizeModelName } from '../services/normalizeModelName';
 import { ApiResponse } from '../types';
 import { loadEnabledMcpTools, resolveToolCall, executeToolCall } from '../services/mcpClient';
 import { generateEmbedding, serializeEmbedding, vectorSearch } from '../services/embeddings';
-import { roundRobin } from '../services/loadBalancer';
-import { decryptSecret } from '../utils/crypto';
+import { getStationsForModel as getModelStations } from '../services/modelInvocation';
 import { checkUserQuota } from '../services/quota';
 import { getActiveScripts, applyRegexScripts } from '../services/regexEngine';
 import { getErrorMessage } from '../utils/errors';
@@ -264,16 +262,21 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
       return extracted;
     };
 
-    // Resolve model to a station using round-robin + failover
-    const resolved = resolveModel(db, modelNormalizedName);
-    if (!resolved) {
+    // Station pool for this model — computed ONCE, up front (v0.7.55; TC2 #5
+    // tail). Previously this spot ran `resolveModel` (a full station scan whose
+    // result was never used) and the failover loop below re-ran an identical
+    // scan. Now a single call to the SHARED services/modelInvocation
+    // implementation (healthy-preferred, failover-ordered, round-robin rotated,
+    // keys decrypted) feeds both the 503 check and the failover loop. Side
+    // fix: the early check now respects the admin pool (it used the public
+    // pool before, 503-ing admins whose model was admin-only).
+    const stations = getModelStations(modelNormalizedName, { adminPool: isAdmin });
+    if (stations.length === 0) {
       return res.status(503).json({
         success: false,
         error: `No healthy stations available for model "${modelNormalizedName}"`,
       });
     }
-
-    const { station, modelId } = resolved;
 
     // Set up SSE
     res.setHeader('Content-Type', 'text/event-stream');
@@ -417,8 +420,7 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
       apiMessages.unshift({ role: 'system', content: conv.system_prompt });
     }
 
-    // Try stations with failover
-    const stations = roundRobin(modelNormalizedName, getStationsForModel(db, modelNormalizedName, isAdmin));
+    // Try stations with failover (pool computed once above — no re-scan).
     let assistantContent = '';
     let usedStation = '';
 
@@ -750,36 +752,6 @@ ${assistantContent}
     }
   }
 });
-
-// Resolve model to a single station using counter-based round-robin
-function resolveModel(db: Database.Database, normalizedName: string): { station: { id: string; name: string; baseUrl: string; apiKey: string; healthStatus: string }; modelId: string } | null {
-  const stations = getStationsForModel(db, normalizedName);
-  if (stations.length === 0) return null;
-
-  // Counter-based round-robin: rotate the station list, take the first.
-  const pick = roundRobin(normalizedName, stations)[0];
-  return { station: pick.station, modelId: pick.modelId };
-}
-
-// Get all healthy stations for a normalized model name
-function getStationsForModel(db: Database.Database, normalizedName: string, adminPool = false): { station: { id: string; name: string; baseUrl: string; apiKey: string; healthStatus: string }; modelId: string }[] {
-  const pool = adminPool
-    ? 'COALESCE(sm.admin_enabled, 1) = 1'
-    : 'sm.enabled = 1';
-  const rows = db.prepare(`
-    SELECT sm.model_id, s.id, s.name, s.base_url, s.api_key, s.health_status, s.enabled
-    FROM station_models sm
-    JOIN stations s ON sm.station_id = s.id
-    WHERE ${pool} AND s.enabled = 1
-  `).all() as StationModelJoinRow[];
-
-  return rows
-    .filter((r) => normalizeModelName(r.model_id) === normalizedName)
-    .map((r) => ({
-      station: { id: r.id, name: r.name, baseUrl: r.base_url, apiKey: decryptSecret(r.api_key), healthStatus: r.health_status },
-      modelId: r.model_id,
-    }));
-}
 
 // Auto-save conversation turn to memory store with vector embedding
 async function autoSaveMemory(
