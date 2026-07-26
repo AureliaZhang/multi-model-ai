@@ -231,32 +231,59 @@ export function cosineSimilarity(a: number[], b: number[]): number {
   return dotProduct / denominator;
 }
 
+/** Default cap on how many recent embedded entries one vector search scans. */
+const DEFAULT_VECTOR_SCAN_LIMIT = 2000;
+
+/**
+ * How many of the most-recent embedded memories a single vector search may scan
+ * (§10.8 TC2 #3). The scan is a full in-JS cosine pass with a JSON.parse per
+ * row, so it must not grow unbounded with team-wide memory history. 0 =
+ * unlimited (pre-v0.7.52 behaviour). Env: VECTOR_SCAN_LIMIT. Pure — unit-tested.
+ */
+export function parseVectorScanLimit(env: NodeJS.ProcessEnv = process.env): number {
+  const n = Number(env.VECTOR_SCAN_LIMIT);
+  if (!Number.isFinite(n) || n < 0) return DEFAULT_VECTOR_SCAN_LIMIT;
+  return Math.floor(n);
+}
+
 /**
  * Search for the most similar memories using vector cosine similarity.
- * Loads all embeddings from DB, computes similarity, returns top matches.
- * 
+ * Scans the most-recent `scanLimit` embedded entries (TC2 #3 bound — recency
+ * window; anything older has usually also decayed in relevance), computes
+ * similarity in JS, returns top matches.
+ *
  * @param db - Database instance
  * @param queryEmbedding - The query vector
  * @param limit - Max results
  * @param threshold - Minimum similarity threshold (default 0.3)
+ * @param userId - Scope to this user's + legacy(NULL) memories when given
+ * @param scanLimit - Max recent embedded rows to scan; 0 = unlimited
  */
 export function vectorSearch(
   db: Database.Database,
   queryEmbedding: number[],
   limit: number = 5,
   threshold: number = 0.3,
-  userId?: string | null
+  userId?: string | null,
+  scanLimit: number = parseVectorScanLimit()
 ): Array<{ id: string; conversation_id: string; message_id: string; summary: string | null; content: string; keywords: string; created_at: string; role: string; importance: number }> {
   // Scope to a user's own + legacy (NULL) memories when a userId is given.
   // Omitted / empty → no scoping (unchanged for callers that don't pass it).
   const scopeUser = typeof userId === 'string' && userId.length > 0;
-  // Load all entries that have embeddings
+  const bounded = Number.isFinite(scanLimit) && scanLimit > 0;
+  // Load the most-recent embedded entries (bounded scan — TC2 #3). ORDER BY is
+  // applied even when unbounded so result ties stay deterministic.
+  const params: (string | number)[] = [];
+  if (scopeUser) params.push(userId as string);
+  if (bounded) params.push(Math.floor(scanLimit));
   const rows = db.prepare(`
     SELECT id, conversation_id, message_id, summary, content, keywords, created_at, role, importance, embedding
     FROM memory_entries
     WHERE embedding IS NOT NULL AND embedding != ''
     ${scopeUser ? 'AND (user_id = ? OR user_id IS NULL)' : ''}
-  `).all(...(scopeUser ? [userId] : [])) as Array<Pick<MemoryEntryRow, 'id' | 'conversation_id' | 'message_id' | 'summary' | 'content' | 'keywords' | 'created_at' | 'role' | 'importance' | 'embedding'>>;
+    ORDER BY created_at DESC
+    ${bounded ? 'LIMIT ?' : ''}
+  `).all(...params) as Array<Pick<MemoryEntryRow, 'id' | 'conversation_id' | 'message_id' | 'summary' | 'content' | 'keywords' | 'created_at' | 'role' | 'importance' | 'embedding'>>;
 
   if (rows.length === 0) return [];
 
