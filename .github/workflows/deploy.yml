@@ -1,0 +1,30 @@
+# 自动部署到测试服务器（v0.7.81）
+# 每次 push 到 main：GitHub 自动 SSH 进小鸡，运行 deploy.sh。
+# 需要在仓库 Settings → Secrets and variables → Actions 里配置三个 Secrets：
+#   VM_HOST     服务器公网 IP（例如 167.234.208.190）
+#   VM_USER     SSH 用户名（Ubuntu 系统是 ubuntu，Oracle Linux 是 opc）
+#   VM_SSH_KEY  SSH 私钥全文（详见 DEPLOY.md 第 3 步）
+# 也可以在 Actions 页面手动点 Run workflow 触发。
+name: Deploy to test server
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-test-server
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH into the VM and run deploy.sh
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VM_SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "${{ secrets.VM_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh -i ~/.ssh/id_deploy -o ConnectTimeout=20 "${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}" \
+            'bash ~/multi-model-ai/deploy.sh'
