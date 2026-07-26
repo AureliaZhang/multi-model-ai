@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
-  BookOpen, Search, Upload, X, Loader2, RefreshCw, Download, Tag, FileText, AlertCircle,
+  BookOpen, Search, Upload, X, Loader2, RefreshCw, Download, Tag, FileText, AlertCircle, Link2,
 } from 'lucide-react';
 import { fileApi } from '../../services/api';
 import type { FileLibraryEntry } from '../../types';
@@ -23,6 +23,11 @@ export function KnowledgeBasePanel() {
   const [detail, setDetail] = useState<{ file: FileLibraryEntry; markdown: string } | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // URL import (v0.7.67)
+  const [showUrl, setShowUrl] = useState(false);
+  const [urlValue, setUrlValue] = useState('');
+  const [urlBusy, setUrlBusy] = useState(false);
+  const [urlError, setUrlError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const trimmed = query.trim();
 
@@ -60,6 +65,25 @@ export function KnowledgeBasePanel() {
       await load(trimmed, docType);
     } finally {
       setUploading(false);
+    }
+  };
+
+  const importUrl = async () => {
+    const url = urlValue.trim();
+    if (!url) return;
+    setUrlBusy(true);
+    setUrlError('');
+    try {
+      const res = await fileApi.importUrl(url);
+      if (res.success) {
+        setUrlValue('');
+        setShowUrl(false);
+        await load(trimmed, docType);
+      } else {
+        setUrlError(res.error || t('files.kbUrlFailed'));
+      }
+    } finally {
+      setUrlBusy(false);
     }
   };
 
@@ -109,15 +133,43 @@ export function KnowledgeBasePanel() {
           </div>
           <span className="text-xs text-[var(--color-text-tertiary)] hidden sm:inline">{t('files.kbCount', { count: entries.length })}</span>
           <button
+            onClick={() => { setShowUrl((v) => !v); setUrlError(''); }}
+            className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--button-secondary-bg)] hover:bg-[var(--button-secondary-hover)] text-[var(--color-text-secondary)] text-[13px] transition-colors"
+            aria-expanded={showUrl}
+          >
+            <Link2 size={14} />
+            {t('files.kbFromUrl')}
+          </button>
+          <button
             onClick={() => inputRef.current?.click()}
             disabled={uploading}
-            className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--button-primary-bg)] hover:bg-[var(--button-primary-hover)] text-white text-[13px] disabled:opacity-50 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--button-primary-bg)] hover:bg-[var(--button-primary-hover)] text-white text-[13px] disabled:opacity-50 transition-colors"
           >
             {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
             {t('files.kbUpload')}
           </button>
           <input ref={inputRef} type="file" multiple className="hidden" onChange={handleUpload} />
         </div>
+        {showUrl && (
+          <div className="flex items-center gap-2">
+            <input
+              value={urlValue}
+              onChange={(e) => { setUrlValue(e.target.value); setUrlError(''); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') void importUrl(); if (e.key === 'Escape') setShowUrl(false); }}
+              placeholder={t('files.kbUrlPlaceholder')}
+              className="flex-1 max-w-xl px-3 py-2 rounded-lg bg-[var(--overlay-4)] border border-[var(--color-border-light)] text-[13px] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-placeholder)] focus:outline-none focus:border-[var(--color-accent-main)]"
+              autoFocus
+            />
+            <button
+              onClick={() => void importUrl()}
+              disabled={urlBusy || !urlValue.trim()}
+              className="px-3 py-2 rounded-lg bg-[var(--button-primary-bg)] hover:bg-[var(--button-primary-hover)] text-white text-[13px] disabled:opacity-50 transition-colors"
+            >
+              {urlBusy ? <Loader2 size={14} className="animate-spin" /> : t('files.kbUrlImport')}
+            </button>
+            {urlError && <span className="text-[11px] text-[var(--color-text-error)] truncate max-w-[240px]" title={urlError}>{urlError}</span>}
+          </div>
+        )}
         <p className="text-[11px] text-[var(--color-text-tertiary)]">{t('files.kbUploadHint')}</p>
         {types.length > 0 && (
           <div className="flex items-center gap-1.5 flex-wrap">

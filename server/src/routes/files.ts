@@ -12,6 +12,7 @@ import type { FileLibraryEntry, FileFolder } from '../types';
 import type { FileFolderRow, FileLibraryRow, FileChunkListRow } from '../dbRows';
 import { getErrorMessage } from '../utils/errors';
 import { summarizeKbFile } from '../services/kbSummarizer';
+import { importUrlToKb } from '../services/kbUrlImport';
 
 const router = Router();
 
@@ -744,6 +745,29 @@ router.post('/:id/summarize', requireAuth, async (req: AuthRequest, res: Respons
     }
     const updated = db.prepare('SELECT * FROM file_library WHERE id = ?').get(req.params.id) as FileLibraryRow;
     res.json({ success: true, data: rowToFile(updated) });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
+  }
+});
+
+/**
+ * POST /api/files/kb-url  { url } — import a web page into the knowledge base
+ * (v0.7.67). Server-side fetch (SSRF-guarded), HTML→text conversion, then the
+ * normal KB pipeline (chunks → embeddings → AI digest).
+ */
+router.post('/kb-url', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { url } = req.body as { url?: unknown };
+    if (typeof url !== 'string' || !url.trim()) {
+      return res.status(400).json({ success: false, error: 'url is required' });
+    }
+    const result = await importUrlToKb(url.trim(), req.user?.id || null);
+    if (!result.ok) {
+      return res.status(400).json({ success: false, error: `URL import failed (${result.reason})` });
+    }
+    const db = getDb();
+    const row = db.prepare('SELECT * FROM file_library WHERE id = ?').get(result.fileId) as FileLibraryRow;
+    res.status(201).json({ success: true, data: rowToFile(row) });
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: getErrorMessage(err) });
   }

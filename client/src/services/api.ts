@@ -408,6 +408,8 @@ export const fileApi = {
     return request<FileLibraryResponse>(`/files?${searchParams}`);
   },
   // Knowledge base (v0.7.65)
+  importUrl: (url: string) =>
+    request<FileLibraryEntry>('/files/kb-url', { method: 'POST', body: JSON.stringify({ url }) }),
   reading: (id: string) => request<{ file: FileLibraryEntry; markdown: string }>(`/files/${id}/reading`),
   summarize: (id: string) => request<FileLibraryEntry>(`/files/${id}/summarize`, { method: 'POST' }),
   downloadOriginal: async (id: string, filename: string): Promise<boolean> => {
