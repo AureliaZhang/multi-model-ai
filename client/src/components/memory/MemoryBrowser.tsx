@@ -43,6 +43,8 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
 
   // History LIMIT (v0.7.49): local draft for the recent-turns window input.
   const [historyTurns, setHistoryTurns] = useState('20');
+  // Auto-distill cadence (v0.7.73): refine memories every N messages.
+  const [distillEvery, setDistillEvery] = useState('20');
 
   // Sync embedding config from store to local state
   useEffect(() => {
@@ -51,6 +53,7 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
       setEmbApiKey(config.embeddingApiKey || '');
       setEmbModel(config.embeddingModel || '');
       setHistoryTurns(String(config.historyMaxTurns ?? 20));
+      setDistillEvery(String(config.summarizeThreshold ?? 20));
     }
   }, [config]);
 
@@ -96,6 +99,15 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
     setHistoryTurns(String(n));
     if (n !== (config?.historyMaxTurns ?? 20)) {
       updateConfig({ historyMaxTurns: n });
+    }
+  };
+
+  // Commit the distill cadence (min 1 message). Saves on blur / Enter.
+  const commitDistillEvery = () => {
+    const n = Math.max(1, Math.floor(Number(distillEvery) || 20));
+    setDistillEvery(String(n));
+    if (n !== (config?.summarizeThreshold ?? 20)) {
+      updateConfig({ summarizeThreshold: n });
     }
   };
 
@@ -222,13 +234,36 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
               label={t('memory.autoSave')}
               description={t('memory.autoSaveDesc')}
               enabled={config?.autoSave ?? true}
-              onToggle={(v) => handleConfigToggle('auto_save', v)}
+              onToggle={(v) => handleConfigToggle('autoSave', v)}
             />
             <ConfigToggle
               label={t('memory.contextInjection')}
               description={t('memory.contextInjectionDesc')}
               enabled={config?.contextInjection ?? true}
-              onToggle={(v) => handleConfigToggle('context_injection', v)}
+              onToggle={(v) => handleConfigToggle('contextInjection', v)}
+            />
+            <ConfigToggle
+              label={t('memory.autoDistill')}
+              description={t('memory.autoDistillDesc')}
+              enabled={config?.autoSummarize ?? true}
+              onToggle={(v) => handleConfigToggle('autoSummarize', v)}
+            />
+          </div>
+
+          {/* Distill cadence (v0.7.73): refine facts every N messages */}
+          <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-[var(--color-main-surface-primary)] border border-[var(--color-border-light)]">
+            <div className="min-w-0">
+              <div className="text-sm text-[var(--color-text-primary)]">{t('memory.distillEvery')}</div>
+              <div className="text-[11px] text-[var(--color-text-tertiary)]">{t('memory.distillEveryDesc')}</div>
+            </div>
+            <input
+              type="number"
+              min={1}
+              value={distillEvery}
+              onChange={e => setDistillEvery(e.target.value)}
+              onBlur={commitDistillEvery}
+              onKeyDown={e => { if (e.key === 'Enter') commitDistillEvery(); }}
+              className="w-20 flex-shrink-0 px-3 py-1.5 rounded-md bg-[var(--color-bg-secondary)] border border-[var(--color-border-light)] text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent-main)] transition-colors text-center"
             />
           </div>
 

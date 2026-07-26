@@ -17,6 +17,7 @@ import { getErrorMessage } from '../utils/errors';
 import { searchFileChunks } from '../services/fileProcessor';
 import { filterVisibleFileIds } from './files';
 import { matchLorebookEntries, buildLorebookContext } from '../services/lorebook';
+import { maybeDistillConversation } from '../services/memoryDistiller';
 
 /** OpenAI-style multimodal content part for chat completions. */
 type ChatContentPart =
@@ -763,6 +764,10 @@ ${assistantContent}
     const userId = conv.user_id || null;
     autoSaveMemory(db, conversationId, userMsgId, 'user', message, modelNormalizedName, userId).catch(err => console.error('[memory] User memory save error:', err));
     autoSaveMemory(db, conversationId, assistantMsgId, 'assistant', assistantContent, modelNormalizedName, userId).catch(err => console.error('[memory] Assistant memory save error:', err));
+
+    // Auto-distill learning (v0.7.73): every N messages, refine this
+    // conversation's fresh tail into durable memory facts in the background.
+    maybeDistillConversation(conversationId, db);
 
     res.end();
   } catch (err: unknown) {

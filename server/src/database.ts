@@ -200,6 +200,20 @@ export const SCHEMA_MIGRATIONS: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_lorebook_enabled ON lorebook_entries(enabled);
       `),
   },
+  // v14: auto-distill learning (owner batch #2, 2026-07-26). Tracks how many of
+  // a conversation's messages have already been distilled into refined memory
+  // facts; the long-dormant memory_config.auto_summarize / summarize_threshold
+  // knobs (schema v1, never consumed) become the distiller's switch + cadence,
+  // so the existing config API/UI plumbing carries them. Flipped ON by default —
+  // the knob controlled nothing before, so no admin choice is overridden.
+  {
+    version: 14,
+    name: 'auto-distill-learning',
+    up: (d) => {
+      d.exec(`ALTER TABLE conversations ADD COLUMN distilled_message_count INTEGER NOT NULL DEFAULT 0`);
+      d.exec(`UPDATE memory_config SET auto_summarize = 1 WHERE id = 1`);
+    },
+  },
   {
     version: 9,
     name: 'model-pricing',
