@@ -30,13 +30,15 @@ function capLabel(cap: string, t: (k: string) => string): string {
 }
 
 function capColor(cap: string): string {
+  // Theme-aware badge palettes (index.css): readable in BOTH light and dark —
+  // the old hard-coded light-on-transparent colors washed out on light theme.
   switch (cap) {
-    case 'text': return 'bg-[rgba(59,130,246,0.15)] text-[#60a5fa]';
-    case 'vision': return 'bg-[rgba(168,85,247,0.15)] text-[#c084fc]';
-    case 'image-gen': return 'bg-[rgba(236,72,153,0.15)] text-[#f472b6]';
-    case 'code': return 'bg-[rgba(34,197,94,0.15)] text-[#4ade80]';
-    case 'tts': return 'bg-[rgba(251,146,60,0.15)] text-[#fb923c]';
-    case 'embedding': return 'bg-[rgba(148,163,184,0.15)] text-[#94a3b8]';
+    case 'text': return 'bg-[var(--badge-blue-bg)] text-[var(--badge-blue-fg)]';
+    case 'vision': return 'bg-[var(--badge-purple-bg)] text-[var(--badge-purple-fg)]';
+    case 'image-gen': return 'bg-[var(--badge-pink-bg)] text-[var(--badge-pink-fg)]';
+    case 'code': return 'bg-[var(--badge-green-bg)] text-[var(--badge-green-fg)]';
+    case 'tts': return 'bg-[var(--badge-orange-bg)] text-[var(--badge-orange-fg)]';
+    case 'embedding': return 'bg-[var(--badge-gray-bg)] text-[var(--badge-gray-fg)]';
     default: return 'bg-[var(--overlay-6)] text-[var(--color-text-tertiary)]';
   }
 }
@@ -113,6 +115,32 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  // Inline station edit (v0.7.75): name / URL / key of an EXISTING station.
+  const [editingStationId, setEditingStationId] = useState<string | null>(null);
+  const [esName, setEsName] = useState('');
+  const [esUrl, setEsUrl] = useState('');
+  const [esKey, setEsKey] = useState('');
+  const startEditStation = (s: { id: string; name: string; baseUrl: string }) => {
+    setEditingStationId(s.id);
+    setEsName(s.name);
+    setEsUrl(s.baseUrl);
+    setEsKey(''); // blank = keep the stored key
+  };
+  const saveEditStation = async () => {
+    if (!editingStationId || !esName.trim() || !esUrl.trim()) return;
+    setActionLoading(`edit-${editingStationId}`);
+    try {
+      await updateStation(editingStationId, {
+        name: esName.trim(),
+        baseUrl: esUrl.trim(),
+        ...(esKey.trim() ? { apiKey: esKey.trim() } : {}),
+      });
+      setEditingStationId(null);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const [editingModelId, setEditingModelId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
 
@@ -492,6 +520,15 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                         )}
                       </button>
                       <button
+                        onClick={() =>
+                          editingStationId === station.id ? setEditingStationId(null) : startEditStation(station)
+                        }
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--overlay-5)] hover:bg-[var(--overlay-8)] text-xs text-[var(--color-text-secondary)] transition-colors font-medium"
+                      >
+                        <Pencil size={13} />
+                        {t('settings.editStation')}
+                      </button>
+                      <button
                         onClick={() => handleDelete(station.id)}
                         disabled={actionLoading === `delete-${station.id}`}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-[var(--color-surface-error)] text-xs text-[var(--color-text-error)] transition-colors disabled:opacity-40 font-medium ml-auto"
@@ -500,6 +537,47 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                         {t('common.delete')}
                       </button>
                     </div>
+
+                    {/* Inline station edit form (v0.7.75) */}
+                    {editingStationId === station.id && (
+                      <div className="mt-3 pt-3 border-t border-[var(--color-border-light)] space-y-2.5">
+                        <input
+                          value={esName}
+                          onChange={(e) => setEsName(e.target.value)}
+                          placeholder={t('settings.stationNamePlaceholder')}
+                          className="w-full px-3 py-2 rounded-xl bg-[var(--composer-bg)] border border-[var(--color-border-light)] text-sm outline-none focus:border-[var(--color-accent-main)]"
+                        />
+                        <input
+                          value={esUrl}
+                          onChange={(e) => setEsUrl(e.target.value)}
+                          placeholder={t('settings.baseUrlPlaceholder')}
+                          className="w-full px-3 py-2 rounded-xl bg-[var(--composer-bg)] border border-[var(--color-border-light)] text-sm outline-none font-mono focus:border-[var(--color-accent-main)]"
+                        />
+                        <input
+                          value={esKey}
+                          onChange={(e) => setEsKey(e.target.value)}
+                          placeholder={t('settings.editStationKeyPlaceholder')}
+                          type="password"
+                          className="w-full px-3 py-2 rounded-xl bg-[var(--composer-bg)] border border-[var(--color-border-light)] text-sm outline-none font-mono focus:border-[var(--color-accent-main)]"
+                        />
+                        <p className="text-[11px] text-[var(--color-text-tertiary)]">{t('settings.editStationKeyHint')}</p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => void saveEditStation()}
+                            disabled={actionLoading === `edit-${station.id}` || !esName.trim() || !esUrl.trim()}
+                            className="px-4 py-2 rounded-xl bg-[var(--color-accent-main)] text-white text-sm disabled:opacity-50"
+                          >
+                            {actionLoading === `edit-${station.id}` ? t('common.loading') : t('common.save')}
+                          </button>
+                          <button
+                            onClick={() => setEditingStationId(null)}
+                            className="px-4 py-2 rounded-xl border border-[var(--color-border-light)] text-sm"
+                          >
+                            {t('common.cancel')}
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     {isOpen && (
                       <div className="mt-3 pt-3 border-t border-[var(--color-border-light)]">
@@ -536,7 +614,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                               {models.map((m) => (
                                 <li
                                   key={m.id}
-                                  className="flex items-start gap-2 p-2 rounded-xl bg-[rgba(0,0,0,0.2)] border border-[var(--color-border-light)]/60"
+                                  className="flex items-start gap-2 p-2 rounded-xl bg-[var(--overlay-4)] border border-[var(--color-border-light)]/60"
                                 >
                                   <div className="flex flex-col gap-1 flex-shrink-0 pt-0.5">
                                     <button
@@ -621,7 +699,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                                         </span>
                                       ))}
                                       {m.adminEnabled !== false && (
-                                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[rgba(59,130,246,0.15)] text-[#60a5fa]">
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--badge-blue-bg)] text-[var(--badge-blue-fg)]">
                                           {t('settings.adminPool')}
                                         </span>
                                       )}

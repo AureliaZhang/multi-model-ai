@@ -69,6 +69,21 @@
   /* Code block background (markdown <pre>) */
   --code-block-bg: #f0eee6;
 
+  /* Capability / status badges — DARK text on light tints (light theme). The
+   * .dark block flips to light text; both stay readable (v0.7.75). */
+  --badge-blue-bg: rgba(59,130,246,0.12);
+  --badge-blue-fg: #1d4ed8;
+  --badge-purple-bg: rgba(168,85,247,0.12);
+  --badge-purple-fg: #7e22ce;
+  --badge-pink-bg: rgba(236,72,153,0.12);
+  --badge-pink-fg: #be185d;
+  --badge-green-bg: rgba(34,197,94,0.14);
+  --badge-green-fg: #15803d;
+  --badge-orange-bg: rgba(251,146,60,0.16);
+  --badge-orange-fg: #c2410c;
+  --badge-gray-bg: rgba(100,116,139,0.14);
+  --badge-gray-fg: #475569;
+
   /*
    * Overlay scale — subtle surface tints layered on the current background.
    * LIGHT: black at low alpha (darkens). DARK (below): white at low alpha
@@ -142,6 +157,20 @@
 
   /* Code block background (markdown <pre>) */
   --code-block-bg: #1a1918;
+
+  /* Capability / status badges — LIGHT text on translucent tints (dark theme) */
+  --badge-blue-bg: rgba(59,130,246,0.15);
+  --badge-blue-fg: #60a5fa;
+  --badge-purple-bg: rgba(168,85,247,0.15);
+  --badge-purple-fg: #c084fc;
+  --badge-pink-bg: rgba(236,72,153,0.15);
+  --badge-pink-fg: #f472b6;
+  --badge-green-bg: rgba(34,197,94,0.15);
+  --badge-green-fg: #4ade80;
+  --badge-orange-bg: rgba(251,146,60,0.15);
+  --badge-orange-fg: #fb923c;
+  --badge-gray-bg: rgba(148,163,184,0.15);
+  --badge-gray-fg: #94a3b8;
 
   /* Overlay scale — white at low alpha on dark backgrounds */
   --overlay-2: rgba(240,238,230,0.02);
