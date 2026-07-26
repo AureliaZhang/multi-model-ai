@@ -668,7 +668,11 @@ router.post('/:id/ai/ask', async (req: AuthRequest, res: Response) => {
         stationId: result.stationId,
         stationName: result.stationName,
         status: 'ok',
-        completionTokens: Math.ceil((finalContent || '').length / 4),
+        // v0.7.66: real token receipt when the relay reported one; the old
+        // chars/4 estimate stays only as the no-receipt fallback.
+        promptTokens: result.usage.promptTokens,
+        completionTokens: result.usage.completionTokens ?? Math.ceil((finalContent || '').length / 4),
+        totalTokens: result.usage.totalTokens,
         latencyMs: result.latencyMs,
       });
       broadcastStream('done', { modelUsed: result.modelUsed });

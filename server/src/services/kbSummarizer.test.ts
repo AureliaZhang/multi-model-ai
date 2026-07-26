@@ -90,6 +90,7 @@ describe('summarizeKbFile (injected invoker)', () => {
     ok: true as const,
     content: '{"docType":"政策文件","keywords":["新能源","补贴","2026"],"summary":"三句话要点。"}',
     modelUsed: 'm', stationId: 's', stationName: 'S', modelId: 'm', latencyMs: 5,
+    usage: { promptTokens: 1200, completionTokens: 180, totalTokens: 1380 },
   });
 
   it('success path stores digest fields and flips status to ready', async () => {
@@ -114,7 +115,7 @@ describe('summarizeKbFile (injected invoker)', () => {
     expect(rowOf(db, bad).summary_status).toBe('error');
 
     const garbled = insertKbFile(db);
-    const res2 = await summarizeKbFile(garbled, db, { invoke: async () => ({ ok: true as const, content: '呃……', modelUsed: 'm', stationId: 's', stationName: 'S', modelId: 'm', latencyMs: 1 }), log: () => {} });
+    const res2 = await summarizeKbFile(garbled, db, { invoke: async () => ({ ok: true as const, content: '呃……', modelUsed: 'm', stationId: 's', stationName: 'S', modelId: 'm', latencyMs: 1, usage: { promptTokens: null, completionTokens: null, totalTokens: null } }), log: () => {} });
     expect(res2).toEqual({ ok: false, reason: 'unparseable_digest' });
 
     const empty = insertKbFile(db, '');

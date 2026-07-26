@@ -254,3 +254,17 @@ describe('streamInvokeModel', () => {
     expect(result.stationId).toBe('s2');
   });
 });
+
+// v0.7.66: the token receipt
+import { extractSseUsage } from './modelInvocation';
+
+describe('token usage capture (v0.7.66)', () => {
+  it('extractSseUsage parses a usage block, ignores chunks without one, tolerates garbage', () => {
+    expect(extractSseUsage('{"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}'))
+      .toEqual({ promptTokens: 10, completionTokens: 5, totalTokens: 15 });
+    expect(extractSseUsage('{"choices":[{"delta":{"content":"hi"}}]}')).toBeNull();
+    expect(extractSseUsage('[DONE]')).toBeNull();
+    expect(extractSseUsage('not json')).toBeNull();
+    expect(extractSseUsage('{"usage":{"prompt_tokens":"NaN?"}}')).toBeNull();
+  });
+});

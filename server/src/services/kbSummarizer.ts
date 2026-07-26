@@ -141,6 +141,9 @@ export async function summarizeKbFile(
       stationName: result.ok ? result.stationName : null,
       status: result.ok ? 'ok' : 'error',
       errorMessage: result.ok ? null : result.error,
+      promptTokens: result.ok ? result.usage.promptTokens : null,
+      completionTokens: result.ok ? result.usage.completionTokens : null,
+      totalTokens: result.ok ? result.usage.totalTokens : null,
       latencyMs: Date.now() - started,
     });
 

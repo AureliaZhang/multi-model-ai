@@ -36,6 +36,10 @@ export interface InvokeModelSuccess {
   stationName: string;
   modelId: string;
   latencyMs: number;
+  /** Token receipt from the upstream response (v0.7.66); null fields when the
+   *  station didn't report usage. Lets background callers (KB digest, arena,
+   *  rooms) account tokens instead of just request counts. */
+  usage: { promptTokens: number | null; completionTokens: number | null; totalTokens: number | null };
 }
 
 export interface InvokeModelFailure {
@@ -191,7 +195,10 @@ export async function invokeModel(
         continue;
       }
 
-      const data = (await response.json()) as { choices?: Array<{ message?: { content?: string }; text?: string }> };
+      const data = (await response.json()) as {
+        choices?: Array<{ message?: { content?: string }; text?: string }>;
+        usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+      };
       const content: string =
         data.choices?.[0]?.message?.content ??
         data.choices?.[0]?.text ??
@@ -209,6 +216,8 @@ export async function invokeModel(
         /* ignore */
       }
 
+      // v0.7.66: catch the token receipt (OpenAI-compatible `usage` block).
+      const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
       return {
         ok: true,
         content: String(content),
@@ -217,6 +226,11 @@ export async function invokeModel(
         stationName: s.station.name,
         modelId: s.modelId,
         latencyMs: Date.now() - started,
+        usage: {
+          promptTokens: num(data.usage?.prompt_tokens),
+          completionTokens: num(data.usage?.completion_tokens),
+          totalTokens: num(data.usage?.total_tokens),
+        },
       };
     } catch (err: unknown) {
       const msg = isAbortError(err) ? 'timeout' : getErrorMessage(err);
@@ -244,6 +258,22 @@ export async function invokeModel(
  * Pure helper for unit tests + streamInvokeModel.
  * Returns null for [DONE] / non-content / invalid JSON.
  */
+/** Pull a token-usage block out of one SSE data payload, if present (v0.7.66).
+ *  Many OpenAI-compatible relays attach `usage` to the final chunk. Pure. */
+export function extractSseUsage(dataLine: string): { promptTokens: number | null; completionTokens: number | null; totalTokens: number | null } | null {
+  const data = dataLine.trim();
+  if (!data || data === '[DONE]') return null;
+  try {
+    const parsed = JSON.parse(data) as { usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } };
+    if (!parsed.usage || typeof parsed.usage !== 'object') return null;
+    const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+    const u = { promptTokens: num(parsed.usage.prompt_tokens), completionTokens: num(parsed.usage.completion_tokens), totalTokens: num(parsed.usage.total_tokens) };
+    return u.promptTokens === null && u.completionTokens === null && u.totalTokens === null ? null : u;
+  } catch {
+    return null;
+  }
+}
+
 export function extractSseContentDelta(dataLine: string): string | null {
   const data = dataLine.trim();
   if (!data || data === '[DONE]') return null;
@@ -341,6 +371,7 @@ export async function streamInvokeModel(
       const decoder = new TextDecoder();
       let buffer = '';
       let full = '';
+      let streamUsage: { promptTokens: number | null; completionTokens: number | null; totalTokens: number | null } | null = null;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -353,6 +384,7 @@ export async function streamInvokeModel(
           const trimmed = line.trim();
           if (!trimmed.startsWith('data:')) continue;
           const payload = trimmed.slice(5).trimStart();
+          streamUsage = extractSseUsage(payload) ?? streamUsage;
           const delta = extractSseContentDelta(payload);
           if (delta == null) continue;
           full += delta;
@@ -367,6 +399,7 @@ export async function streamInvokeModel(
       // Flush any remaining buffered line
       if (buffer.trim().startsWith('data:')) {
         const payload = buffer.trim().slice(5).trimStart();
+        streamUsage = extractSseUsage(payload) ?? streamUsage;
         const delta = extractSseContentDelta(payload);
         if (delta != null) {
           full += delta;
@@ -397,6 +430,7 @@ export async function streamInvokeModel(
         stationName: s.station.name,
         modelId: s.modelId,
         latencyMs: Date.now() - started,
+        usage: streamUsage ?? { promptTokens: null, completionTokens: null, totalTokens: null },
       };
     } catch (err: unknown) {
       const msg = isAbortError(err) ? 'timeout' : getErrorMessage(err);
