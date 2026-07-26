@@ -574,6 +574,13 @@ const zh = {
   'room.virtualHint': '可勾选「虚拟占位」先建群，之后再邀请真实成员并移出占位用户。',
   'room.virtualName': '虚拟占位成员',
   'room.unread': '有新动态',
+
+  // 公告
+  'announcement.title': '团队公告',
+  'announcement.desc': '发布后会显示在所有成员的聊天页顶部；修改内容会重新对已关闭公告的成员展示。',
+  'announcement.placeholder': '例如：今晚 10 点服务器维护，预计 30 分钟…',
+  'announcement.enabled': '启用',
+  'announcement.dismiss': '关闭公告',
   'room.groupName': '群名称',
   'room.pickMembers': '添加成员（至少一人）',
   'room.create': '创建',

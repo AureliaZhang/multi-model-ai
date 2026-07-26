@@ -142,6 +142,24 @@ export const SCHEMA_MIGRATIONS: Migration[] = [
     name: 'users-must-change-password',
     up: (d) => d.exec(`ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0`),
   },
+  // v11: admin announcement banner (§10.9 P2 #6). Single-row table (same
+  // pattern as memory_config): the lead broadcasts, members can dismiss
+  // client-side (dismissal is per-content-version, stored locally).
+  {
+    version: 11,
+    name: 'announcement',
+    up: (d) =>
+      d.exec(`
+        CREATE TABLE IF NOT EXISTS announcement (
+          id INTEGER PRIMARY KEY CHECK(id = 1),
+          content TEXT NOT NULL DEFAULT '',
+          enabled INTEGER NOT NULL DEFAULT 0,
+          updated_by TEXT,
+          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        INSERT OR IGNORE INTO announcement (id) VALUES (1);
+      `),
+  },
   {
     version: 9,
     name: 'model-pricing',

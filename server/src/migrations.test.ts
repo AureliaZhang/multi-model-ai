@@ -148,6 +148,10 @@ describe('SCHEMA_MIGRATIONS (real migration set)', () => {
     expect(memCfgCols).toContain('history_max_turns');
     // v9 table present.
     expect(names).toContain('model_pricing');
+    // v10 column + v11 table present.
+    const userCols = db.prepare('PRAGMA table_info(users)').all().map((r) => (r as { name: string }).name);
+    expect(userCols).toContain('must_change_password');
+    expect(names).toContain('announcement');
   });
 
   it('re-running against an already-migrated DB is a clean no-op', () => {

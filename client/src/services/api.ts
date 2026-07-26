@@ -738,6 +738,18 @@ export const usersApi = {
   listBasic: () => request<import('../types').UserPublic[]>('/rooms/util/users'),
 };
 
+// --- Announcement (v0.7.63): one instance-wide admin broadcast ---
+export interface Announcement {
+  content: string;
+  enabled: boolean;
+  updatedAt: string | null;
+}
+export const announcementApi = {
+  get: () => request<Announcement>('/announcement'),
+  set: (data: { content?: string; enabled?: boolean }) =>
+    request<Announcement>('/announcement', { method: 'PUT', body: JSON.stringify(data) }),
+};
+
 // --- Usage logs (admin) ---
 export const usageApi = {
   list: (params?: {

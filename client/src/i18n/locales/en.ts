@@ -574,6 +574,13 @@ const en = {
   'room.virtualHint': 'You can check the virtual placeholder to create the group first, then invite real members and remove the placeholder.',
   'room.virtualName': 'Placeholder member',
   'room.unread': 'New activity',
+
+  // Announcement
+  'announcement.title': 'Team announcement',
+  'announcement.desc': 'Shown at the top of every member\'s chat view when enabled; editing the content re-surfaces it for members who dismissed the previous one.',
+  'announcement.placeholder': 'e.g. Server maintenance tonight at 10pm, ~30 minutes…',
+  'announcement.enabled': 'Enabled',
+  'announcement.dismiss': 'Dismiss announcement',
   'room.groupName': 'Group name',
   'room.pickMembers': 'Add members (at least one)',
   'room.create': 'Create',

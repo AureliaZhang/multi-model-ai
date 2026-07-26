@@ -33,6 +33,7 @@ import { useModelStore } from '../../stores/modelStore';
 import { useChatStore } from '../../stores/chatStore';
 import { usePrefsStore } from '../../stores/prefsStore';
 import { useTranslation } from '../../i18n';
+import { AnnouncementBanner } from '../common/AnnouncementBanner';
 import { CircleHelp } from 'lucide-react';
 
 interface LayoutProps {
@@ -162,6 +163,7 @@ export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
 
       {/* Main chat area */}
       <div className="flex-1 flex flex-col min-w-0 relative">
+        <AnnouncementBanner />
         <ChatArea
           isGuest={isGuest}
           onSignIn={onSignIn}

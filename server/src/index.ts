@@ -21,6 +21,7 @@ import roomRoutes from './routes/rooms';
 import usageRoutes from './routes/usage';
 import personaRoutes from './routes/personas';
 import backupRoutes from './routes/backup';
+import announcementRoutes from './routes/announcement';
 import { startHealthCheckJob, stopHealthCheckJob } from './services/healthCheck';
 import { startBackupJob, stopBackupJob } from './services/backup';
 import { startRetentionJob, stopRetentionJob } from './services/retention';
@@ -70,6 +71,7 @@ app.use('/api/rooms', roomRoutes);
 app.use('/api/usage', usageRoutes);
 app.use('/api/personas', personaRoutes);
 app.use('/api/backups', backupRoutes);
+app.use('/api/announcement', announcementRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {
