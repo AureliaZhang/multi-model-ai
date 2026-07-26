@@ -26,8 +26,14 @@ curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt-get install -y nodejs build-essential python3
 
 # 2.2 给这台机器生成一把 SSH 钥匙（后面 GitHub 拉代码 + 自动部署都用它）
+#     已存在的话提示 Overwrite 时选 n，用现成的
 ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N "" -q
-cat ~/.ssh/id_ed25519.pub          # ← 复制打印出来的这行「公钥」
+
+# 2.3 关键！把这把钥匙登记进本机的「允许进门名单」——否则 GitHub Actions
+#     拿着它登录时会 Permission denied (publickey)（2026-07-26 实战踩坑）
+cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
+
+cat ~/.ssh/id_ed25519.pub          # ← 复制打印出来的这行「公钥」（给 GitHub Deploy key 用）
 ```
 
 ### 第 3 步 · GitHub 两处配置（浏览器操作）
