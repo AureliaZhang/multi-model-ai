@@ -176,6 +176,30 @@ export const SCHEMA_MIGRATIONS: Migration[] = [
         INSERT OR IGNORE INTO announcement (id) VALUES (1);
       `),
   },
+  // v13: project lorebook / 世界书 (owner request 2026-07-26, SillyTavern-style
+  // World Info). Team-shared keyword-triggered knowledge entries: when a chat
+  // message (or recent history) mentions a keyword, the entry's content is
+  // injected as system context — costs nothing until triggered, so the team can
+  // accumulate project background, jargon, client preferences and decisions.
+  {
+    version: 13,
+    name: 'lorebook-entries',
+    up: (d) =>
+      d.exec(`
+        CREATE TABLE IF NOT EXISTS lorebook_entries (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          keywords TEXT NOT NULL DEFAULT '[]',
+          content TEXT NOT NULL,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          priority INTEGER NOT NULL DEFAULT 0,
+          created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_lorebook_enabled ON lorebook_entries(enabled);
+      `),
+  },
   {
     version: 9,
     name: 'model-pricing',

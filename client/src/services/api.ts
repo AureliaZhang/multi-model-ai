@@ -775,6 +775,31 @@ export const announcementApi = {
     request<Announcement>('/announcement', { method: 'PUT', body: JSON.stringify(data) }),
 };
 
+// --- Project lorebook / 世界书 (v0.7.72) ---
+export interface LorebookEntry {
+  id: string;
+  title: string;
+  keywords: string[];
+  content: string;
+  enabled: boolean;
+  priority: number;
+  createdBy: string | null;
+  createdByName?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const lorebookApi = {
+  list: () => request<LorebookEntry[]>('/lorebook'),
+  create: (data: { title: string; content: string; keywords: string; priority?: number }) =>
+    request<LorebookEntry>('/lorebook', { method: 'POST', body: JSON.stringify(data) }),
+  update: (
+    id: string,
+    data: Partial<{ title: string; content: string; keywords: string; priority: number; enabled: boolean }>
+  ) => request<LorebookEntry>(`/lorebook/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  remove: (id: string) => request<{ id: string }>(`/lorebook/${id}`, { method: 'DELETE' }),
+};
+
 // --- Usage logs (admin) ---
 export const usageApi = {
   list: (params?: {

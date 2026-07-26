@@ -22,6 +22,7 @@ import usageRoutes from './routes/usage';
 import personaRoutes from './routes/personas';
 import backupRoutes from './routes/backup';
 import announcementRoutes from './routes/announcement';
+import lorebookRoutes from './routes/lorebook';
 import { startHealthCheckJob, stopHealthCheckJob } from './services/healthCheck';
 import { startBackupJob, stopBackupJob } from './services/backup';
 import { startRetentionJob, stopRetentionJob } from './services/retention';
@@ -72,6 +73,7 @@ app.use('/api/usage', usageRoutes);
 app.use('/api/personas', personaRoutes);
 app.use('/api/backups', backupRoutes);
 app.use('/api/announcement', announcementRoutes);
+app.use('/api/lorebook', lorebookRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {

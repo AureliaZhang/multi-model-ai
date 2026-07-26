@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from '../../i18n';
 import { KnowledgeBasePanel } from './KnowledgeBasePanel';
+import { LorebookPanel } from './LorebookPanel';
 import {
   ArrowLeft, Upload, FileText, File, FileCode, FileImage, FileArchive,
   Trash2, RefreshCw, Loader, CheckCircle2, AlertCircle,
   HardDrive, Clock, Layers, FolderPlus, Folder, ChevronRight,
-  FolderOpen, Edit2, X, Lock, Users, BookOpen } from 'lucide-react';
+  FolderOpen, Edit2, X, Lock, Users, BookOpen, Globe2 } from 'lucide-react';
 import { useFileStore } from '../../stores/fileStore';
 import { useAuthStore } from '../../stores/authStore';
 import type { FileLibraryEntry, FileFolder } from '../../types';
@@ -402,6 +403,17 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
           <BookOpen size={14} />
           {t('files.kbTab')}
         </button>
+        <button
+          onClick={() => setScope('lore')}
+          className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            scope === 'lore'
+              ? 'border-[var(--color-accent-main)] text-[var(--color-text-primary)]'
+              : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+          }`}
+        >
+          <Globe2 size={14} />
+          {t('lorebook.tab')}
+        </button>
       </div>
 
       {/* Breadcrumb navigation (only meaningful in the folder-browsable "mine" view) */}
@@ -433,7 +445,7 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
       )}
 
       {/* Stats bar */}
-      {scope !== 'kb' && files.length > 0 && (
+      {scope !== 'kb' && scope !== 'lore' && files.length > 0 && (
         <div className="flex items-center gap-4 px-5 py-2.5 border-b border-[var(--color-border-light)] bg-[var(--color-bg-secondary)] flex-shrink-0">
           <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-tertiary)]">
             <HardDrive size={13} />
@@ -461,8 +473,11 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
       {/* Knowledge base view (v0.7.65) */}
       {scope === 'kb' && <KnowledgeBasePanel />}
 
+      {/* Project lorebook view (v0.7.72) */}
+      {scope === 'lore' && <LorebookPanel />}
+
       {/* Content area with drop zone */}
-      {scope !== 'kb' && (
+      {scope !== 'kb' && scope !== 'lore' && (
       <div
         className="flex-1 overflow-y-auto relative"
         onDrop={handleDrop}

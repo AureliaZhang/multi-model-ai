@@ -5,7 +5,7 @@ import { getErrorMessage } from '../utils/errors';
 
 /** Which library view: the caller's own files (browsable by folder) or the flat
  *  team-shared list (visibility='team'). Default 'mine' (default-private model). */
-export type FileScope = 'mine' | 'team' | 'kb';
+export type FileScope = 'mine' | 'team' | 'kb' | 'lore';
 
 interface FileState {
   files: FileLibraryEntry[];
@@ -46,9 +46,9 @@ export const useFileStore = create<FileState>((set, get) => ({
 
   fetchFiles: async (folderId?: string | null) => {
     const scope = get().scope;
-    // The knowledge-base view (v0.7.65) fetches its own data with search
-    // params — nothing for the store to load here.
-    if (scope === 'kb') {
+    // The knowledge-base (v0.7.65) and lorebook (v0.7.72) views fetch their
+    // own data — nothing for the store to load here.
+    if (scope === 'kb' || scope === 'lore') {
       set({ folders: [], files: [], currentFolderId: null, loading: false });
       return;
     }

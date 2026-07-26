@@ -16,6 +16,7 @@ import { getActiveScripts, applyRegexScripts } from '../services/regexEngine';
 import { getErrorMessage } from '../utils/errors';
 import { searchFileChunks } from '../services/fileProcessor';
 import { filterVisibleFileIds } from './files';
+import { matchLorebookEntries, buildLorebookContext } from '../services/lorebook';
 
 /** OpenAI-style multimodal content part for chat completions. */
 type ChatContentPart =
@@ -411,6 +412,42 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
           content: `以下是从记忆库中检索到的相关记忆，可能对回答用户问题有帮助：\n${memoryContext}\n\n请根据这些记忆信息来更好地回答用户的问题。如果记忆中没有相关信息，请正常回答。`,
         });
       }
+    }
+
+    // Inject triggered project-lorebook entries (世界书, v0.7.72). Keyword scan
+    // covers the new message plus the last few turns so follow-up questions keep
+    // a triggered setting active. Simple substring matching (CJK-safe); entries
+    // cost no context until mentioned. Failures must never break chat.
+    try {
+      const loreRows = db
+        .prepare('SELECT id, title, keywords, content, enabled, priority, created_by, created_at, updated_at FROM lorebook_entries WHERE enabled = 1')
+        .all() as Array<{
+        id: string; title: string; keywords: string; content: string; enabled: number;
+        priority: number; created_by: string | null; created_at: string; updated_at: string;
+      }>;
+      if (loreRows.length > 0) {
+        const scanText = [message, ...history.slice(-6).map((h) => h.content)].join('\n');
+        const matched = matchLorebookEntries(
+          scanText,
+          loreRows.map((r) => ({
+            id: r.id,
+            title: r.title,
+            keywords: JSON.parse(r.keywords || '[]') as string[],
+            content: r.content,
+            enabled: Boolean(r.enabled),
+            priority: r.priority,
+            createdBy: r.created_by,
+            createdAt: r.created_at,
+            updatedAt: r.updated_at,
+          }))
+        );
+        const loreContext = buildLorebookContext(matched);
+        if (loreContext) {
+          apiMessages.unshift({ role: 'system', content: loreContext });
+        }
+      }
+    } catch (loreErr: unknown) {
+      console.warn('[chat] Lorebook injection failed:', getErrorMessage(loreErr));
     }
 
     // Inject this conversation's custom system prompt (persona) as the LEADING system message.
