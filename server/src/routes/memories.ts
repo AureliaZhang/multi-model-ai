@@ -250,6 +250,7 @@ router.get('/config', (_req: AuthRequest, res: Response) => {
       autoSave: row.auto_save === 1,
       contextInjection: row.context_injection === 1,
       maxContextMemories: row.max_context_memories,
+      historyMaxTurns: row.history_max_turns ?? 20,
       retentionDays: row.retention_days,
       semanticSearch: row.semantic_search === 1,
       autoSummarize: row.auto_summarize === 1,
@@ -275,13 +276,14 @@ router.put('/config', requireRole('admin'), (req: AuthRequest, res: Response) =>
     db.prepare(`
       UPDATE memory_config SET
         auto_save = ?, context_injection = ?, max_context_memories = ?,
-        retention_days = ?, semantic_search = ?, auto_summarize = ?, summarize_threshold = ?,
+        history_max_turns = ?, retention_days = ?, semantic_search = ?, auto_summarize = ?, summarize_threshold = ?,
         embedding_api_base_url = ?, embedding_api_key = ?, embedding_model = ?
       WHERE id = 1
     `).run(
       updates.autoSave !== undefined ? (updates.autoSave ? 1 : 0) : current.auto_save,
       updates.contextInjection !== undefined ? (updates.contextInjection ? 1 : 0) : current.context_injection,
       updates.maxContextMemories ?? current.max_context_memories,
+      updates.historyMaxTurns !== undefined ? Math.max(0, Math.floor(updates.historyMaxTurns)) : current.history_max_turns,
       updates.retentionDays ?? current.retention_days,
       updates.semanticSearch !== undefined ? (updates.semanticSearch ? 1 : 0) : current.semantic_search,
       updates.autoSummarize !== undefined ? (updates.autoSummarize ? 1 : 0) : current.auto_summarize,
@@ -570,6 +572,7 @@ function rowToMemoryConfig(row: MemoryConfigRow): MemoryConfig {
     autoSave: row.auto_save === 1,
     contextInjection: row.context_injection === 1,
     maxContextMemories: row.max_context_memories,
+    historyMaxTurns: row.history_max_turns ?? 20,
     retentionDays: row.retention_days,
     semanticSearch: row.semantic_search === 1,
     autoSummarize: row.auto_summarize === 1,

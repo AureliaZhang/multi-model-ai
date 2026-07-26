@@ -156,6 +156,8 @@ export interface MemoryConfig {
   autoSave: boolean;
   contextInjection: boolean;
   maxContextMemories: number;
+  /** Recent verbatim turns sent to the model (v0.7.49); 0 = unlimited. */
+  historyMaxTurns: number;
   retentionDays: number;
   semanticSearch: boolean;
   autoSummarize: boolean;

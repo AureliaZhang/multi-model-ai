@@ -46,6 +46,29 @@ type MemoryContextRow = {
 
 import type Database from 'better-sqlite3';
 
+
+/**
+ * History LIMIT (§10.8 TC2 #2 — owner decision 2026-07-26: default 20 turns,
+ * admin-tunable, 0 = unlimited). Keep only the LAST `maxTurns` turns (1 turn =
+ * user + assistant = 2 messages) of verbatim history; the memory store's RAG
+ * injection covers anything older. Pure — exported for tests. The newest
+ * message (the just-inserted current user message) is always inside the window.
+ */
+export function limitHistory<T>(rows: T[], maxTurns: number): T[] {
+  if (!Number.isFinite(maxTurns) || maxTurns <= 0) return rows;
+  const maxMessages = Math.floor(maxTurns) * 2;
+  return rows.length > maxMessages ? rows.slice(rows.length - maxMessages) : rows;
+}
+
+/** Read the configured recent-turns window (memory_config.history_max_turns). */
+export function getHistoryMaxTurns(db: Database.Database): number {
+  const row = db.prepare('SELECT history_max_turns FROM memory_config WHERE id = 1').get() as
+    | { history_max_turns: number }
+    | undefined;
+  const v = row ? Math.floor(row.history_max_turns) : 20;
+  return Number.isFinite(v) && v >= 0 ? v : 20;
+}
+
 const router = Router();
 
 /**
@@ -187,10 +210,15 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
     // Update conversation timestamp
     db.prepare('UPDATE conversations SET updated_at = ? WHERE id = ?').run(now, conversationId);
 
-    // Get conversation history for context
-    const history = db.prepare(
+    // Get conversation history for context, capped to the configured recent-turns
+    // window (§10.8 TC2 #2). Older context is NOT lost to the model: the memory
+    // store's RAG injection below retrieves relevant older turns semantically.
+    // Slicing happens BEFORE the attachment batch load, so dropped messages'
+    // attachments are never fetched or parsed at all.
+    const fullHistory = db.prepare(
       'SELECT id, role, content FROM messages WHERE conversation_id = ? ORDER BY created_at ASC'
     ).all(conversationId) as Array<Pick<MessageRow, 'id' | 'role' | 'content'>>;
+    const history = limitHistory(fullHistory, getHistoryMaxTurns(db));
 
     // Batch-load every historical message's attachments in ONE query (was an N+1
     // query per message inside the build loop), grouped by message_id. Each row

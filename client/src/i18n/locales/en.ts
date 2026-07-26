@@ -220,6 +220,8 @@ const en = {
   'memory.contextInjectionDesc': 'Inject relevant memories into AI context',
   'memory.maxContext': 'Max context memories',
   'memory.maxContextDesc': 'How many memories to inject per message',
+  'memory.historyTurns': 'Recent turns sent verbatim',
+  'memory.historyTurnsDesc': 'Only the last N turns are sent as-is; older context is retrieved from the memory store. 0 = unlimited (send everything)',
   'memory.searchPlaceholder': 'Search memories by keyword...',
   'memory.clearFilter': 'Clear filter',
   'memory.loading': 'Loading memories...',

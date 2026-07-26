@@ -142,6 +142,10 @@ describe('SCHEMA_MIGRATIONS (real migration set)', () => {
     const convCols = db.prepare('PRAGMA table_info(conversations)').all().map((r) => (r as { name: string }).name);
     expect(convCols).toContain('pinned');
     expect(convCols).toContain('folder');
+    // v7 table + v8 column present.
+    expect(names).toContain('invites');
+    const memCfgCols = db.prepare('PRAGMA table_info(memory_config)').all().map((r) => (r as { name: string }).name);
+    expect(memCfgCols).toContain('history_max_turns');
   });
 
   it('re-running against an already-migrated DB is a clean no-op', () => {

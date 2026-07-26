@@ -119,6 +119,16 @@ export const SCHEMA_MIGRATIONS: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_invites_code ON invites(code);
       `),
   },
+  // v8: history LIMIT (§10.8 TC2 #2). How many recent TURNS (user+assistant
+  // pairs) of verbatim history the chat path sends to the model; older context
+  // is covered by the memory-store RAG injection. 0 = unlimited (old behaviour).
+  // Owner decision 2026-07-26: default 20, admin-tunable in the Memory settings
+  // UI (it lives next to the other context knobs like max_context_memories).
+  {
+    version: 8,
+    name: 'memory-config-history-max-turns',
+    up: (d) => d.exec(`ALTER TABLE memory_config ADD COLUMN history_max_turns INTEGER NOT NULL DEFAULT 20`),
+  },
 ];
 
 export function getDb(): Database.Database {

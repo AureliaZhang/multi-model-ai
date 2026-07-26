@@ -220,6 +220,8 @@ const zh = {
   'memory.contextInjectionDesc': '将相关记忆注入 AI 上下文',
   'memory.maxContext': '最大上下文记忆数',
   'memory.maxContextDesc': '每条消息注入多少条记忆',
+  'memory.historyTurns': '对话原文保留轮数',
+  'memory.historyTurnsDesc': '每次只把最近 N 轮对话原文发给 AI，更早的内容由记忆库自动检索兜底；0 = 不限制（全部发送）',
   'memory.searchPlaceholder': '按关键词搜索记忆...',
   'memory.clearFilter': '清除筛选',
   'memory.loading': '加载记忆中...',

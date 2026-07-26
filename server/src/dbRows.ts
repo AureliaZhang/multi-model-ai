@@ -182,6 +182,8 @@ export interface MemoryConfigRow {
   auto_save: number;
   context_injection: number;
   max_context_memories: number;
+  /** Recent verbatim turns sent to the model (migration v8). 0 = unlimited. */
+  history_max_turns: number;
   retention_days: number;
   semantic_search: number;
   auto_summarize: number;

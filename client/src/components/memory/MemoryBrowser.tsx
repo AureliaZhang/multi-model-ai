@@ -41,12 +41,16 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
     fetchConfig();
   }, [fetchEntries, fetchTags, fetchConfig]);
 
+  // History LIMIT (v0.7.49): local draft for the recent-turns window input.
+  const [historyTurns, setHistoryTurns] = useState('20');
+
   // Sync embedding config from store to local state
   useEffect(() => {
     if (config) {
       setEmbBaseUrl(config.embeddingApiBaseUrl || '');
       setEmbApiKey(config.embeddingApiKey || '');
       setEmbModel(config.embeddingModel || '');
+      setHistoryTurns(String(config.historyMaxTurns ?? 20));
     }
   }, [config]);
 
@@ -84,6 +88,15 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
 
   const handleConfigToggle = (key: string, value: boolean) => {
     updateConfig({ [key]: value });
+  };
+
+  // Commit the recent-turns window (0 = unlimited). Saves on blur / Enter.
+  const commitHistoryTurns = () => {
+    const n = Math.max(0, Math.floor(Number(historyTurns) || 0));
+    setHistoryTurns(String(n));
+    if (n !== (config?.historyMaxTurns ?? 20)) {
+      updateConfig({ historyMaxTurns: n });
+    }
   };
 
   const handleBackfill = async () => {
@@ -215,6 +228,23 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
               description={t('memory.contextInjectionDesc')}
               enabled={config?.contextInjection ?? true}
               onToggle={(v) => handleConfigToggle('context_injection', v)}
+            />
+          </div>
+
+          {/* History LIMIT (v0.7.49): recent verbatim turns; memory RAG covers older context */}
+          <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-[var(--color-main-surface-primary)] border border-[var(--color-border-light)]">
+            <div className="min-w-0">
+              <div className="text-sm text-[var(--color-text-primary)]">{t('memory.historyTurns')}</div>
+              <div className="text-[11px] text-[var(--color-text-tertiary)]">{t('memory.historyTurnsDesc')}</div>
+            </div>
+            <input
+              type="number"
+              min={0}
+              value={historyTurns}
+              onChange={e => setHistoryTurns(e.target.value)}
+              onBlur={commitHistoryTurns}
+              onKeyDown={e => { if (e.key === 'Enter') commitHistoryTurns(); }}
+              className="w-20 flex-shrink-0 px-3 py-1.5 rounded-md bg-[var(--color-bg-secondary)] border border-[var(--color-border-light)] text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent-main)] transition-colors text-center"
             />
           </div>
 
