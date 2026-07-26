@@ -6,6 +6,7 @@ import type {
   CreateUserRequest,
   UserPublic,
   UpdateUserRequest,
+  Invite,
 } from '../types';
 import { getErrorMessage } from '../utils/errors';
 
@@ -84,4 +85,16 @@ export const userApi = {
     }),
   delete: (id: string) =>
     authRequest(`/users/${id}`, { method: 'DELETE' }),
+};
+
+// --- Member invites (admin; v0.7.48 onboarding) ---
+export const inviteApi = {
+  list: () => authRequest<Invite[]>('/users/invites'),
+  create: (data: { role?: 'user' | 'admin'; maxUses?: number; expiresInDays?: number }) =>
+    authRequest<Invite>('/users/invites', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  revoke: (id: string) =>
+    authRequest(`/users/invites/${id}`, { method: 'DELETE' }),
 };

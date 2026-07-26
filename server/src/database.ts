@@ -95,6 +95,30 @@ export const SCHEMA_MIGRATIONS: Migration[] = [
       d.exec(`ALTER TABLE conversations ADD COLUMN folder TEXT`);
     },
   },
+  // v7: member invites (§10.8 Phase 5 FE-B). Admin-minted codes; registration
+  // with a valid code stamps the invite's role and consumes one use. Revocation
+  // is a flag (not a DELETE) so the audit trail of who was invited how survives.
+  // max_uses = 0 means unlimited; expires_at NULL means never.
+  {
+    version: 7,
+    name: 'invites',
+    up: (d) =>
+      d.exec(`
+        CREATE TABLE IF NOT EXISTS invites (
+          id TEXT PRIMARY KEY,
+          code TEXT NOT NULL UNIQUE,
+          role TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('user','admin')),
+          created_by TEXT,
+          max_uses INTEGER NOT NULL DEFAULT 1,
+          used_count INTEGER NOT NULL DEFAULT 0,
+          expires_at TEXT,
+          revoked INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_invites_code ON invites(code);
+      `),
+  },
 ];
 
 export function getDb(): Database.Database {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuthStore } from '../../stores/authStore';
-import { UserPlus, Eye, EyeOff } from 'lucide-react';
+import { UserPlus, Eye, EyeOff, Ticket } from 'lucide-react';
 import { useTranslation } from '../../i18n';
 import { TopRightToggles } from '../layout/TopRightToggles';
 
@@ -14,6 +14,10 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
+  // Invite code (v0.7.48): prefilled from an invite link (?invite=CODE).
+  const [inviteCode, setInviteCode] = useState<string>(
+    () => new URLSearchParams(window.location.search).get('invite') || ''
+  );
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState('');
   const register = useAuthStore(s => s.register);
@@ -41,7 +45,7 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
       return;
     }
 
-    await register(username.trim(), password, email.trim() || undefined, displayName.trim() || undefined);
+    await register(username.trim(), password, email.trim() || undefined, displayName.trim() || undefined, inviteCode.trim() || undefined);
   };
 
   const error = localError || serverError;
@@ -93,6 +97,22 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
               className="w-full px-4 py-2.5 bg-[var(--composer-bg)] border border-[var(--color-border-light)] rounded-xl text-[var(--color-text-primary)] placeholder-[var(--color-text-placeholder)] outline-none focus:border-[var(--color-accent-main)] transition-colors text-sm"
               placeholder={t('register.displayNamePlaceholder')}
             />
+          </div>
+
+          <div>
+            <label className="block text-sm text-[var(--color-text-secondary)] mb-1.5">
+              {t('register.inviteCode')}
+            </label>
+            <div className="relative">
+              <Ticket size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
+              <input
+                type="text"
+                value={inviteCode}
+                onChange={e => { setInviteCode(e.target.value); setLocalError(''); clearError(); }}
+                className="w-full pl-10 pr-4 py-2.5 bg-[var(--composer-bg)] border border-[var(--color-border-light)] rounded-xl text-[var(--color-text-primary)] placeholder-[var(--color-text-placeholder)] outline-none focus:border-[var(--color-accent-main)] transition-colors text-sm"
+                placeholder={t('register.inviteCodePlaceholder')}
+              />
+            </div>
           </div>
 
           <div>

@@ -7,12 +7,97 @@ import type { AuthRequest, UserPublic, UserRole, CreateUserRequest, UpdateUserRe
 import type { UserPublicRow } from '../dbRows';
 import { getErrorMessage } from '../utils/errors';
 import { isVirtualPlaceholderUser, VIRTUAL_PLACEHOLDER_USERNAME, VIRTUAL_PLACEHOLDER_USER_ID } from '../virtualUser';
+import { generateInviteCode } from '../services/invites';
+import type { Invite } from '../types';
+import type { InviteRow } from '../dbRows';
 
 const router = Router();
 
 // All user management routes require admin role
 router.use(requireAuth);
 router.use(requireRole('admin'));
+
+// --- Member invites (§10.8 Phase 5 FE-B) ---
+// NOTE: registered BEFORE the '/:id' routes so 'invites' is never captured as a user id.
+
+function rowToInvite(r: InviteRow & { creator_username?: string | null }): Invite {
+  return {
+    id: r.id,
+    code: r.code,
+    role: r.role === 'admin' ? 'admin' : 'user',
+    createdBy: r.created_by,
+    creatorUsername: r.creator_username ?? null,
+    maxUses: r.max_uses,
+    usedCount: r.used_count,
+    expiresAt: r.expires_at,
+    revoked: Boolean(r.revoked),
+    createdAt: r.created_at,
+  };
+}
+
+/**
+ * GET /api/users/invites — list all invites (newest first).
+ */
+router.get('/invites', (_req: AuthRequest, res: Response) => {
+  try {
+    const db = getDb();
+    const rows = db.prepare(`
+      SELECT i.*, u.username AS creator_username
+      FROM invites i LEFT JOIN users u ON i.created_by = u.id
+      ORDER BY i.created_at DESC
+    `).all() as Array<InviteRow & { creator_username?: string | null }>;
+    res.json({ success: true, data: rows.map(rowToInvite) });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
+  }
+});
+
+/**
+ * POST /api/users/invites — mint an invite.
+ * Body: { role?: 'user'|'admin', maxUses?: number (0 = unlimited, default 1),
+ *         expiresInDays?: number (absent/0 = never) }
+ */
+router.post('/invites', (req: AuthRequest, res: Response) => {
+  try {
+    const { role, maxUses, expiresInDays } = req.body as { role?: string; maxUses?: number; expiresInDays?: number };
+    const inviteRole = role === 'admin' ? 'admin' : 'user';
+    const usesNum = Number(maxUses);
+    const uses = Number.isFinite(usesNum) && usesNum >= 0 ? Math.floor(usesNum) : 1;
+    const daysNum = Number(expiresInDays);
+    const expiresAt = Number.isFinite(daysNum) && daysNum > 0
+      ? new Date(Date.now() + daysNum * 24 * 60 * 60 * 1000).toISOString()
+      : null;
+
+    const db = getDb();
+    const id = uuidv4();
+    const code = generateInviteCode();
+    db.prepare(`
+      INSERT INTO invites (id, code, role, created_by, max_uses, expires_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(id, code, inviteRole, req.user?.id || null, uses, expiresAt);
+
+    const row = db.prepare('SELECT * FROM invites WHERE id = ?').get(id) as InviteRow;
+    res.status(201).json({ success: true, data: rowToInvite(row) });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
+  }
+});
+
+/**
+ * DELETE /api/users/invites/:inviteId — revoke (flag, not row delete: audit trail).
+ */
+router.delete('/invites/:inviteId', (req: AuthRequest, res: Response) => {
+  try {
+    const db = getDb();
+    const info = db.prepare('UPDATE invites SET revoked = 1 WHERE id = ?').run(req.params.inviteId);
+    if (info.changes === 0) {
+      return res.status(404).json({ success: false, error: 'Invite not found' });
+    }
+    res.json({ success: true });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
+  }
+});
 
 /**
  * GET /api/users

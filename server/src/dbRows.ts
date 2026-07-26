@@ -612,3 +612,19 @@ export interface SelectionCountRow {
   model: string;
   selections: number;
 }
+
+/** Row shape of `invites` (migration v7 — member invites). */
+export interface InviteRow {
+  id: string;
+  code: string;
+  role: string;
+  created_by: string | null;
+  /** 0 = unlimited uses. */
+  max_uses: number;
+  used_count: number;
+  /** ISO timestamp; null = never expires. */
+  expires_at: string | null;
+  /** 0 | 1 integer flag. Revoked invites stay for audit. */
+  revoked: number;
+  created_at: string;
+}

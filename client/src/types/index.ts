@@ -278,6 +278,24 @@ export interface RegisterRequest {
   email?: string;
   phone?: string;
   displayName?: string;
+  /** Optional (required on invite-only instances): admin-minted invite code. */
+  inviteCode?: string;
+}
+
+/** Admin-minted member invite (v0.7.48). */
+export interface Invite {
+  id: string;
+  code: string;
+  role: 'user' | 'admin';
+  createdBy: string | null;
+  creatorUsername?: string | null;
+  /** 0 = unlimited uses. */
+  maxUses: number;
+  usedCount: number;
+  /** null = never expires. */
+  expiresAt: string | null;
+  revoked: boolean;
+  createdAt: string;
 }
 
 export interface CreateUserRequest {

@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import type { UserPublic, UserRole, CreateUserRequest } from '../../types';
-import { userApi } from '../../services/auth';
+import type { UserPublic, UserRole, CreateUserRequest, Invite } from '../../types';
+import { userApi, inviteApi } from '../../services/auth';
 import { useAuthStore } from '../../stores/authStore';
 import { useTranslation } from '../../i18n';
-import { ArrowLeft, Shield, ShieldOff, Trash2, UserCheck, UserX, Users, UserPlus, X, Eye, EyeOff, Gauge, Pencil, Check } from 'lucide-react';
+import { ArrowLeft, Shield, ShieldOff, Trash2, UserCheck, UserX, Users, UserPlus, X, Eye, EyeOff, Gauge, Pencil, Check, Ticket, Copy, Ban, Plus } from 'lucide-react';
 import { getErrorMessage } from '../../utils/errors';
 
 interface UserManagementProps {
@@ -92,6 +92,187 @@ function QuotaCell({ user, onSaved }: { user: UserPublic; onSaved: () => void })
       </span>
       <Pencil size={10} className="opacity-0 group-hover:opacity-100" />
     </button>
+  );
+}
+
+
+/**
+ * Member invites (v0.7.48): mint invite links, list existing codes, revoke.
+ * An invite link opens the register page with the code prefilled (?invite=CODE).
+ */
+function InvitesPanel() {
+  const { t } = useTranslation();
+  const [invites, setInvites] = useState<Invite[]>([]);
+  const [open, setOpen] = useState(false);
+  const [invLoading, setInvLoading] = useState(false);
+  const [invError, setInvError] = useState('');
+  const [role, setRole] = useState<'user' | 'admin'>('user');
+  const [maxUses, setMaxUses] = useState('1');
+  const [expiresDays, setExpiresDays] = useState('');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const load = async () => {
+    setInvLoading(true);
+    try {
+      const res = await inviteApi.list();
+      if (res.success && res.data) setInvites(res.data);
+      else if (res.error) setInvError(res.error);
+    } catch (err: unknown) {
+      setInvError(getErrorMessage(err));
+    } finally {
+      setInvLoading(false);
+    }
+  };
+
+  const toggleOpen = () => {
+    setOpen(prev => {
+      if (!prev) void load();
+      return !prev;
+    });
+  };
+
+  const handleCreate = async () => {
+    setInvError('');
+    const uses = Math.max(0, Math.floor(Number(maxUses) || 0));
+    const days = Math.max(0, Math.floor(Number(expiresDays) || 0));
+    const res = await inviteApi.create({ role, maxUses: uses, expiresInDays: days || undefined });
+    if (res.success) void load();
+    else if (res.error) setInvError(res.error);
+  };
+
+  const handleRevoke = async (id: string) => {
+    const res = await inviteApi.revoke(id);
+    if (res.success) void load();
+    else if (res.error) setInvError(res.error);
+  };
+
+  const inviteLink = (code: string) => `${window.location.origin}/?invite=${encodeURIComponent(code)}`;
+
+  const handleCopy = async (inv: Invite) => {
+    try {
+      await navigator.clipboard.writeText(inviteLink(inv.code));
+      setCopiedId(inv.id);
+      setTimeout(() => setCopiedId(prev => (prev === inv.id ? null : prev)), 1500);
+    } catch {
+      setInvError(inviteLink(inv.code)); // clipboard unavailable → show the link to hand-copy
+    }
+  };
+
+  const statusOf = (inv: Invite): string => {
+    if (inv.revoked) return t('invites.statusRevoked');
+    if (inv.expiresAt && inv.expiresAt < new Date().toISOString()) return t('invites.statusExpired');
+    if (inv.maxUses > 0 && inv.usedCount >= inv.maxUses) return t('invites.statusUsedUp');
+    return t('invites.statusActive');
+  };
+
+  return (
+    <div className="mb-6 rounded-xl bg-[var(--color-main-surface-secondary)] border border-[var(--color-border-light)]">
+      <button
+        type="button"
+        onClick={toggleOpen}
+        className="w-full flex items-center gap-2 px-4 py-3 text-left"
+      >
+        <Ticket size={16} className="text-[var(--color-accent-main)]" />
+        <span className="text-sm font-semibold text-[var(--color-text-primary)] flex-1">{t('invites.title')}</span>
+        <span className="text-xs text-[var(--color-text-tertiary)]">{open ? '−' : '+'}</span>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4">
+          <p className="text-xs text-[var(--color-text-tertiary)] mb-3">{t('invites.desc')}</p>
+
+          {invError && (
+            <div className="mb-3 p-2 rounded-lg bg-[var(--color-surface-error)] text-[var(--color-text-error)] text-xs break-all">
+              {invError}
+            </div>
+          )}
+
+          {/* Mint form */}
+          <div className="flex flex-wrap items-end gap-2 mb-4">
+            <div>
+              <label className="block text-xs text-[var(--color-text-tertiary)] mb-1">{t('invites.role')}</label>
+              <select
+                value={role}
+                onChange={e => setRole(e.target.value === 'admin' ? 'admin' : 'user')}
+                className="px-2 py-1.5 bg-[var(--composer-bg)] border border-[var(--color-border-light)] rounded-lg text-[var(--color-text-primary)] text-xs outline-none focus:border-[var(--color-accent-main)]"
+              >
+                <option value="user">{t('users.roleUser')}</option>
+                <option value="admin">{t('users.roleAdmin')}</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-[var(--color-text-tertiary)] mb-1">{t('invites.maxUses')}</label>
+              <input
+                type="number" min={0} value={maxUses}
+                onChange={e => setMaxUses(e.target.value)}
+                className="w-20 px-2 py-1.5 bg-[var(--composer-bg)] border border-[var(--color-border-light)] rounded-lg text-[var(--color-text-primary)] text-xs outline-none focus:border-[var(--color-accent-main)]"
+                title={t('invites.maxUsesHint')}
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-[var(--color-text-tertiary)] mb-1">{t('invites.expiresDays')}</label>
+              <input
+                type="number" min={0} value={expiresDays} placeholder={t('invites.never')}
+                onChange={e => setExpiresDays(e.target.value)}
+                className="w-24 px-2 py-1.5 bg-[var(--composer-bg)] border border-[var(--color-border-light)] rounded-lg text-[var(--color-text-primary)] text-xs outline-none focus:border-[var(--color-accent-main)] placeholder:text-[var(--color-text-placeholder)]"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleCreate}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[var(--button-primary-bg)] hover:bg-[var(--button-primary-hover)] text-white text-xs transition-colors"
+            >
+              <Plus size={12} />
+              {t('invites.create')}
+            </button>
+          </div>
+
+          {/* List */}
+          {invLoading ? (
+            <div className="text-xs text-[var(--color-text-tertiary)] py-2">{t('users.loading')}</div>
+          ) : invites.length === 0 ? (
+            <div className="text-xs text-[var(--color-text-tertiary)] py-2">{t('invites.empty')}</div>
+          ) : (
+            <div className="space-y-1.5">
+              {invites.map(inv => (
+                <div key={inv.id} className="flex flex-wrap items-center gap-2 px-3 py-2 rounded-lg bg-[var(--overlay-4)] text-xs">
+                  <code className="font-mono text-[var(--color-text-secondary)] truncate max-w-[160px]" title={inv.code}>{inv.code}</code>
+                  <span className={inv.role === 'admin' ? 'text-[var(--color-accent-main)]' : 'text-[var(--color-text-tertiary)]'}>
+                    {inv.role === 'admin' ? t('users.roleAdmin') : t('users.roleUser')}
+                  </span>
+                  <span className="text-[var(--color-text-tertiary)]">
+                    {inv.usedCount}/{inv.maxUses === 0 ? '∞' : inv.maxUses}
+                  </span>
+                  <span className="text-[var(--color-text-tertiary)]">
+                    {inv.expiresAt ? new Date(inv.expiresAt).toLocaleDateString() : t('invites.never')}
+                  </span>
+                  <span className="text-[var(--color-text-tertiary)]">{statusOf(inv)}</span>
+                  <span className="flex-1" />
+                  <button
+                    type="button"
+                    onClick={() => void handleCopy(inv)}
+                    className="p-1 rounded-md hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)]"
+                    title={t('invites.copyLink')}
+                  >
+                    {copiedId === inv.id ? <Check size={13} className="text-[var(--color-accent-main)]" /> : <Copy size={13} />}
+                  </button>
+                  {!inv.revoked && (
+                    <button
+                      type="button"
+                      onClick={() => void handleRevoke(inv.id)}
+                      className="p-1 rounded-md hover:bg-red-500/20 text-[var(--color-text-tertiary)] hover:text-red-400"
+                      title={t('invites.revoke')}
+                    >
+                      <Ban size={13} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -346,6 +527,9 @@ export function UserManagement({ onBack }: UserManagementProps) {
             </div>
           </form>
         )}
+
+        {/* Member invites (v0.7.48) */}
+        <InvitesPanel />
 
         {loading ? (
           <div className="text-center py-12 text-[var(--color-text-tertiary)]">{t('users.loading')}</div>

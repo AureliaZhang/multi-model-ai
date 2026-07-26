@@ -7,8 +7,19 @@ import type { AuthRequest, RegisterRequest, LoginRequest, AuthResponse, UserPubl
 import type { UserPublicRow } from '../dbRows';
 import { getErrorMessage } from '../utils/errors';
 import { isVirtualPlaceholderUser, VIRTUAL_PLACEHOLDER_USERNAME } from '../virtualUser';
+import { requireInvite, getInviteByCode, validateInvite, consumeInvite } from '../services/invites';
+import type { InviteRow } from '../dbRows';
+import type { UserRole } from '../types';
 
 const router = Router();
+
+/** User-facing message per invite rejection reason. */
+const INVITE_ERRORS: Record<string, string> = {
+  not_found: 'Invalid invite code',
+  revoked: 'This invite has been revoked',
+  expired: 'This invite has expired',
+  exhausted: 'This invite has already been used',
+};
 
 /**
  * POST /api/auth/register
@@ -16,7 +27,7 @@ const router = Router();
  */
 router.post('/register', (req: AuthRequest, res: Response) => {
   try {
-    const { username, password, email, phone, displayName } = req.body as RegisterRequest;
+    const { username, password, email, phone, displayName, inviteCode } = req.body as RegisterRequest;
 
     if (!username || !password) {
       res.status(400).json({ success: false, error: 'Username and password are required' });
@@ -39,6 +50,23 @@ router.post('/register', (req: AuthRequest, res: Response) => {
     }
 
     const db = getDb();
+
+    // Member invites (§10.8 Phase 5 FE-B). A provided code must be valid; with
+    // REQUIRE_INVITE=1 the code becomes mandatory (invite-only instance). The
+    // invite is validated here but consumed only after the INSERT succeeds.
+    let invite: InviteRow | undefined;
+    const trimmedCode = typeof inviteCode === 'string' ? inviteCode.trim() : '';
+    if (trimmedCode) {
+      invite = getInviteByCode(db, trimmedCode);
+      const check = validateInvite(invite);
+      if (!check.ok) {
+        res.status(400).json({ success: false, error: INVITE_ERRORS[check.reason] });
+        return;
+      }
+    } else if (requireInvite()) {
+      res.status(403).json({ success: false, error: 'Registration requires an invite code' });
+      return;
+    }
 
     // Check if username already exists
     const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
@@ -67,11 +95,15 @@ router.post('/register', (req: AuthRequest, res: Response) => {
 
     const id = uuidv4();
     const passwordHash = bcrypt.hashSync(password, 10);
+    // Role comes from the invite when one was used (e.g. an admin invite).
+    const role: UserRole = invite && invite.role === 'admin' ? 'admin' : 'user';
 
     db.prepare(`
       INSERT INTO users (id, username, email, phone, password_hash, display_name, role)
-      VALUES (?, ?, ?, ?, ?, ?, 'user')
-    `).run(id, username, email || null, phone || null, passwordHash, displayName || username);
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(id, username, email || null, phone || null, passwordHash, displayName || username, role);
+
+    if (invite) consumeInvite(db, invite.id);
 
     const token = generateToken(id);
 
@@ -81,7 +113,7 @@ router.post('/register', (req: AuthRequest, res: Response) => {
       email: email || null,
       phone: phone || null,
       displayName: displayName || username,
-      role: 'user',
+      role,
       isActive: true,
       lastLogin: null,
       createdAt: new Date().toISOString(),

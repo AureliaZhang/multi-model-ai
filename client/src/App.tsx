@@ -10,7 +10,10 @@ function App() {
   const initialize = useAuthStore(s => s.initialize);
   const isLoading = useAuthStore(s => s.isLoading);
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
-  const [authView, setAuthView] = useState<AuthView>('login');
+  // An invite link (?invite=CODE) lands directly on the register view (v0.7.48).
+  const [authView, setAuthView] = useState<AuthView>(
+    () => new URLSearchParams(window.location.search).get('invite') ? 'register' : 'login'
+  );
   const [isGuest, setIsGuest] = useState(false);
 
   useEffect(() => {

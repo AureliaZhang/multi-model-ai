@@ -41,6 +41,22 @@ export interface RegisterRequest {
   email?: string;
   phone?: string;
   displayName?: string;
+  /** Optional (required when REQUIRE_INVITE=1): admin-minted invite code. */
+  inviteCode?: string;
+}
+
+/** Public shape of an invite (admin UI). `code` is included — admins mint them. */
+export interface Invite {
+  id: string;
+  code: string;
+  role: 'user' | 'admin';
+  createdBy: string | null;
+  creatorUsername?: string | null;
+  maxUses: number;
+  usedCount: number;
+  expiresAt: string | null;
+  revoked: boolean;
+  createdAt: string;
 }
 
 export interface CreateUserRequest {
