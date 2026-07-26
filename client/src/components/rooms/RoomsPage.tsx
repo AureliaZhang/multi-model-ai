@@ -5,6 +5,7 @@ import { useTranslation } from '../../i18n';
 import { GroupChatLayout } from './GroupChatLayout';
 import type { UserPublic } from '../../types';
 import { Users2, Plus, X, ArrowLeft, Loader2 } from 'lucide-react';
+import { AnnouncementBanner } from '../common/AnnouncementBanner';
 
 interface RoomsPageProps {
   onClose: () => void;
@@ -28,7 +29,10 @@ export function RoomsPage({ onClose }: RoomsPageProps) {
   }, [fetchRooms]);
 
   return (
-    <div className="h-full flex bg-[var(--color-main-surface-primary)]">
+    <div className="h-full flex flex-col bg-[var(--color-main-surface-primary)]">
+      {/* Team announcement also shows in the group-chat view (v0.7.76) */}
+      <AnnouncementBanner />
+      <div className="flex-1 min-h-0 flex">
       {/* Left: group list — full-width on mobile when nothing is open; a fixed
           column on desktop. Hidden on mobile once a group is open (list/detail). */}
       <div className={`${selectedId ? 'hidden md:flex' : 'flex'} w-full md:w-[280px] flex-shrink-0 border-r border-[var(--color-border-light)] flex-col`}>
@@ -95,6 +99,8 @@ export function RoomsPage({ onClose }: RoomsPageProps) {
             <p className="text-[13px]">{t('room.pickAGroup')}</p>
           </div>
         )}
+      </div>
+
       </div>
 
       {showCreate && (

@@ -631,6 +631,17 @@ const en = {
   'announcement.placeholder': 'e.g. Server maintenance tonight at 10pm, ~30 minutes…',
   'announcement.enabled': 'Enabled',
   'announcement.dismiss': 'Dismiss announcement',
+  'announcement.statusOn': 'Published',
+  'announcement.statusOff': 'Not published',
+  'announcement.publish': 'Publish announcement',
+  'announcement.editBtn': 'Edit announcement',
+  'announcement.retract': 'Retract',
+  'announcement.retractConfirm': 'Retract the current announcement? Members will stop seeing it; the text is kept so you can publish it again later.',
+  'announcement.previewTitle': 'Preview announcement',
+  'announcement.previewHint': 'Once published, every member sees this at the top of the chat and group-chat views (shown below exactly as it will appear):',
+  'announcement.next': 'Next: preview',
+  'announcement.backEdit': 'Back to editing',
+  'announcement.confirmPublish': 'Confirm & publish',
 
   // Friendly errors
   'error.noStation': 'No service node is available for this model right now. Wait a moment and retry, or try another model.',

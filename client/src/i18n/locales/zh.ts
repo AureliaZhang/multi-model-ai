@@ -631,6 +631,17 @@ const zh = {
   'announcement.placeholder': '例如：今晚 10 点服务器维护，预计 30 分钟…',
   'announcement.enabled': '启用',
   'announcement.dismiss': '关闭公告',
+  'announcement.statusOn': '已发布',
+  'announcement.statusOff': '未发布',
+  'announcement.publish': '发布公告',
+  'announcement.editBtn': '修改公告',
+  'announcement.retract': '撤回',
+  'announcement.retractConfirm': '确定撤回当前公告吗？成员将不再看到它；文字会保留，之后可以再发布。',
+  'announcement.previewTitle': '预览公告',
+  'announcement.previewHint': '发布后，所有成员会在聊天页和群聊顶部看到这条公告（下方即实际样式）：',
+  'announcement.next': '下一步：预览',
+  'announcement.backEdit': '返回修改',
+  'announcement.confirmPublish': '确认发布',
 
   // 友好错误提示
   'error.noStation': '这个模型暂时没有可用的服务节点。稍等片刻重试，或先换一个模型试试。',

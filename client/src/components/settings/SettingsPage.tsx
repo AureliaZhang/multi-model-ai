@@ -11,7 +11,8 @@ import {
 import type { StationModelRow } from '../../types';
 import { getErrorMessage } from '../../utils/errors';
 import { useAuthStore } from '../../stores/authStore';
-import { announcementApi, webSearchApi } from '../../services/api';
+import { webSearchApi } from '../../services/api';
+import { AnnouncementManager } from './AnnouncementManager';
 
 interface SettingsPageProps {
   onClose: () => void;
@@ -60,29 +61,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   const healthCheck = useStationStore(s => s.healthCheck);
   const fetchModels = useModelStore(s => s.fetchModels);
   const { t } = useTranslation();
-  // Admin announcement editor (v0.7.63)
   const isAdmin = useAuthStore(st => st.user?.role === 'admin');
-  const [annContent, setAnnContent] = useState('');
-  const [annEnabled, setAnnEnabled] = useState(false);
-  const [annSaved, setAnnSaved] = useState(false);
-  useEffect(() => {
-    if (!isAdmin) return;
-    let cancelled = false;
-    announcementApi.get().then((res) => {
-      if (!cancelled && res.success && res.data) {
-        setAnnContent(res.data.content);
-        setAnnEnabled(res.data.enabled);
-      }
-    });
-    return () => { cancelled = true; };
-  }, [isAdmin]);
-  const saveAnnouncement = async () => {
-    const res = await announcementApi.set({ content: annContent, enabled: annEnabled });
-    if (res.success) {
-      setAnnSaved(true);
-      setTimeout(() => setAnnSaved(false), 1500);
-    }
-  };
 
   // In-chat web search config (v0.7.74)
   const [wsEnabled, setWsEnabled] = useState(false);
@@ -313,35 +292,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-3xl mx-auto w-full">
-        {/* Admin announcement (v0.7.63): broadcast to every member's chat view */}
-        {isAdmin && (
-          <div className="mb-5 p-4 rounded-2xl bg-[var(--color-main-surface-secondary)] border border-[var(--color-border-light)]">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-medium text-sm text-[var(--color-text-primary)]">{t('announcement.title')}</h3>
-              <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)] cursor-pointer">
-                <input type="checkbox" checked={annEnabled} onChange={e => setAnnEnabled(e.target.checked)} />
-                {t('announcement.enabled')}
-              </label>
-            </div>
-            <p className="text-[11px] text-[var(--color-text-tertiary)] mb-2">{t('announcement.desc')}</p>
-            <textarea
-              value={annContent}
-              onChange={e => setAnnContent(e.target.value)}
-              placeholder={t('announcement.placeholder')}
-              rows={2}
-              className="w-full px-3 py-2 rounded-lg bg-[var(--composer-bg)] border border-[var(--color-border-light)] text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent-main)] resize-y"
-            />
-            <div className="mt-2 flex justify-end">
-              <button
-                type="button"
-                onClick={() => void saveAnnouncement()}
-                className="px-3 py-1.5 rounded-lg bg-[var(--button-primary-bg)] hover:bg-[var(--button-primary-hover)] text-white text-xs transition-colors"
-              >
-                {annSaved ? '✓' : t('common.save')}
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Admin announcement (v0.7.76): compact card → dialog → preview → confirm */}
+        {isAdmin && <AnnouncementManager />}
         {/* In-chat web search (v0.7.74): provider key + switch */}
         {isAdmin && (
           <div className="mb-5 p-4 rounded-2xl bg-[var(--color-main-surface-secondary)] border border-[var(--color-border-light)]">
