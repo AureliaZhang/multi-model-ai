@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from '../../i18n';
 import { KnowledgeBasePanel } from './KnowledgeBasePanel';
 import { LorebookPanel } from './LorebookPanel';
+import { TopRightToggles } from '../layout/TopRightToggles';
 import {
   ArrowLeft, Upload, FileText, File, FileCode, FileImage, FileArchive,
   Trash2, RefreshCw, Loader, CheckCircle2, AlertCircle,
@@ -286,7 +287,7 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
   return (
     <div className="h-full flex flex-col bg-[var(--color-main-surface-primary)]">
       {/* Top bar */}
-      <div className="flex items-center justify-between px-5 py-3 pr-32 border-b border-[var(--color-border-light)] flex-shrink-0">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--color-border-light)] flex-shrink-0">
         <div className="flex items-center gap-3">
           <button
             onClick={onClose}
@@ -307,8 +308,9 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
 
         {/* Uploads / folder creation only in the "mine" view (new files are private;
             the team view is a flat read-only listing of what's been shared). */}
-        {scope === 'mine' && (
         <div className="flex items-center gap-2">
+        {scope === 'mine' && (
+        <>
           {/* New Folder button */}
           <button
             onClick={() => setShowCreateFolder(true)}
@@ -346,8 +348,10 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
               </>
             )}
           </button>
-        </div>
+        </>
         )}
+          <TopRightToggles variant="inline" />
+        </div>
 
         <input
           ref={fileInputRef}

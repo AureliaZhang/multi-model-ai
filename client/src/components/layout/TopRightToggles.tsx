@@ -7,16 +7,26 @@ const btnClass =
   'flex items-center gap-1 px-2 py-1 rounded-md text-[var(--color-text-tertiary)] hover:bg-[var(--overlay-6)] hover:text-[var(--color-text-primary)] transition-colors text-xs';
 
 /**
- * Fixed top-right cluster: theme + language side by side (never overlap).
- * Use this instead of mounting ThemeToggle / LanguageToggle as separate fixed buttons.
+ * Theme + language toggle cluster.
+ * - variant="fixed" (default): floats top-right — for standalone screens with
+ *   no header of their own (login / register).
+ * - variant="inline" (v0.7.78): renders as a plain flex group so每个页面的顶栏
+ *   can put it IN the button row — perfectly aligned & evenly spaced, and the
+ *   whole "floating cluster covers header buttons" bug class disappears.
  */
-export function TopRightToggles() {
+export function TopRightToggles({ variant = 'fixed' }: { variant?: 'fixed' | 'inline' }) {
   const theme = useThemeStore((s) => s.theme);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
   const { t, locale, setLocale } = useTranslation();
 
   return (
-    <div className="fixed top-4 right-4 z-[60] flex items-center gap-2">
+    <div
+      className={
+        variant === 'inline'
+          ? 'flex items-center gap-1 flex-shrink-0'
+          : 'fixed top-4 right-4 z-[60] flex items-center gap-2'
+      }
+    >
       <button
         type="button"
         onClick={toggleTheme}

@@ -26,7 +26,6 @@ const RoomsPage = lazy(() =>
 const GuideOverlay = lazy(() =>
   import('../guide/GuideOverlay').then((m) => ({ default: m.GuideOverlay }))
 );
-import { TopRightToggles } from './TopRightToggles';
 import { DailyModelModal } from '../prefs/DailyModelModal';
 import { ImageConfirmModal } from '../prefs/ImageConfirmModal';
 import { useModelStore } from '../../stores/modelStore';
@@ -84,9 +83,11 @@ export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
     }
   }, [fetchModels, fetchConversations, fetchPrefs, isGuest]);
 
+  // v0.7.78: the theme/lang cluster no longer floats here — every page's own
+  // top bar renders <TopRightToggles variant="inline" /> in its button row, so
+  // the icons are always aligned and evenly spaced (and can't cover anything).
   const withLang = (node: ReactNode) => (
     <>
-      <TopRightToggles />
       {!isGuest && <DailyModelModal />}
       {!isGuest && <ImageConfirmModal />}
       {node}

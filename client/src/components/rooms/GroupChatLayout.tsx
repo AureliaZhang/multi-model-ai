@@ -4,6 +4,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { usePrefsStore } from '../../stores/prefsStore';
 import { usersApi } from '../../services/api';
 import { useTranslation } from '../../i18n';
+import { TopRightToggles } from '../layout/TopRightToggles';
 import { MarkdownMessage } from '../common/MarkdownMessage';
 import {
   exportRepliesAsPdf,
@@ -233,7 +234,7 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
   return (
     <div className="h-full flex flex-col bg-[var(--color-main-surface-primary)]">
       {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-2.5 pr-32 border-b border-[var(--color-border-light)]">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[var(--color-border-light)]">
         {onBack && (
           <button
             className="md:hidden flex-shrink-0 -ml-1 p-1.5 rounded-lg hover:bg-[var(--overlay-6)] text-[var(--color-text-secondary)]"
@@ -264,6 +265,7 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
         >
           <Users2 size={16} />
         </button>
+        <TopRightToggles variant="inline" />
       </div>
 
       {/* Two columns: b = human chat + composer (left), c = AI replies (right).

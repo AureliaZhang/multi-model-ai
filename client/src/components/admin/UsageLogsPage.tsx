@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { usageApi } from '../../services/api';
 import type { UsageLogItem, UsageSummary, ModelPricingEntry } from '../../types';
 import { useTranslation } from '../../i18n';
+import { TopRightToggles } from '../layout/TopRightToggles';
 import { ArrowLeft, RefreshCw, ChevronDown, ChevronRight, Coins, Check } from 'lucide-react';
 
 /** Compact money formatting; null = model/user not priced yet. */
@@ -103,7 +104,7 @@ export function UsageLogsPage({ onBack }: Props) {
 
   return (
     <div className="h-full flex flex-col bg-[var(--color-main-surface-primary)]">
-      <div className="flex items-center gap-3 px-4 py-3 pr-32 border-b border-[var(--color-border-light)]">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--color-border-light)]">
         <button
           type="button"
           onClick={onBack}
@@ -124,6 +125,7 @@ export function UsageLogsPage({ onBack }: Props) {
         >
           <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
         </button>
+        <TopRightToggles variant="inline" />
       </div>
 
       <div className="p-4 flex flex-wrap gap-2 border-b border-[var(--color-border-light)]">

@@ -13,6 +13,7 @@ import { getErrorMessage } from '../../utils/errors';
 import { useAuthStore } from '../../stores/authStore';
 import { webSearchApi } from '../../services/api';
 import { AnnouncementManager } from './AnnouncementManager';
+import { TopRightToggles } from '../layout/TopRightToggles';
 
 interface SettingsPageProps {
   onClose: () => void;
@@ -289,6 +290,9 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
           <ArrowLeft size={20} />
         </button>
         <h1 className="text-[15px] font-semibold text-[var(--color-text-primary)]">{t('settings.title')}</h1>
+        <div className="ml-auto">
+          <TopRightToggles variant="inline" />
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-3xl mx-auto w-full">

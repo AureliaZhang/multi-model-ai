@@ -6,6 +6,7 @@ import { GroupChatLayout } from './GroupChatLayout';
 import type { UserPublic } from '../../types';
 import { Users2, Plus, X, ArrowLeft, Loader2, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { AnnouncementBanner } from '../common/AnnouncementBanner';
+import { TopRightToggles } from '../layout/TopRightToggles';
 
 interface RoomsPageProps {
   onClose: () => void;
@@ -133,7 +134,11 @@ export function RoomsPage({ onClose }: RoomsPageProps) {
         {selectedId ? (
           <GroupChatLayout key={selectedId} roomId={selectedId} onBack={() => setSelectedId(null)} />
         ) : (
-          <div className="h-full w-full flex flex-col items-center justify-center text-[var(--color-text-tertiary)] gap-2">
+          <div className="relative h-full w-full flex flex-col items-center justify-center text-[var(--color-text-tertiary)] gap-2">
+            {/* No group open → no header, so the toggles sit in the same corner spot */}
+            <div className="absolute top-2.5 right-4">
+              <TopRightToggles variant="inline" />
+            </div>
             <Users2 size={40} className="opacity-30" />
             <p className="text-[13px]">{t('room.pickAGroup')}</p>
           </div>

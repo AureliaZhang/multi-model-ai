@@ -8,6 +8,7 @@ import {
   RefreshCw, Layers, AlertCircle, Brain, Key, Globe
 } from 'lucide-react';
 import { getErrorMessage } from '../../utils/errors';
+import { TopRightToggles } from '../layout/TopRightToggles';
 
 interface MemoryBrowserProps {
   onClose: () => void;
@@ -181,8 +182,8 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
 
   return (
     <div className="h-full flex flex-col bg-[var(--color-main-surface-primary)]">
-      {/* Top bar — pr for fixed theme/lang toggles */}
-      <div className="flex items-center justify-between px-5 py-3 pr-32 border-b border-[var(--color-border-light)] flex-shrink-0">
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--color-border-light)] flex-shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onClose}
@@ -222,6 +223,7 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
             <Settings size={14} />
             <span className="hidden sm:inline">{t('memory.settings')}</span>
           </button>
+          <TopRightToggles variant="inline" />
         </div>
       </div>
 

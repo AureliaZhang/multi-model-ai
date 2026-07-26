@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useArenaStore } from '../../stores/arenaStore';
 import { useTranslation } from '../../i18n';
+import { TopRightToggles } from '../layout/TopRightToggles';
 import type { BattleCandidate } from '../../types';
 import { PromptLabPanel } from './PromptLabPanel';
 import { BenchmarkPanel } from './BenchmarkPanel';
@@ -65,6 +66,7 @@ export function ArenaLayout({ onClose }: ArenaLayoutProps) {
             {t('arena.subtitle')}
           </p>
         </div>
+        <TopRightToggles variant="inline" />
       </header>
 
       <nav className="flex gap-1 px-3 py-2 border-b border-[var(--color-border-light)] overflow-x-auto">
