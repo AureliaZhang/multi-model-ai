@@ -20,3 +20,22 @@ describe('getErrorMessage (client)', () => {
     expect(getErrorMessage(undefined, 'fb')).toBe('fb');
   });
 });
+
+// v0.7.64: friendly error mapping (§10.9 P2 #7)
+import { friendlyErrorKey } from './errors';
+import { describe as d2, it as it2, expect as e2 } from 'vitest';
+
+d2('friendlyErrorKey', () => {
+  it2('maps the common failure families to actionable keys', () => {
+    e2(friendlyErrorKey('No healthy stations available for model "gpt"')).toBe('error.noStation');
+    e2(friendlyErrorKey('Monthly token quota exceeded')).toBe('error.quota');
+    e2(friendlyErrorKey('Too Many Requests')).toBe('error.rateLimit');
+    e2(friendlyErrorKey('Network error: Failed to fetch')).toBe('error.network');
+    e2(friendlyErrorKey('Request timed out after 30s')).toBe('error.timeout');
+    e2(friendlyErrorKey('Invalid token')).toBe('error.auth');
+  });
+  it2('unknown messages pass through as null (caller shows the raw text)', () => {
+    e2(friendlyErrorKey('Something exotic happened')).toBeNull();
+    e2(friendlyErrorKey('')).toBeNull();
+  });
+});

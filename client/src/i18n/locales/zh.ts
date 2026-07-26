@@ -581,6 +581,14 @@ const zh = {
   'announcement.placeholder': '例如：今晚 10 点服务器维护，预计 30 分钟…',
   'announcement.enabled': '启用',
   'announcement.dismiss': '关闭公告',
+
+  // 友好错误提示
+  'error.noStation': '这个模型暂时没有可用的服务节点。稍等片刻重试，或先换一个模型试试。',
+  'error.quota': '你本月的用量额度已用完。需要继续使用请联系管理员调高额度。',
+  'error.rateLimit': '发送得太频繁啦，休息几秒再试。',
+  'error.network': '连不上服务器了，请检查网络后重试。',
+  'error.timeout': '这次请求等待超时了，请重试；如果反复超时可以换个模型。',
+  'error.auth': '登录状态已过期，请重新登录。',
   'room.groupName': '群名称',
   'room.pickMembers': '添加成员（至少一人）',
   'room.create': '创建',

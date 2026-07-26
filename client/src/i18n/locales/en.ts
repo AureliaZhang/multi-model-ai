@@ -581,6 +581,14 @@ const en = {
   'announcement.placeholder': 'e.g. Server maintenance tonight at 10pm, ~30 minutes…',
   'announcement.enabled': 'Enabled',
   'announcement.dismiss': 'Dismiss announcement',
+
+  // Friendly errors
+  'error.noStation': 'No service node is available for this model right now. Wait a moment and retry, or try another model.',
+  'error.quota': 'You have used up this month\'s quota. Ask your admin to raise it to continue.',
+  'error.rateLimit': 'Sending a bit too fast — take a few seconds and try again.',
+  'error.network': 'Cannot reach the server. Check your connection and retry.',
+  'error.timeout': 'The request timed out. Retry, or switch models if it keeps happening.',
+  'error.auth': 'Your session has expired. Please sign in again.',
   'room.groupName': 'Group name',
   'room.pickMembers': 'Add members (at least one)',
   'room.create': 'Create',

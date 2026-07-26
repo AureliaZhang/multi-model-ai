@@ -7,6 +7,7 @@ import { SystemPromptModal } from '../chat/SystemPromptModal';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { Sparkles, ChevronUp, PanelLeft, Wand2 } from 'lucide-react';
 import { useTranslation } from '../../i18n';
+import { friendlyErrorKey } from '../../utils/errors';
 
 interface ChatAreaProps {
   isGuest?: boolean;
@@ -158,7 +159,7 @@ export function ChatArea({ isGuest = false, onSignIn, sidebarCollapsed = false, 
 
             {error && (
               <div className="mx-4 mb-4 p-3 rounded-xl bg-[var(--color-surface-error)] border border-[rgba(239,68,68,0.2)] text-[var(--color-text-error)] text-sm flex items-center justify-between">
-                <span>{error}</span>
+                <span title={error}>{(() => { const k = friendlyErrorKey(error); return k ? t(k) : error; })()}</span>
                 <div className="flex items-center gap-3 ml-2 shrink-0">
                   {lastFailedSend && (
                     <button onClick={retryLastSend} className="text-[var(--color-text-error)] hover:opacity-70 text-xs font-medium">{t('common.retry')}</button>
