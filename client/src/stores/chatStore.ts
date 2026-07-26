@@ -230,7 +230,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   error: null,
   abortController: null,
   pendingToolCalls: [],
-  currentVisibility: 'public',
+  currentVisibility: 'private', // team default (v0.7.58): new chats start private
   currentSelfReview: false,
   lastFailedSend: null,
 

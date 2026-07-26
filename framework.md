@@ -76,7 +76,8 @@
 <!-- > **Version**: 0.7.54 -->
 <!-- > **Version**: 0.7.55 -->
 <!-- > **Version**: 0.7.56 -->
-> **Version**: 0.7.57
+<!-- > **Version**: 0.7.57 -->
+> **Version**: 0.7.58
 > **Created**: 2026-06-15
 <!-- > **Last Updated**: 2026-07-20 (v0.7.35 — Phase 1 security batch (§10.8 TC0/TC1): memories router requireAuth + per-user scoping; conversation + chat ownership guards; file/folder mutation owner-gated; JWT-secret boot guard + ADMIN_PASSWORD guardrails; dependency-free rate limiter on /api/chat + /api/arena; +3 tests → 85) -->
 <!-- > **Last Updated**: 2026-07-21 (v0.7.36 — Phase 2 data-safety: versioned schema migrations (schema_migrations ledger + transactional runMigrations) + online DB backups (db.backup() snapshots, keep-N rotation, admin /api/backups); +21 tests → 106) -->
@@ -97,7 +98,8 @@
 <!-- > **Last Updated**: 2026-07-26 (v0.7.54 — **$ cost dashboard (closes Phase 3's deferred item)** — migration v9 `model_pricing` (per-1M-token prompt/completion unit prices, currency-agnostic), admin GET/PUT `/api/usage/pricing`, `computeUsageSummary` gains cost columns (per-model / per-user / totals; unpriced models NEVER guessed — null + `costIncomplete` floor-flag), UsageLogsPage gets 费用 columns + a collapsible 模型单价 editor; +6 tests → server 200. Next (owner-picked): deep dedup of getStationsForModel + resolveModel rescan.) -->
 <!-- > **Last Updated**: 2026-07-26 (v0.7.55 — **deep dedup (TC2 #5 tail + v0.7.50 audit item #2)** — chat.ts's local `getStationsForModel`/`resolveModel` copies deleted; the streaming chat path now computes its station pool ONCE via the shared `services/modelInvocation.getStationsForModel` (healthy-preferred + failover order + RR + decryption), killing both the dead `resolveModel` scan and the duplicate loop-time scan; side fix: the early 503 check now respects the admin pool. 200 tests / tsc clean.) -->
 <!-- > **Last Updated**: 2026-07-26 (v0.7.56 — **Claude-style visual restyle (owner request)** — full token-level reskin: warm ivory light theme (#faf9f5 family) + warm charcoal dark (#262624 family), terracotta accent #d97757 replaces the green everywhere (incl. new `--accent-tint-*` + `--color-assistant` vars that absorbed the last 20 hardcoded greens/purples across 11 components), book-serif system stack for headings + assistant markdown prose, warm overlay/border/selection tones, composer as a white card, page title fixed. Pure CSS-token change — zero logic touched; tsc/build/eslint clean.) -->
-> **Last Updated**: 2026-07-26 (v0.7.57 — **dev-facing UI copy sweep (owner request)** — audited every user-visible string (i18n values, JSX text nodes, alerts, server errors, seeds) for agent/dev self-talk: seeded 'Virtual Placeholder' member now renders localized 虚拟占位成员 in all 3 lists, hardcoded-Chinese 20MB alert + English ErrorBoundary/Loading.../Re-embed/table headers/role options all moved to i18n (+13 keys → zh=en=570); i18n values + server error strings verified clean. tsc/build/eslint back to 11-warning baseline.)
+<!-- > **Last Updated**: 2026-07-26 (v0.7.57 — **dev-facing UI copy sweep (owner request)** — audited every user-visible string (i18n values, JSX text nodes, alerts, server errors, seeds) for agent/dev self-talk: seeded 'Virtual Placeholder' member now renders localized 虚拟占位成员 in all 3 lists, hardcoded-Chinese 20MB alert + English ErrorBoundary/Loading.../Re-embed/table headers/role options all moved to i18n (+13 keys → zh=en=570); i18n values + server error strings verified clean. tsc/build/eslint back to 11-warning baseline.) -->
+> **Last Updated**: 2026-07-26 (v0.7.58 — **§10.9 team-rollout backlog recorded + P0 #1: conversations default PRIVATE** — new §10.9 (owner is becoming a team lead; P0/P1/P2 feature order agreed), and the first item shipped: POST /conversations + import now default `visibility='private'` unless explicitly public; client new-chat toggle starts private. Legacy NULL-visibility mapping untouched. Tests/tsc/build green.)
 <!-- > **Last Updated**: 2026-07-12 (v0.7.2 — bug/breakpoint sweep across shipped work; wired the already-built group-chat UI (§10.6) into the app; fixed 4 real bugs; see §12 change log) -->
 > **Rule**: This file must be kept in sync with every development step. Content is NEVER deleted, only commented out with `<!-- ... -->` when superseded. Other files may be freely modified.
 
@@ -1019,6 +1021,42 @@ Ordered for a team rollout — *make it safe to invite people → don't lose dat
 
 ---
 
+## 10.9 Team rollout backlog — owner's priorities (2026-07-26)
+
+> **Context:** the owner is being promoted to lead a 4-5 person team and will deploy this
+> instance on a company server (deployment itself is out of scope here — tracked by ops).
+> This section is the agreed feature order for making the product team-ready, sequenced by
+> "when it would bite": P0 = before the first invite goes out, P1 = first week of team use,
+> P2 = first month, P3 = recorded but deliberately not started.
+
+### P0 — before inviting the first teammate
+
+| # | Item | Why | Status |
+|---|------|-----|--------|
+| 1 | New conversations default to **private** | Team context flips the calculus: default-public chats between colleagues is a privacy landmine; sharing becomes the deliberate act. | **✅ v0.7.58** |
+| 2 | **Forced password change on first login** | The seeded admin credential (`admin`/`admin123`) is public knowledge; the boot-time guard (v0.7.35) warns but doesn't force. Closes §10.8 TC0 #5's remaining half. | TODO |
+| 3 | **Encrypt `memory_config.embedding_api_key` at rest** | The v0.7.37 crypto covered station keys but explicitly deferred this column; a plaintext API key on a company server is an audit flag. | TODO |
+
+### P1 — first week of team use
+
+| # | Item | Why | Status |
+|---|------|-----|--------|
+| 4 | **Group-chat unread badges + AI-done notification** | Rooms have no unread markers and long AI runs finish silently — collaboration tools without a red dot lose half their pull. Highest-value NEW feature for a team. | TODO |
+| 5 | **Onboarding guide refresh** | `GuideOverlay` still describes the pre-team product; pin/folders, persona library, file visibility, group chat and invites are absent. First-login impression decides adoption. | TODO |
+
+### P2 — first month
+
+| # | Item | Why | Status |
+|---|------|-----|--------|
+| 6 | **Admin announcement banner** | The lead needs a broadcast channel ("maintenance tonight", "new model added") that isn't a group-chat ping. Admin-editable, member-dismissable. | TODO |
+| 7 | **Friendly error copy** | Raw errors ("HTTP 503") route every failure to the lead's DMs; mapping the common failures to plain-language messages with a suggested action deflects most of them. | TODO |
+
+### P3 — recorded, deliberately not started
+
+- Mobile PWA wrapper; model-capability auto-detection (§13); operation audit log (who deleted which file); client dead-dep removal (needs a networked session, see v0.7.52); offsite backup sync + restore drill (ops, alongside deployment); deployment env checklist (`JWT_SECRET`/`ENCRYPTION_KEY`/`CORS_ORIGIN`/`REQUIRE_INVITE=1` — ops).
+
+---
+
 ## 11. Configuration File Format
 
 ```yaml
@@ -1111,6 +1149,7 @@ settings:
 | 2026-07-26 | 0.7.55 | **Deep dedup — closes TC2 #5's tail and the v0.7.50 audit's duplicate-implementation finding.** `routes/chat.ts` carried its own `getStationsForModel` + `resolveModel` (near-duplicates of `services/modelInvocation`), and the streaming chat POST ran **two** full station scans per request: `resolveModel` early (result destructured into `station`/`modelId` — **verified never used**, the audited dead scan) and an identical scan feeding the failover loop. Refactor: both local functions **deleted**; the route now computes its station pool **once**, up front, via the shared `modelInvocation.getStationsForModel` (which layers healthy-preferred filtering, failover ordering, counter round-robin and key decryption — the local copy had NO healthy-preference, so failover order strictly improves), feeding both the 503 availability check and the failover loop. **Side fix:** the early check previously used the PUBLIC pool while the loop used the caller's pool — an admin whose model was admin-pool-only got a spurious early 503; both now use `{ adminPool: isAdmin }`. Dead imports (`roundRobin`, `decryptSecret`, `normalizeModelName`, `StationModelJoinRow`) dropped from chat.ts. No schema/API change; server **200** tests + `tsc` clean (modelInvocation's own failover suite already covers the shared implementation). | Claude |
 | 2026-07-26 | 0.7.56 | **Claude-style visual restyle (owner: "让它更像 Claude 官网的风格和字体").** Rides the v0.7.5 dual-theme token architecture — the entire reskin is a design-token swap plus one hardcoded-color sweep; **no component logic touched**. **Palette:** LIGHT goes warm-ivory-paper (`#faf9f5` page / `#f5f4ee` panels / `#f0eee6` cards, warm near-black text `#1f1e1d`, warm borders/overlays tinted `rgba(63,58,50,…)`); DARK goes warm charcoal (`#262624`/`#1f1e1d`/`#30302e`, warm off-white text, warm overlays) — deliberately not cold black. **Accent:** ChatGPT green `#10a37f` → terracotta **`#d97757`** in both themes (hover darkens on light `#c15f3c`, lightens on dark `#e08b6d`); selection + primary buttons follow. New tokens **`--accent-tint-8/10/12/15/25`** (terracotta at theme-tuned alphas) and **`--color-assistant`** absorbed the last ~20 hardcoded `rgba(16,163,127,x)` chips and `#ab68ff` assistant-purple avatars across 11 components — the assistant identity is now the same terracotta family. **Type:** body switches to a system sans stack; **headings (h1-h3) and `.markdown-content` assistant prose render in a warm book-serif stack** (`Iowan Old Style / Palatino / Georgia / Songti SC` — offline-safe system fonts, no webfont dependency), assistant text bumped to 15px/1.75 for the editorial read. Composer restyled as a white card with a soft warm shadow + visible border (both themes get a real `--composer-border`). Page `<title>` fixed (`client` → `Multi-Model AI`). Verified: client `tsc -b` + `vite build` + full-src eslint (**0 err**; 11 pre-existing baseline warnings). Rollback = revert this one commit (token-only). | Claude |
 | 2026-07-26 | 0.7.57 | **Dev-facing copy sweep — owner asked whether any UI text was "agent 写给自己看的".** Audit surface: all 560+ i18n VALUES (jargon regex: §/P0-3/TC/migration/framework/TODO/…), every hardcoded JSX text node (CJK + English-only scans), `alert()` strings, server `error:` strings returned to clients, and seeded data. **i18n values + server errors came back clean.** Fixed the 9 real leaks, all now i18n-routed: **(1)** the v0.7.24 seeded virtual user displayed its literal dev name **"Virtual Placeholder"** in the RoomsPage member picker, GroupChatLayout member list AND invite list — all three now render `room.virtualName` (虚拟占位成员 / Placeholder member); **(2)** `ChatInput`'s file-size alert was hardcoded Chinese (`超过 20MB 限制`) → `chat.fileTooLarge` with a `{name}` param (+ the `t` dep added to its `useCallback` — caught by the one new eslint warning, fixed, back to the 11-warning baseline); **(3)** `ErrorBoundary`'s English-only copy → `common.renderError`/`common.tryAgain` via imperative `useI18nStore.getState().t` (class component); **(4)** the two `Loading...` fallbacks (App boot + lazy-page) → `common.loading`; **(5)** `FileBrowser` desktop table headers Size/Status/Date/Actions → `files.colSize/colStatus/colDate/colActions`; **(6)** `MemoryBrowser`'s Re-embed button + tooltip → `memory.reembed/reembedHint`; **(7)** `UserManagement` create-form role `<option>`s showed raw `user`/`admin` → `users.roleUser/roleAdmin`. Non-findings (left alone): bilingual language-toggle labels (intentional), usage-log filter options (literal API values), `ArenaLayout` 'Promise' hit (a TS type, not UI). +13 i18n keys → zh = en = **570**, zero diff. `tsc -b` + `vite build` + eslint (0 err / 11 baseline warnings) clean. | Claude |
+| 2026-07-26 | 0.7.58 | **§10.9 recorded + P0 #1 — new conversations default PRIVATE.** New **§10.9 Team rollout backlog** captures the owner's agreed priority order for taking the instance to a 4-5 person team (P0 pre-invite: default-private, forced password change, embedding-key encryption; P1 first-week: unread badges+notify, guide refresh; P2 first-month: announcement banner, friendly errors; P3 recorded-only incl. deployment env checklist for ops). **Shipped item #1:** `POST /api/conversations` and the importer now default `visibility` to **`private`** unless explicitly `'public'` (was the inverse); the client's new-chat visibility toggle starts on 私密. Sharing with the team becomes the deliberate act. Existing rows untouched; legacy NULL-visibility rows still read as public (unchanged legacy semantics); guests still see only what members explicitly made public. No schema change. Server 200 tests + both `tsc` + `vite build` clean. | Claude |
 
 ---
 

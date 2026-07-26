@@ -177,7 +177,9 @@ router.post('/', optionalAuth, (req: AuthRequest, res: Response) => {
     const db = getDb();
     const id = uuidv4();
     const now = new Date().toISOString();
-    const vis: ConversationVisibility = visibility === 'private' ? 'private' : 'public';
+    // Team default (v0.7.58, §10.9 P0 #1): PRIVATE unless explicitly public —
+    // sharing with the team is the deliberate act, not the accident.
+    const vis: ConversationVisibility = visibility === 'public' ? 'public' : 'private';
     const review = selfReview ? 1 : 0;
     const sysPrompt = typeof systemPrompt === 'string' && systemPrompt.trim() ? systemPrompt : null;
     const userId = req.user?.id || null;
@@ -455,7 +457,7 @@ router.post('/import', optionalAuth, (req: AuthRequest, res: Response) => {
         if (!c || !c.modelNormalizedName) continue; // skip malformed entries
         const convId = c.id || uuidv4();
         const now = new Date().toISOString();
-        const vis = c.visibility === 'private' ? 'private' : 'public';
+        const vis = c.visibility === 'public' ? 'public' : 'private'; // default-private (v0.7.58)
         const review = c.selfReview ? 1 : 0;
         const sysPrompt = typeof c.systemPrompt === 'string' && c.systemPrompt.trim() ? c.systemPrompt : null;
 
