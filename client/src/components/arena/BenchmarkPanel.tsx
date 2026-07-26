@@ -105,7 +105,7 @@ export function BenchmarkPanel() {
                     onClick={() => setVerdict(r.id, v)}
                     className={`px-2 py-0.5 rounded text-[11px] border ${
                       r.manualVerdict === v
-                        ? 'border-[var(--color-accent-main)] bg-[rgba(16,163,127,0.15)]'
+                        ? 'border-[var(--color-accent-main)] bg-[var(--accent-tint-15)]'
                         : 'border-[var(--color-border-light)]'
                     }`}
                   >
@@ -147,7 +147,7 @@ export function BenchmarkPanel() {
                   )
                 }
                 className={`px-2 py-1 rounded-full text-[11px] border ${
-                  on ? 'border-[var(--color-accent-main)] bg-[rgba(16,163,127,0.12)]' : 'border-[var(--color-border-light)]'
+                  on ? 'border-[var(--color-accent-main)] bg-[var(--accent-tint-12)]' : 'border-[var(--color-border-light)]'
                 }`}
               >
                 {p.title}
@@ -201,7 +201,7 @@ export function BenchmarkPanel() {
                   )
                 }
                 className={`px-2 py-1 rounded-full text-[11px] border ${
-                  on ? 'border-[var(--color-accent-main)] bg-[rgba(16,163,127,0.12)]' : 'border-[var(--color-border-light)]'
+                  on ? 'border-[var(--color-accent-main)] bg-[var(--accent-tint-12)]' : 'border-[var(--color-border-light)]'
                 }`}
               >
                 {m.displayName}

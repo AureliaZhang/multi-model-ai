@@ -254,7 +254,7 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
             onClick={() => setVisibility(currentVisibility === 'public' ? 'private' : 'public')}
             className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-colors ${
               currentVisibility === 'private'
-                ? 'bg-[rgba(16,163,127,0.15)] text-[var(--color-accent-main)]'
+                ? 'bg-[var(--accent-tint-15)] text-[var(--color-accent-main)]'
                 : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
             }`}
             title={t('conversation.visibilityDesc')}
@@ -266,7 +266,7 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
             onClick={() => setSelfReview(!currentSelfReview)}
             className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-colors ${
               currentSelfReview
-                ? 'bg-[rgba(16,163,127,0.15)] text-[var(--color-accent-main)]'
+                ? 'bg-[var(--accent-tint-15)] text-[var(--color-accent-main)]'
                 : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
             }`}
             title={t('conversation.selfReviewDesc')}

@@ -9,29 +9,42 @@
  * surface tints that used to assume a dark background (see framework §10.7 P1).
  */
 :root {
-  /* Main surfaces */
-  --color-main-surface-primary: #ffffff;
-  --color-main-surface-secondary: #f9f9f9;
-  --color-main-surface-tertiary: #f0f0f0;
+  /* Typography (v0.7.56 Claude-style restyle): sans for UI chrome, a warm
+     book serif for headings + assistant prose — offline-safe system stacks. */
+  --font-sans: ui-sans-serif, -apple-system, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans', sans-serif;
+  --font-serif: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Georgia, 'Times New Roman', 'Songti SC', 'SimSun', serif;
 
-  /* Sidebar */
-  --color-sidebar-surface: #f9f9f9;
-  --color-sidebar-surface-hover: #ececec;
-  --color-sidebar-surface-active: #e3e3e3;
+  /* Main surfaces — warm ivory paper, not clinical white */
+  --color-main-surface-primary: #faf9f5;
+  --color-main-surface-secondary: #f5f4ee;
+  --color-main-surface-tertiary: #f0eee6;
 
-  /* Text */
-  --color-text-primary: #0d0d0d;
-  --color-text-secondary: #4d4d4d;
-  --color-text-tertiary: #8e8e8e;
-  --color-text-placeholder: #a0a0a0;
+  /* Sidebar — a slightly deeper cream */
+  --color-sidebar-surface: #f5f4ee;
+  --color-sidebar-surface-hover: #ebe8df;
+  --color-sidebar-surface-active: #e3dfd3;
 
-  /* Borders */
-  --color-border-light: rgba(0,0,0,0.1);
-  --color-border-medium: rgba(0,0,0,0.15);
+  /* Text — warm near-black, warm grays */
+  --color-text-primary: #1f1e1d;
+  --color-text-secondary: #5e5d59;
+  --color-text-tertiary: #91908c;
+  --color-text-placeholder: #a6a39a;
 
-  /* Accent (shared across themes — green reads on both) */
-  --color-accent-main: #10a37f;
-  --color-accent-hover: #0e8c6d;
+  /* Borders — warm, soft */
+  --color-border-light: rgba(31,30,29,0.10);
+  --color-border-medium: rgba(31,30,29,0.16);
+
+  /* Accent — terracotta (shared across themes) */
+  --color-accent-main: #d97757;
+  --color-accent-hover: #c15f3c;
+  /* Assistant identity (avatars, AI badges) — same terracotta family */
+  --color-assistant: #d97757;
+  /* Accent tints — terracotta at low alpha (chips, selected states) */
+  --accent-tint-8: rgba(217,119,87,0.08);
+  --accent-tint-10: rgba(217,119,87,0.10);
+  --accent-tint-12: rgba(217,119,87,0.12);
+  --accent-tint-15: rgba(217,119,87,0.15);
+  --accent-tint-25: rgba(217,119,87,0.25);
 
   /* Semantic */
   --color-surface-error: rgba(239,68,68,0.1);
@@ -41,20 +54,20 @@
   --color-surface-warning: rgba(245,158,11,0.12);
   --color-text-warning: #d97706;
 
-  /* Composer */
-  --composer-bg: #f4f4f4;
-  --composer-border: transparent;
-  --composer-shadow: 0 0 15px rgba(0,0,0,0.08);
+  /* Composer — a white card floating on the ivory page */
+  --composer-bg: #ffffff;
+  --composer-border: rgba(31,30,29,0.12);
+  --composer-shadow: 0 2px 14px rgba(31,30,29,0.07);
 
   /* Buttons */
-  --button-primary-bg: #10a37f;
-  --button-primary-hover: #0e8c6d;
-  --button-secondary-bg: #ececec;
-  --button-secondary-hover: #e3e3e3;
-  --button-ghost-hover: rgba(0,0,0,0.05);
+  --button-primary-bg: #d97757;
+  --button-primary-hover: #c15f3c;
+  --button-secondary-bg: #ebe8df;
+  --button-secondary-hover: #e3dfd3;
+  --button-ghost-hover: rgba(31,30,29,0.05);
 
   /* Code block background (markdown <pre>) */
-  --code-block-bg: #f4f4f4;
+  --code-block-bg: #f0eee6;
 
   /*
    * Overlay scale — subtle surface tints layered on the current background.
@@ -62,44 +75,50 @@
    * (lightens). 1:1 mapping to the alpha values the components already used,
    * so the substitution is exact.
    */
-  --overlay-2: rgba(0,0,0,0.02);
-  --overlay-3: rgba(0,0,0,0.03);
-  --overlay-4: rgba(0,0,0,0.04);
-  --overlay-5: rgba(0,0,0,0.05);
-  --overlay-6: rgba(0,0,0,0.06);
-  --overlay-7: rgba(0,0,0,0.07);
-  --overlay-8: rgba(0,0,0,0.08);
-  --overlay-10: rgba(0,0,0,0.1);
-  --overlay-12: rgba(0,0,0,0.12);
-  --overlay-15: rgba(0,0,0,0.15);
-  --overlay-20: rgba(0,0,0,0.2);
-  --overlay-25: rgba(0,0,0,0.25);
+  --overlay-2: rgba(63,58,50,0.02);
+  --overlay-3: rgba(63,58,50,0.03);
+  --overlay-4: rgba(63,58,50,0.04);
+  --overlay-5: rgba(63,58,50,0.05);
+  --overlay-6: rgba(63,58,50,0.06);
+  --overlay-7: rgba(63,58,50,0.07);
+  --overlay-8: rgba(63,58,50,0.08);
+  --overlay-10: rgba(63,58,50,0.1);
+  --overlay-12: rgba(63,58,50,0.12);
+  --overlay-15: rgba(63,58,50,0.15);
+  --overlay-20: rgba(63,58,50,0.2);
+  --overlay-25: rgba(63,58,50,0.25);
 }
 
 .dark {
-  /* Main surfaces */
-  --color-main-surface-primary: #212121;
-  --color-main-surface-secondary: #171717;
-  --color-main-surface-tertiary: #2f2f2f;
+  /* Main surfaces — warm charcoal, not cold black */
+  --color-main-surface-primary: #262624;
+  --color-main-surface-secondary: #1f1e1d;
+  --color-main-surface-tertiary: #30302e;
 
   /* Sidebar */
-  --color-sidebar-surface: #171717;
-  --color-sidebar-surface-hover: #212121;
-  --color-sidebar-surface-active: #2f2f2f;
+  --color-sidebar-surface: #1f1e1d;
+  --color-sidebar-surface-hover: #262624;
+  --color-sidebar-surface-active: #30302e;
 
-  /* Text */
-  --color-text-primary: #ececec;
-  --color-text-secondary: #b4b4b4;
-  --color-text-tertiary: #8e8e8e;
-  --color-text-placeholder: #8e8e8e;
+  /* Text — warm off-whites */
+  --color-text-primary: #f0efea;
+  --color-text-secondary: #bab7b0;
+  --color-text-tertiary: #8f8d86;
+  --color-text-placeholder: #8f8d86;
 
-  /* Borders */
-  --color-border-light: rgba(255,255,255,0.1);
-  --color-border-medium: rgba(255,255,255,0.15);
+  /* Borders — warm */
+  --color-border-light: rgba(240,238,230,0.10);
+  --color-border-medium: rgba(240,238,230,0.16);
 
-  /* Accent */
-  --color-accent-main: #10a37f;
-  --color-accent-hover: #0e8c6d;
+  /* Accent — same terracotta; hover LIGHTENS on dark */
+  --color-accent-main: #d97757;
+  --color-accent-hover: #e08b6d;
+  --color-assistant: #d97757;
+  --accent-tint-8: rgba(217,119,87,0.10);
+  --accent-tint-10: rgba(217,119,87,0.13);
+  --accent-tint-12: rgba(217,119,87,0.15);
+  --accent-tint-15: rgba(217,119,87,0.18);
+  --accent-tint-25: rgba(217,119,87,0.30);
 
   /* Semantic */
   --color-surface-error: rgba(239,68,68,0.1);
@@ -110,33 +129,33 @@
   --color-text-warning: #fbbf24;
 
   /* Composer */
-  --composer-bg: #2f2f2f;
-  --composer-border: transparent;
-  --composer-shadow: 0 0 15px rgba(0,0,0,0.1);
+  --composer-bg: #30302e;
+  --composer-border: rgba(240,238,230,0.10);
+  --composer-shadow: 0 2px 14px rgba(0,0,0,0.25);
 
   /* Buttons */
-  --button-primary-bg: #10a37f;
-  --button-primary-hover: #0e8c6d;
-  --button-secondary-bg: #2f2f2f;
-  --button-secondary-hover: #3a3a3a;
-  --button-ghost-hover: rgba(255,255,255,0.05);
+  --button-primary-bg: #d97757;
+  --button-primary-hover: #e08b6d;
+  --button-secondary-bg: #30302e;
+  --button-secondary-hover: #3a3937;
+  --button-ghost-hover: rgba(240,238,230,0.06);
 
   /* Code block background (markdown <pre>) */
-  --code-block-bg: #1e1e1e;
+  --code-block-bg: #1a1918;
 
   /* Overlay scale — white at low alpha on dark backgrounds */
-  --overlay-2: rgba(255,255,255,0.02);
-  --overlay-3: rgba(255,255,255,0.03);
-  --overlay-4: rgba(255,255,255,0.04);
-  --overlay-5: rgba(255,255,255,0.05);
-  --overlay-6: rgba(255,255,255,0.06);
-  --overlay-7: rgba(255,255,255,0.07);
-  --overlay-8: rgba(255,255,255,0.08);
-  --overlay-10: rgba(255,255,255,0.1);
-  --overlay-12: rgba(255,255,255,0.12);
-  --overlay-15: rgba(255,255,255,0.15);
-  --overlay-20: rgba(255,255,255,0.2);
-  --overlay-25: rgba(255,255,255,0.25);
+  --overlay-2: rgba(240,238,230,0.02);
+  --overlay-3: rgba(240,238,230,0.03);
+  --overlay-4: rgba(240,238,230,0.04);
+  --overlay-5: rgba(240,238,230,0.05);
+  --overlay-6: rgba(240,238,230,0.06);
+  --overlay-7: rgba(240,238,230,0.07);
+  --overlay-8: rgba(240,238,230,0.08);
+  --overlay-10: rgba(240,238,230,0.1);
+  --overlay-12: rgba(240,238,230,0.12);
+  --overlay-15: rgba(240,238,230,0.15);
+  --overlay-20: rgba(240,238,230,0.2);
+  --overlay-25: rgba(240,238,230,0.25);
 }
 
 html, body, #root {
@@ -146,7 +165,7 @@ html, body, #root {
 }
 
 body {
-  font-family: 'Söhne', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Ubuntu, Cantarell, 'Noto Sans', sans-serif;
+  font-family: var(--font-sans);
   background-color: var(--color-main-surface-primary);
   color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
@@ -161,11 +180,19 @@ body {
 ::-webkit-scrollbar-thumb { background-color: var(--overlay-15); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background-color: var(--overlay-25); }
 
-/* Markdown content */
+/* Headings site-wide get the book serif — the Claude editorial voice. */
+h1, h2, h3 {
+  font-family: var(--font-serif);
+  letter-spacing: 0.01em;
+}
+
+/* Markdown content — assistant prose reads in serif, like Claude replies. */
 .markdown-content {
-  line-height: 1.7;
+  line-height: 1.75;
   word-break: break-word;
   color: var(--color-text-primary);
+  font-family: var(--font-serif);
+  font-size: 15px;
 }
 .markdown-content p { margin-bottom: 0.625rem; }
 .markdown-content p:last-child { margin-bottom: 0; }
@@ -269,7 +296,7 @@ body {
 
 /* Selection */
 ::selection {
-  background-color: rgba(16, 163, 127, 0.3);
+  background-color: rgba(217, 119, 87, 0.28);
 }
 
 /* ChatGPT-style input focus ring */

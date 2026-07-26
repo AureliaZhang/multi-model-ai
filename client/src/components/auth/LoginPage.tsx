@@ -82,7 +82,7 @@ export function LoginPage({ onSwitchToRegister, onGuestBrowse }: LoginPageProps)
               onClick={() => { setMode('admin'); setLocalError(''); clearError(); }}
               className="w-full flex items-center gap-4 px-5 py-4 rounded-xl border border-[var(--color-border-light)] bg-[var(--color-main-surface-secondary)] hover:bg-[var(--color-sidebar-surface-hover)] hover:border-[var(--color-accent-main)] transition-all group"
             >
-              <div className="w-10 h-10 rounded-full bg-[rgba(16,163,127,0.15)] flex items-center justify-center flex-shrink-0 group-hover:bg-[rgba(16,163,127,0.25)] transition-colors">
+              <div className="w-10 h-10 rounded-full bg-[var(--accent-tint-15)] flex items-center justify-center flex-shrink-0 group-hover:bg-[var(--accent-tint-25)] transition-colors">
                 <Shield size={20} className="text-[var(--color-accent-main)]" />
               </div>
               <div className="text-left">
@@ -144,7 +144,7 @@ export function LoginPage({ onSwitchToRegister, onGuestBrowse }: LoginPageProps)
 
         <div className="w-full max-w-md px-6">
           <div className="text-center mb-8">
-            <div className="w-14 h-14 rounded-full bg-[rgba(16,163,127,0.15)] flex items-center justify-center mx-auto mb-4">
+            <div className="w-14 h-14 rounded-full bg-[var(--accent-tint-15)] flex items-center justify-center mx-auto mb-4">
               <Shield size={28} className="text-[var(--color-accent-main)]" />
             </div>
             <h1 className="text-2xl font-semibold text-[var(--color-text-primary)] mb-2">

@@ -55,7 +55,7 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
         <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
           isUser
             ? 'bg-[var(--button-primary-bg)]'
-            : 'bg-[#ab68ff]'
+            : 'bg-[var(--color-assistant)]'
         }`}>
           {isUser ? (
             <User size={14} className="text-white" strokeWidth={2} />

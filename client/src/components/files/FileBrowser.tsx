@@ -466,7 +466,7 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
 
         {/* Upload progress indicator */}
         {uploadProgress.length > 0 && (
-          <div className="mx-5 mt-3 p-3 rounded-lg bg-[rgba(16,163,127,0.08)] border border-[var(--color-accent-main)]/20">
+          <div className="mx-5 mt-3 p-3 rounded-lg bg-[var(--accent-tint-8)] border border-[var(--color-accent-main)]/20">
             <div className="flex items-center gap-2 text-sm text-[var(--color-accent-main)]">
               <Loader size={14} className="animate-spin" />
               <span>{t('files.uploading')} {uploadProgress.length} file(s)...</span>

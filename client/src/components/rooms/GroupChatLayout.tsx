@@ -291,7 +291,7 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
               if (m.kind === 'ai_stub') {
                 return (
                   <div key={m.id} className="flex justify-center">
-                    <div className="text-[11px] text-[var(--color-text-tertiary)] bg-[rgba(16,163,127,0.08)] rounded-full px-3 py-1 flex items-center gap-1 max-w-[90%]">
+                    <div className="text-[11px] text-[var(--color-text-tertiary)] bg-[var(--accent-tint-8)] rounded-full px-3 py-1 flex items-center gap-1 max-w-[90%]">
                       <AtSign size={11} className="text-[var(--color-accent-main)] flex-shrink-0" />
                       <span className="truncate">
                         {m.username || t('room.someone')} → AI: {m.content}
@@ -325,11 +325,11 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
                 the assistant message on the right flips to done/error */}
             {aiGenerating && (
               <div className="flex gap-3">
-                <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 bg-[#ab68ff]">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 bg-[var(--color-assistant)]">
                   <Bot size={13} className="text-white" />
                 </div>
                 <div className="flex items-center gap-2 text-[13px] text-[var(--color-text-tertiary)]">
-                  <Loader2 size={13} className="animate-spin text-[#ab68ff]" />
+                  <Loader2 size={13} className="animate-spin text-[var(--color-assistant)]" />
                   <span>{t('room.replyGenerating')}</span>
                 </div>
               </div>
@@ -408,7 +408,7 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
                     onClick={() => toggleFile(f.id)}
                     className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border ${
                       selectedFiles.includes(f.id)
-                        ? 'border-[var(--color-accent-main)] bg-[rgba(16,163,127,0.12)] text-[var(--color-accent-main)]'
+                        ? 'border-[var(--color-accent-main)] bg-[var(--accent-tint-12)] text-[var(--color-accent-main)]'
                         : 'border-[var(--color-border-light)] text-[var(--color-text-tertiary)]'
                     }`}
                     title={f.originalName}
@@ -458,7 +458,7 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
         {/* Column c — AI replies (assistant answers only) */}
         <div className="flex flex-col min-w-0 flex-1">
           <div className="px-4 py-2 border-b border-[var(--color-border-light)] flex items-center gap-1.5 text-[11px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
-            <Bot size={12} className="text-[#ab68ff]" /> {t('room.paneAi')}
+            <Bot size={12} className="text-[var(--color-assistant)]" /> {t('room.paneAi')}
             <div className="flex-1" />
             {/* Export AI replies (docx / pdf) */}
             <div className="relative">
@@ -502,7 +502,7 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
             )}
             {aiMessages.filter((m) => m.role === 'assistant').map((m) => (
               <div key={m.id} className="flex gap-3">
-                <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 bg-[#ab68ff]">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 bg-[var(--color-assistant)]">
                   <Bot size={13} className="text-white" />
                 </div>
                 <div className="flex-1 min-w-0">

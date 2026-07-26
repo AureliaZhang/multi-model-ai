@@ -96,7 +96,7 @@ export function PromptLabPanel() {
               key={c.id}
               className={`rounded-xl border p-3 min-h-[160px] flex flex-col ${
                 c.selected
-                  ? 'border-[var(--color-accent-main)] bg-[rgba(16,163,127,0.08)]'
+                  ? 'border-[var(--color-accent-main)] bg-[var(--accent-tint-8)]'
                   : 'border-[var(--color-border-light)] bg-[var(--overlay-2)]'
               }`}
             >
@@ -170,7 +170,7 @@ export function PromptLabPanel() {
                 onClick={() => toggleModel(m.normalizedName)}
                 className={`px-3 py-1.5 rounded-full text-[12px] border ${
                   on
-                    ? 'border-[var(--color-accent-main)] bg-[rgba(16,163,127,0.15)]'
+                    ? 'border-[var(--color-accent-main)] bg-[var(--accent-tint-15)]'
                     : 'border-[var(--color-border-light)]'
                 }`}
               >

@@ -520,7 +520,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                                         </span>
                                       )}
                                       {m.enabled ? (
-                                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[rgba(16,163,127,0.15)] text-[var(--color-accent-main)]">
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--accent-tint-15)] text-[var(--color-accent-main)]">
                                           {t('settings.publicPool')}
                                         </span>
                                       ) : (

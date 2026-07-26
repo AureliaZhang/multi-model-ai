@@ -114,7 +114,7 @@ export function FileSelector({ selectedFileIds, onSelectionChange }: FileSelecto
         onClick={handleToggleOpen}
         className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] transition-colors ${
           selectedCount > 0
-            ? 'bg-[rgba(16,163,127,0.15)] text-[var(--color-accent-main)]'
+            ? 'bg-[var(--accent-tint-15)] text-[var(--color-accent-main)]'
             : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
         }`}
         title={t('files.selectFilesForChat')}

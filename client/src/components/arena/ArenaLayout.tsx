@@ -189,7 +189,7 @@ function BattlePanel() {
                   onClick={() => toggleModel(m.normalizedName)}
                   className={`px-3 py-1.5 rounded-full text-[12px] border transition-colors ${
                     on
-                      ? 'border-[var(--color-accent-main)] bg-[rgba(16,163,127,0.15)] text-[var(--color-text-primary)]'
+                      ? 'border-[var(--color-accent-main)] bg-[var(--accent-tint-15)] text-[var(--color-text-primary)]'
                       : 'border-[var(--color-border-light)] text-[var(--color-text-secondary)] hover:bg-[var(--overlay-4)]'
                   }`}
                 >
@@ -267,7 +267,7 @@ function BattleResultView({
       )}
 
       {battle.selection && (
-        <div className="text-[13px] text-[var(--color-accent-main)] bg-[rgba(16,163,127,0.1)] border border-[rgba(16,163,127,0.25)] rounded-lg px-3 py-2">
+        <div className="text-[13px] text-[var(--color-accent-main)] bg-[var(--accent-tint-10)] border border-[var(--accent-tint-25)] rounded-lg px-3 py-2">
           {t('arena.selectedModel')}: <strong>{battle.selection.selectedModelNormalizedName}</strong>
         </div>
       )}
@@ -308,7 +308,7 @@ function CandidateCard({
     <div
       className={`rounded-xl border p-3 flex flex-col min-h-[180px] ${
         selected
-          ? 'border-[var(--color-accent-main)] bg-[rgba(16,163,127,0.08)]'
+          ? 'border-[var(--color-accent-main)] bg-[var(--accent-tint-8)]'
           : 'border-[var(--color-border-light)] bg-[var(--overlay-2)]'
       }`}
     >
