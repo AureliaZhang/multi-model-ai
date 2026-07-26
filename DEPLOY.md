@@ -52,6 +52,20 @@ bash ~/multi-model-ai/deploy.sh
 终端也会打印一次，记下来！）、装依赖、编译前后端、装 pm2 并启动。
 结尾提示运行 `pm2 startup` 的话照做一次（开机自启）。
 
+### 第 4.5 步 · 放行内部防火墙（一次性，2026-07-26 实战踩坑记录）
+
+Oracle 的 Ubuntu 镜像自带一道很严的内部防火墙（iptables）。NPM 住在 Docker 里，
+它敲主机 8500 端口的门会被拦（其他服务都在 Docker 里走转发链，不经过这道墙，
+所以只有直接跑在主机上的本应用会撞上）。放行 + 永久保存：
+
+```bash
+sudo iptables -I INPUT 1 -p tcp -s 172.16.0.0/12 --dport 8500 -j ACCEPT
+sudo netfilter-persistent save
+```
+
+（只放行 Docker 内网网段访问 8500，外网无法直连。172.16.0.0/12 覆盖 Docker
+默认桥和 compose 自定义网络——只放 172.17.0.0/16 的话 compose 网络会漏。）
+
 ### 第 5 步 · Nginx Proxy Manager 加代理（照抄现有条目的做法）
 
 NPM（167.234.208.190:81）→ Hosts → Add Proxy Host：
