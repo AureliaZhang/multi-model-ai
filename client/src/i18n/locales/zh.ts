@@ -618,6 +618,8 @@ const zh = {
   // §10.6 群聊 / 群组
   'sidebar.rooms': '我的群聊',
   'room.newGroup': '新建群',
+  'room.collapseList': '收起群列表',
+  'room.expandList': '展开群列表',
   'room.createTitle': '创建群聊',
   'room.inviteOnlyHint': '群聊仅能由创建者邀请加入，无法自行搜索进入。',
   'room.virtualBadge': '虚拟占位',

@@ -4,7 +4,7 @@ import { usersApi } from '../../services/api';
 import { useTranslation } from '../../i18n';
 import { GroupChatLayout } from './GroupChatLayout';
 import type { UserPublic } from '../../types';
-import { Users2, Plus, X, ArrowLeft, Loader2 } from 'lucide-react';
+import { Users2, Plus, X, ArrowLeft, Loader2, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { AnnouncementBanner } from '../common/AnnouncementBanner';
 
 interface RoomsPageProps {
@@ -23,6 +23,9 @@ export function RoomsPage({ onClose }: RoomsPageProps) {
   const fetchRooms = useRoomStore((s) => s.fetchRooms);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  // Desktop-only collapse for the group list (v0.7.77 owner request);
+  // mobile keeps its list/detail behaviour untouched.
+  const [listOpen, setListOpen] = useState(true);
 
   useEffect(() => {
     fetchRooms();
@@ -35,7 +38,7 @@ export function RoomsPage({ onClose }: RoomsPageProps) {
       <div className="flex-1 min-h-0 flex">
       {/* Left: group list — full-width on mobile when nothing is open; a fixed
           column on desktop. Hidden on mobile once a group is open (list/detail). */}
-      <div className={`${selectedId ? 'hidden md:flex' : 'flex'} w-full md:w-[280px] flex-shrink-0 border-r border-[var(--color-border-light)] flex-col`}>
+      <div className={`${selectedId ? 'hidden' : 'flex'} ${listOpen ? 'md:flex' : 'md:hidden'} w-full md:w-[280px] flex-shrink-0 border-r border-[var(--color-border-light)] flex-col`}>
         <div className="p-2 flex items-center gap-1.5 border-b border-[var(--color-border-light)]">
           <button
             onClick={onClose}
@@ -50,6 +53,14 @@ export function RoomsPage({ onClose }: RoomsPageProps) {
           >
             <Plus size={16} strokeWidth={1.5} />
             <span className="truncate">{t('room.newGroup')}</span>
+          </button>
+          <button
+            onClick={() => setListOpen(false)}
+            className="hidden md:block flex-shrink-0 p-2 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
+            title={t('room.collapseList')}
+            aria-label={t('room.collapseList')}
+          >
+            <PanelLeftClose size={17} strokeWidth={1.5} />
           </button>
         </div>
 
@@ -87,6 +98,34 @@ export function RoomsPage({ onClose }: RoomsPageProps) {
           )}
         </div>
       </div>
+
+      {/* Collapsed rail (desktop only): expand / back / new-group */}
+      {!listOpen && (
+        <div className="hidden md:flex w-11 flex-shrink-0 border-r border-[var(--color-border-light)] flex-col items-center gap-1 py-2">
+          <button
+            onClick={() => setListOpen(true)}
+            className="p-2 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-secondary)]"
+            title={t('room.expandList')}
+            aria-label={t('room.expandList')}
+          >
+            <PanelLeft size={17} strokeWidth={1.5} />
+          </button>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
+            title={t('common.back')}
+          >
+            <ArrowLeft size={17} strokeWidth={1.5} />
+          </button>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="p-2 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
+            title={t('room.newGroup')}
+          >
+            <Plus size={17} strokeWidth={1.5} />
+          </button>
+        </div>
+      )}
 
       {/* Right: open group or empty state. On mobile this is hidden until a
           group is picked (then it's full-width with a back arrow). */}

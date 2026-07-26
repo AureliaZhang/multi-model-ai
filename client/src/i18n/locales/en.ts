@@ -618,6 +618,8 @@ const en = {
   // §10.6 Group chat / rooms
   'sidebar.rooms': 'My groups',
   'room.newGroup': 'New group',
+  'room.collapseList': 'Collapse group list',
+  'room.expandList': 'Expand group list',
   'room.createTitle': 'Create a group',
   'room.inviteOnlyHint': 'Groups are invite-only — only the creator can invite members. You cannot search and join.',
   'room.virtualBadge': 'Placeholder',
