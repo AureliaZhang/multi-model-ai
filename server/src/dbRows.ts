@@ -18,6 +18,10 @@ export interface ConversationRow {
   /** Added by migration; per-conversation persona / system prompt. Null when unset. */
   system_prompt: string | null;
   user_id: string | null;
+  /** 0 | 1 integer flag (migration v6). Pinned conversations sort first in the sidebar. */
+  pinned: number;
+  /** Free-text folder label (migration v6). Null = not in a folder. */
+  folder: string | null;
   created_at: string;
   updated_at: string;
 }

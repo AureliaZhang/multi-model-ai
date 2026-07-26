@@ -106,6 +106,10 @@ export interface Conversation {
   selfReview: boolean;
   systemPrompt?: string | null;
   userId?: string;
+  /** Pinned conversations sort first in the sidebar (v0.7.47). */
+  pinned: boolean;
+  /** Sidebar folder label; null = not in a folder (v0.7.47). */
+  folder?: string | null;
   createdAt: string;
   updatedAt: string;
 }

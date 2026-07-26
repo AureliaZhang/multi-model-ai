@@ -197,7 +197,7 @@ interface ChatState {
   createConversation: (modelNormalizedName: string, title?: string, visibility?: ConversationVisibility, selfReview?: boolean) => Promise<string>;
   deleteConversation: (id: string) => Promise<void>;
   selectConversation: (id: string) => Promise<void>;
-  updateConversation: (id: string, data: { title?: string; visibility?: ConversationVisibility; selfReview?: boolean; systemPrompt?: string | null }) => Promise<void>;
+  updateConversation: (id: string, data: { title?: string; visibility?: ConversationVisibility; selfReview?: boolean; systemPrompt?: string | null; pinned?: boolean; folder?: string | null }) => Promise<void>;
   sendMessage: (message: string, modelNormalizedName: string, attachments?: PendingAttachment[], fileIds?: string[]) => void;
   doSendMessage: (convId: string, message: string, modelNormalizedName: string, attachments?: PendingAttachment[], fileIds?: string[]) => void;
   /** Re-run the last failed send without inserting a duplicate user message. */
@@ -354,12 +354,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  updateConversation: async (id: string, data: { title?: string; visibility?: ConversationVisibility; selfReview?: boolean }) => {
+  updateConversation: async (id: string, data: { title?: string; visibility?: ConversationVisibility; selfReview?: boolean; pinned?: boolean; folder?: string | null }) => {
     try {
       const res = await conversationApi.update(id, data);
       if (res.success && res.data) {
         set(state => {
           const conversations = state.conversations.map(c => c.id === id ? res.data! : c);
+          // Keep the sidebar invariant (pinned first, then most-recent) after a
+          // pin/unpin without a refetch — mirrors the server's ORDER BY.
+          if (data.pinned !== undefined) {
+            conversations.sort((a, b) =>
+              Number(b.pinned) - Number(a.pinned) || b.updatedAt.localeCompare(a.updatedAt)
+            );
+          }
           const updates: Partial<ChatState> = { conversations };
           if (state.currentConversationId === id) {
             if (data.visibility !== undefined) updates.currentVisibility = data.visibility;

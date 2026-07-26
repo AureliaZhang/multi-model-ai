@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { useChatStore } from '../../stores/chatStore';
 import { useAuthStore } from '../../stores/authStore';
-import { MessageSquarePlus, Settings, Trash2, LogOut, Users, Users2, Shield, User, Brain, Globe, Lock, Eye, EyeOff, FolderOpen, X, Swords, PanelLeftClose, ScrollText, Download, Upload, Search } from 'lucide-react';
+import { MessageSquarePlus, Settings, Trash2, LogOut, Users, Users2, Shield, User, Brain, Globe, Lock, Eye, EyeOff, FolderOpen, X, Swords, PanelLeftClose, ScrollText, Download, Upload, Search, Pin, PinOff, FolderInput, Folder, ChevronDown, ChevronRight } from 'lucide-react';
 import { useTranslation } from '../../i18n';
 import { conversationApi } from '../../services/api';
 import type { ConversationVisibility, Conversation } from '../../types';
@@ -40,6 +40,11 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [showNewMenu, setShowNewMenu] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
+
+  // Chat organize (v0.7.47): folder-move dropdown + collapsed folder headers.
+  const [folderMenuId, setFolderMenuId] = useState<string | null>(null);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
 
   // Conversation search (title + message content, server-side). Debounced; when
   // the query is empty we fall back to the full conversation list.
@@ -136,6 +141,37 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
     e.stopPropagation();
     updateConversation(convId, { selfReview: !current });
   };
+
+  const handleTogglePin = (e: React.MouseEvent, convId: string, current: boolean) => {
+    e.stopPropagation();
+    updateConversation(convId, { pinned: !current });
+  };
+
+  const handleMoveToFolder = (convId: string, folder: string | null) => {
+    setFolderMenuId(null);
+    setNewFolderName('');
+    updateConversation(convId, { folder });
+  };
+
+  const toggleFolderCollapsed = (name: string) => {
+    setCollapsedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      return next;
+    });
+  };
+
+  // Existing folder names (from all conversations), for the move-to menu.
+  const folderNames = Array.from(
+    new Set(conversations.map(c => c.folder).filter((f): f is string => !!f))
+  ).sort((a, b) => a.localeCompare(b));
+
+  // Grouped view (only when not searching): pinned → folders → the rest.
+  const pinnedConvs = conversations.filter(c => c.pinned);
+  const folderGroups = folderNames
+    .map(name => ({ name, convs: conversations.filter(c => !c.pinned && c.folder === name) }))
+    .filter(g => g.convs.length > 0);
+  const looseConvs = conversations.filter(c => !c.pinned && !c.folder);
 
   const handleLogout = () => {
     logout();
@@ -259,67 +295,175 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
           </div>
         ) : (
           <>
-            {displayList.map(conv => (
-              <div
-                key={conv.id}
-                onClick={() => { selectConversation(conv.id); onNavigate?.(); }}
-                onMouseLeave={() => { if (deleteConfirmId === conv.id) setDeleteConfirmId(null); }}
-                className={`group relative flex items-center px-3 py-2.5 rounded-lg cursor-pointer mb-0.5 transition-all duration-150 sidebar-item ${
-                  currentConversationId === conv.id
-                    ? 'bg-[var(--color-sidebar-surface-active)]'
-                    : 'hover:bg-[var(--color-sidebar-surface-hover)]'
-                }`}
-              >
-                {/* Visibility icon */}
-                <span className="mr-1.5 flex-shrink-0" title={conv.visibility === 'private' ? t('conversation.private') : t('conversation.public')}>
-                  {conv.visibility === 'private' ? (
-                    <Lock size={12} className="text-[var(--color-text-tertiary)]" />
-                  ) : (
-                    <Globe size={12} className="text-[var(--color-text-tertiary)] opacity-50" />
-                  )}
-                </span>
-
-                <span className="truncate text-[13px] text-[var(--color-text-secondary)] flex-1 leading-5">
-                  {conv.title}
-                </span>
-
-                {/* Self-review indicator */}
-                {conv.selfReview && (
-                  <span className="mr-1 flex-shrink-0" title={t('conversation.selfReview')}>
-                    <Eye size={11} className="text-[var(--color-accent-main)] opacity-60" />
+            {(() => {
+              const renderConv = (conv: Conversation) => (
+                <div
+                  key={conv.id}
+                  onClick={() => { selectConversation(conv.id); onNavigate?.(); }}
+                  onMouseLeave={() => { if (deleteConfirmId === conv.id) setDeleteConfirmId(null); }}
+                  className={`group relative flex items-center px-3 py-2.5 rounded-lg cursor-pointer mb-0.5 transition-all duration-150 sidebar-item ${
+                    currentConversationId === conv.id
+                      ? 'bg-[var(--color-sidebar-surface-active)]'
+                      : 'hover:bg-[var(--color-sidebar-surface-hover)]'
+                  }`}
+                >
+                  {/* Visibility icon */}
+                  <span className="mr-1.5 flex-shrink-0" title={conv.visibility === 'private' ? t('conversation.private') : t('conversation.public')}>
+                    {conv.visibility === 'private' ? (
+                      <Lock size={12} className="text-[var(--color-text-tertiary)]" />
+                    ) : (
+                      <Globe size={12} className="text-[var(--color-text-tertiary)] opacity-50" />
+                    )}
                   </span>
-                )}
 
-                {/* Action buttons on hover */}
-                <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-all duration-150 ml-1">
-                  <button
-                    onClick={(e) => handleToggleVisibility(e, conv.id, conv.visibility)}
-                    className="p-1 rounded-md hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)] transition-all duration-150"
-                    title={conv.visibility === 'private' ? t('conversation.public') : t('conversation.private')}
-                  >
-                    {conv.visibility === 'private' ? <Globe size={13} /> : <Lock size={13} />}
-                  </button>
-                  <button
-                    onClick={(e) => handleToggleSelfReview(e, conv.id, conv.selfReview)}
-                    className="p-1 rounded-md hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)] transition-all duration-150"
-                    title={t('conversation.toggleSelfReview')}
-                  >
-                    {conv.selfReview ? <Eye size={13} /> : <EyeOff size={13} />}
-                  </button>
-                  <button
-                    onClick={(e) => handleDelete(e, conv.id)}
-                    className={`p-1 rounded-md transition-all duration-150 ${
-                      deleteConfirmId === conv.id
-                        ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-                        : 'hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)]'
-                    }`}
-                    title={deleteConfirmId === conv.id ? t('common.confirm') : t('sidebar.deleteChat')}
-                  >
-                    {deleteConfirmId === conv.id ? <X size={13} /> : <Trash2 size={13} />}
-                  </button>
+                  <span className="truncate text-[13px] text-[var(--color-text-secondary)] flex-1 leading-5">
+                    {conv.title}
+                  </span>
+
+                  {/* Pin indicator (visible without hover; redundant inside the pinned section but useful in search results) */}
+                  {conv.pinned && (
+                    <span className="mr-1 flex-shrink-0" title={t('sidebar.pin')}>
+                      <Pin size={11} className="text-[var(--color-accent-main)] opacity-60" />
+                    </span>
+                  )}
+
+                  {/* Self-review indicator */}
+                  {conv.selfReview && (
+                    <span className="mr-1 flex-shrink-0" title={t('conversation.selfReview')}>
+                      <Eye size={11} className="text-[var(--color-accent-main)] opacity-60" />
+                    </span>
+                  )}
+
+                  {/* Action buttons on hover */}
+                  <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-all duration-150 ml-1">
+                    <button
+                      onClick={(e) => handleTogglePin(e, conv.id, conv.pinned)}
+                      className="p-1 rounded-md hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)] transition-all duration-150"
+                      title={conv.pinned ? t('sidebar.unpin') : t('sidebar.pin')}
+                    >
+                      {conv.pinned ? <PinOff size={13} /> : <Pin size={13} />}
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setNewFolderName(''); setFolderMenuId(folderMenuId === conv.id ? null : conv.id); }}
+                      className="p-1 rounded-md hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)] transition-all duration-150"
+                      title={t('sidebar.moveToFolder')}
+                    >
+                      <FolderInput size={13} />
+                    </button>
+                    <button
+                      onClick={(e) => handleToggleVisibility(e, conv.id, conv.visibility)}
+                      className="p-1 rounded-md hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)] transition-all duration-150"
+                      title={conv.visibility === 'private' ? t('conversation.public') : t('conversation.private')}
+                    >
+                      {conv.visibility === 'private' ? <Globe size={13} /> : <Lock size={13} />}
+                    </button>
+                    <button
+                      onClick={(e) => handleToggleSelfReview(e, conv.id, conv.selfReview)}
+                      className="p-1 rounded-md hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)] transition-all duration-150"
+                      title={t('conversation.toggleSelfReview')}
+                    >
+                      {conv.selfReview ? <Eye size={13} /> : <EyeOff size={13} />}
+                    </button>
+                    <button
+                      onClick={(e) => handleDelete(e, conv.id)}
+                      className={`p-1 rounded-md transition-all duration-150 ${
+                        deleteConfirmId === conv.id
+                          ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                          : 'hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)]'
+                      }`}
+                      title={deleteConfirmId === conv.id ? t('common.confirm') : t('sidebar.deleteChat')}
+                    >
+                      {deleteConfirmId === conv.id ? <X size={13} /> : <Trash2 size={13} />}
+                    </button>
+                  </div>
+
+                  {/* Move-to-folder dropdown */}
+                  {folderMenuId === conv.id && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setFolderMenuId(null); }} aria-hidden />
+                      <div
+                        className="absolute right-2 top-full mt-0.5 z-50 w-48 rounded-xl border border-[var(--color-border-light)] bg-[var(--color-main-surface-secondary)] shadow-lg overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {conv.folder && (
+                          <button
+                            type="button"
+                            onClick={() => handleMoveToFolder(conv.id, null)}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left text-[12px] text-[var(--color-text-primary)] hover:bg-[var(--color-sidebar-surface-hover)]"
+                          >
+                            <X size={12} className="text-[var(--color-text-tertiary)]" />
+                            <span>{t('sidebar.removeFromFolder')}</span>
+                          </button>
+                        )}
+                        {folderNames.filter(name => name !== conv.folder).map(name => (
+                          <button
+                            key={name}
+                            type="button"
+                            onClick={() => handleMoveToFolder(conv.id, name)}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left text-[12px] text-[var(--color-text-primary)] hover:bg-[var(--color-sidebar-surface-hover)]"
+                          >
+                            <Folder size={12} className="text-[var(--color-text-tertiary)]" />
+                            <span className="truncate">{name}</span>
+                          </button>
+                        ))}
+                        <div className="flex items-center gap-1 px-2 py-1.5 border-t border-[var(--color-border-light)]">
+                          <input
+                            value={newFolderName}
+                            onChange={(e) => setNewFolderName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && newFolderName.trim()) handleMoveToFolder(conv.id, newFolderName.trim());
+                              if (e.key === 'Escape') setFolderMenuId(null);
+                            }}
+                            placeholder={t('sidebar.newFolderPlaceholder')}
+                            className="flex-1 min-w-0 px-2 py-1 rounded-md bg-[var(--overlay-4)] border border-[var(--color-border-light)] text-[12px] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[var(--color-accent-main)]"
+                          />
+                          <button
+                            type="button"
+                            disabled={!newFolderName.trim()}
+                            onClick={() => newFolderName.trim() && handleMoveToFolder(conv.id, newFolderName.trim())}
+                            className="p-1 rounded-md hover:bg-[var(--overlay-8)] text-[var(--color-accent-main)] disabled:opacity-40"
+                            title={t('sidebar.moveToFolder')}
+                          >
+                            <FolderInput size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+
+              if (trimmedQuery) {
+                return displayList.map(renderConv);
+              }
+              return (
+                <>
+                  {pinnedConvs.length > 0 && (
+                    <div className="flex items-center gap-1.5 px-3 pt-1 pb-0.5 text-[11px] text-[var(--color-text-tertiary)]">
+                      <Pin size={10} />
+                      <span>{t('sidebar.pinnedSection')}</span>
+                    </div>
+                  )}
+                  {pinnedConvs.map(renderConv)}
+                  {folderGroups.map(g => (
+                    <div key={g.name}>
+                      <button
+                        type="button"
+                        onClick={() => toggleFolderCollapsed(g.name)}
+                        className="w-full flex items-center gap-1.5 px-3 pt-1 pb-0.5 text-[11px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
+                      >
+                        {collapsedFolders.has(g.name) ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
+                        <Folder size={10} />
+                        <span className="truncate">{g.name}</span>
+                        <span className="opacity-60">({g.convs.length})</span>
+                      </button>
+                      {!collapsedFolders.has(g.name) && g.convs.map(renderConv)}
+                    </div>
+                  ))}
+                  {looseConvs.map(renderConv)}
+                </>
+              );
+            })()}
 
             {displayList.length === 0 && (
               <div className="text-center text-[var(--color-text-tertiary)] text-[13px] py-8">

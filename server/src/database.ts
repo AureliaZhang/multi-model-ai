@@ -83,6 +83,18 @@ export const SCHEMA_MIGRATIONS: Migration[] = [
     name: 'attachments-extracted-text-cache',
     up: (d) => d.exec(`ALTER TABLE attachments ADD COLUMN extracted_text TEXT`),
   },
+  // v6: chat organize — pin + folders (§10.8 Phase 5 FE-A). `pinned` floats a
+  // conversation to the top of the sidebar; `folder` is a free-text, per-owner
+  // label the sidebar groups by (no separate folders table — a folder exists
+  // iff a conversation carries its name, mirroring the file-library approach).
+  {
+    version: 6,
+    name: 'conversations-organize',
+    up: (d) => {
+      d.exec(`ALTER TABLE conversations ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0`);
+      d.exec(`ALTER TABLE conversations ADD COLUMN folder TEXT`);
+    },
+  },
 ];
 
 export function getDb(): Database.Database {

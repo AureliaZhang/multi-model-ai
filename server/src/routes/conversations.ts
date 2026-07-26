@@ -28,8 +28,53 @@ function rowToConversation(r: ConversationRow): Conversation {
     selfReview: Boolean(r.self_review),
     systemPrompt: r.system_prompt ?? null,
     userId: r.user_id || undefined,
+    pinned: Boolean(r.pinned),
+    folder: r.folder ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+  };
+}
+
+/**
+ * Compute the new column values for a conversation update (PUT). Pure — exported
+ * for testing. Semantics per field: `undefined` = not sent → keep existing;
+ * `folder`: string → set (trimmed; empty/whitespace → null = remove from
+ * folder), null → remove from folder; `pinned`: any truthy/falsy → 1/0.
+ */
+export function computeConversationUpdate(
+  existing: ConversationRow,
+  body: {
+    title?: unknown;
+    modelNormalizedName?: unknown;
+    visibility?: unknown;
+    selfReview?: unknown;
+    systemPrompt?: unknown;
+    pinned?: unknown;
+    folder?: unknown;
+  }
+): {
+  title: string;
+  model_normalized_name: string;
+  visibility: string;
+  self_review: number;
+  system_prompt: string | null;
+  pinned: number;
+  folder: string | null;
+} {
+  const { title, modelNormalizedName, visibility, selfReview, systemPrompt, pinned, folder } = body;
+  return {
+    title: typeof title === 'string' ? title : existing.title,
+    model_normalized_name: typeof modelNormalizedName === 'string' ? modelNormalizedName : existing.model_normalized_name,
+    visibility: (visibility === 'public' || visibility === 'private') ? visibility : existing.visibility,
+    self_review: selfReview !== undefined ? (selfReview ? 1 : 0) : existing.self_review,
+    // undefined = not sent (keep existing); string/null = set or clear (empty → null)
+    system_prompt: systemPrompt !== undefined
+      ? (typeof systemPrompt === 'string' && systemPrompt.trim() ? systemPrompt : null)
+      : existing.system_prompt,
+    pinned: pinned !== undefined ? (pinned ? 1 : 0) : existing.pinned,
+    folder: folder !== undefined
+      ? (typeof folder === 'string' && folder.trim() ? folder.trim() : null)
+      : existing.folder,
   };
 }
 
@@ -103,14 +148,15 @@ router.get('/', optionalAuth, (req: AuthRequest, res: Response) => {
     let rows: ConversationRow[];
 
     if (userId) {
-      // Authenticated: own conversations (all visibility) + public from others
+      // Authenticated: own conversations (all visibility) + public from others.
+      // Pinned first, then most-recent (the sidebar renders in this order).
       rows = db.prepare(
-        'SELECT * FROM conversations WHERE user_id = ? OR visibility = ? OR user_id IS NULL ORDER BY updated_at DESC'
+        'SELECT * FROM conversations WHERE user_id = ? OR visibility = ? OR user_id IS NULL ORDER BY pinned DESC, updated_at DESC'
       ).all(userId, 'public') as ConversationRow[];
     } else {
       // Guest: only public conversations
       rows = db.prepare(
-        'SELECT * FROM conversations WHERE visibility = ? ORDER BY updated_at DESC'
+        'SELECT * FROM conversations WHERE visibility = ? ORDER BY pinned DESC, updated_at DESC'
       ).all('public') as ConversationRow[];
     }
 
@@ -154,7 +200,6 @@ router.post('/', optionalAuth, (req: AuthRequest, res: Response) => {
 router.put('/:id', optionalAuth, (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { title, modelNormalizedName, visibility, selfReview, systemPrompt } = req.body;
     const db = getDb();
 
     const existing = db.prepare('SELECT * FROM conversations WHERE id = ?').get(id) as ConversationRow | undefined;
@@ -165,18 +210,11 @@ router.put('/:id', optionalAuth, (req: AuthRequest, res: Response) => {
       return res.status(403).json({ success: false, error: 'You do not have permission to modify this conversation' });
     }
 
-    const newTitle = title ?? existing.title;
-    const newModel = modelNormalizedName ?? existing.model_normalized_name;
-    const newVisibility = (visibility === 'public' || visibility === 'private') ? visibility : existing.visibility;
-    const newSelfReview = selfReview !== undefined ? (selfReview ? 1 : 0) : existing.self_review;
-    // undefined = not sent (keep existing); string/null = set or clear (empty → null)
-    const newSystemPrompt = systemPrompt !== undefined
-      ? (typeof systemPrompt === 'string' && systemPrompt.trim() ? systemPrompt : null)
-      : existing.system_prompt;
+    const next = computeConversationUpdate(existing, req.body ?? {});
     const now = new Date().toISOString();
 
-    db.prepare('UPDATE conversations SET title = ?, model_normalized_name = ?, visibility = ?, self_review = ?, system_prompt = ?, updated_at = ? WHERE id = ?')
-      .run(newTitle, newModel, newVisibility, newSelfReview, newSystemPrompt, now, id);
+    db.prepare('UPDATE conversations SET title = ?, model_normalized_name = ?, visibility = ?, self_review = ?, system_prompt = ?, pinned = ?, folder = ?, updated_at = ? WHERE id = ?')
+      .run(next.title, next.model_normalized_name, next.visibility, next.self_review, next.system_prompt, next.pinned, next.folder, now, id);
 
     const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(id) as ConversationRow;
     res.json({

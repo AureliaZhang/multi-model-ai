@@ -138,6 +138,10 @@ describe('SCHEMA_MIGRATIONS (real migration set)', () => {
     // v5 column present.
     const attCols = db.prepare('PRAGMA table_info(attachments)').all().map((r) => (r as { name: string }).name);
     expect(attCols).toContain('extracted_text');
+    // v6 columns present.
+    const convCols = db.prepare('PRAGMA table_info(conversations)').all().map((r) => (r as { name: string }).name);
+    expect(convCols).toContain('pinned');
+    expect(convCols).toContain('folder');
   });
 
   it('re-running against an already-migrated DB is a clean no-op', () => {

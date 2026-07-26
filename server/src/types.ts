@@ -122,6 +122,10 @@ export interface Conversation {
   selfReview: boolean;
   systemPrompt?: string | null;
   userId?: string;
+  /** Pinned conversations sort first in the sidebar (migration v6). */
+  pinned: boolean;
+  /** Sidebar folder label; null = not in a folder (migration v6). */
+  folder?: string | null;
   createdAt: string;
   updatedAt: string;
 }
