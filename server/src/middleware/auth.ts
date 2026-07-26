@@ -35,7 +35,8 @@ function getUserById(userId: string): UserPublic | null {
   const row = db.prepare(`
     SELECT id, username, email, display_name as displayName, role,
            is_active as isActive, last_login as lastLogin,
-           created_at as createdAt
+           created_at as createdAt,
+           must_change_password as mustChangePassword
     FROM users WHERE id = ?
   `).get(userId) as any;
 
@@ -44,6 +45,7 @@ function getUserById(userId: string): UserPublic | null {
   return {
     ...row,
     isActive: Boolean(row.isActive),
+    mustChangePassword: Boolean(row.mustChangePassword),
   };
 }
 

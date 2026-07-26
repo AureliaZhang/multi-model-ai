@@ -67,6 +67,13 @@ export const authApi = {
     }),
 
   me: () => authRequest<UserPublic>('/auth/me'),
+
+  // v0.7.59: used by the forced-change dialog (and usable as a normal change).
+  changePassword: (currentPassword: string, newPassword: string) =>
+    authRequest('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
 };
 
 // --- User Management API (admin) ---

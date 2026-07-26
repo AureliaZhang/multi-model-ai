@@ -147,15 +147,17 @@ router.post('/login', (req: AuthRequest, res: Response) => {
       ? `SELECT id, username, email, phone, password_hash as passwordHash,
                 display_name as displayName, role,
                 is_active as isActive, last_login as lastLogin,
-                created_at as createdAt
+                created_at as createdAt,
+                must_change_password as mustChangePassword
          FROM users WHERE phone = ?`
       : `SELECT id, username, email, phone, password_hash as passwordHash,
                 display_name as displayName, role,
                 is_active as isActive, last_login as lastLogin,
-                created_at as createdAt
+                created_at as createdAt,
+                must_change_password as mustChangePassword
          FROM users WHERE username = ?`;
 
-    const row = db.prepare(query).get(username) as (UserPublicRow & { passwordHash: string }) | undefined;
+    const row = db.prepare(query).get(username) as (UserPublicRow & { passwordHash: string; mustChangePassword?: number }) | undefined;
 
     if (!row) {
       const errorMsg = mode === 'phone'
@@ -196,6 +198,7 @@ router.post('/login', (req: AuthRequest, res: Response) => {
       isActive: Boolean(row.isActive),
       lastLogin: new Date().toISOString(),
       createdAt: row.createdAt,
+      mustChangePassword: Boolean(row.mustChangePassword),
     };
 
     const response: AuthResponse = { token, user };
@@ -212,6 +215,55 @@ router.post('/login', (req: AuthRequest, res: Response) => {
  */
 router.get('/me', requireAuth, (req: AuthRequest, res: Response) => {
   res.json({ success: true, data: req.user });
+});
+
+/**
+ * Verify + apply a password change; clears must_change_password. Pure-ish
+ * (takes the db) — exported for tests. Returns a reason string on failure.
+ */
+export function applyPasswordChange(
+  db: ReturnType<typeof getDb>,
+  userId: string,
+  currentPassword: string,
+  newPassword: string
+): { ok: true } | { ok: false; reason: 'not_found' | 'wrong_password' | 'too_short' | 'same_password' } {
+  if (typeof newPassword !== 'string' || newPassword.length < 6) return { ok: false, reason: 'too_short' };
+  const row = db.prepare('SELECT id, password_hash FROM users WHERE id = ?').get(userId) as
+    | { id: string; password_hash: string }
+    | undefined;
+  if (!row) return { ok: false, reason: 'not_found' };
+  if (!bcrypt.compareSync(currentPassword || '', row.password_hash)) return { ok: false, reason: 'wrong_password' };
+  if (currentPassword === newPassword) return { ok: false, reason: 'same_password' };
+  db.prepare(
+    "UPDATE users SET password_hash = ?, must_change_password = 0, updated_at = datetime('now') WHERE id = ?"
+  ).run(bcrypt.hashSync(newPassword, 10), userId);
+  return { ok: true };
+}
+
+const CHANGE_PASSWORD_ERRORS: Record<string, string> = {
+  not_found: 'User not found',
+  wrong_password: 'Current password is incorrect',
+  too_short: 'New password must be at least 6 characters',
+  same_password: 'New password must be different from the current one',
+};
+
+/**
+ * POST /api/auth/change-password  { currentPassword, newPassword }
+ * Used by the forced-change dialog (v0.7.59) and usable as a normal change.
+ */
+router.post('/change-password', requireAuth, (req: AuthRequest, res: Response) => {
+  try {
+    const { currentPassword, newPassword } = req.body as { currentPassword?: string; newPassword?: string };
+    const db = getDb();
+    const result = applyPasswordChange(db, req.user!.id, currentPassword || '', newPassword || '');
+    if (!result.ok) {
+      res.status(400).json({ success: false, error: CHANGE_PASSWORD_ERRORS[result.reason] });
+      return;
+    }
+    res.json({ success: true });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
+  }
 });
 
 export default router;

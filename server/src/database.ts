@@ -134,6 +134,14 @@ export const SCHEMA_MIGRATIONS: Migration[] = [
   // in whatever currency the team bills in (currency-agnostic on purpose — the
   // relay stations themselves bill in different currencies). A model with no
   // row (or zero prices) simply shows no cost; nothing is guessed.
+  // v10: forced password change (§10.9 P0 #2, closes §10.8 TC0 #5's second half).
+  // Flagged accounts must change their password before using the app; the boot
+  // sweep below flags any admin still on the known seeded default.
+  {
+    version: 10,
+    name: 'users-must-change-password',
+    up: (d) => d.exec(`ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0`),
+  },
   {
     version: 9,
     name: 'model-pricing',
@@ -164,6 +172,9 @@ export function getDb(): Database.Database {
     // If ENCRYPTION_KEY is configured, upgrade any legacy plaintext station keys
     // to ciphertext in place (self-healing whenever the key is first set).
     encryptPlaintextStationKeys(db);
+    // Flag any admin still on the known seeded default password (v0.7.59) so the
+    // client forces a change on their next login — covers DBs seeded before v10.
+    flagDefaultAdminPasswords(db);
   }
   return db;
 }
@@ -874,10 +885,12 @@ function seedDefaultAdmin(db: Database.Database): void {
     }
     const password = envPassword || 'admin123';
     const passwordHash = bcrypt.hashSync(password, 10);
+    // Seeding with the KNOWN default password ⇒ force a change on first login (v0.7.59).
+    const mustChange = envPassword ? 0 : 1;
     db.prepare(`
-      INSERT INTO users (id, username, email, password_hash, display_name, role)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(uuidv4(), 'admin', 'admin@localhost', passwordHash, 'Administrator', 'admin');
+      INSERT INTO users (id, username, email, password_hash, display_name, role, must_change_password)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(uuidv4(), 'admin', 'admin@localhost', passwordHash, 'Administrator', 'admin', mustChange);
     if (envPassword) {
       console.log('🔑 Default admin user created (username: admin, password: from ADMIN_PASSWORD env)');
     } else {
@@ -970,5 +983,24 @@ function seedDefaultStation(db: Database.Database): void {
 export function closeDb(): void {
   if (db) {
     db.close();
+  }
+}
+
+/**
+ * Any ACTIVE admin whose password still bcrypt-matches the known seeded default
+ * ('admin123') gets `must_change_password = 1` (v0.7.59, §10.9 P0 #2). Runs every
+ * boot; a no-op once passwords are rotated. Exported for tests.
+ */
+export function flagDefaultAdminPasswords(db: Database.Database): void {
+  const admins = db.prepare(
+    "SELECT id, password_hash FROM users WHERE role = 'admin' AND must_change_password = 0"
+  ).all() as Array<{ id: string; password_hash: string }>;
+  for (const a of admins) {
+    try {
+      if (bcrypt.compareSync('admin123', a.password_hash)) {
+        db.prepare('UPDATE users SET must_change_password = 1 WHERE id = ?').run(a.id);
+        console.warn('🔑 Admin account still uses the default password — a change will be FORCED on next login.');
+      }
+    } catch { /* malformed hash — ignore */ }
   }
 }

@@ -285,6 +285,8 @@ export interface UserPublic {
   isVirtual?: boolean;
   /** Monthly token cap (0 = unlimited). Admin-set. */
   monthlyTokenLimit?: number;
+  /** v0.7.59: the app must force a password change before normal use. */
+  mustChangePassword?: boolean;
 }
 
 export interface RegisterRequest {

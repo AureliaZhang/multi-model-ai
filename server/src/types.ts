@@ -33,6 +33,8 @@ export interface UserPublic {
   lastLogin: string | null;
   createdAt: string;
   monthlyTokenLimit?: number;
+  /** v0.7.59: client must force a password change before normal use. */
+  mustChangePassword?: boolean;
 }
 
 export interface RegisterRequest {

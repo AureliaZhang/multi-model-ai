@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Layout } from './components/layout/Layout'
 import { LoginPage } from './components/auth/LoginPage';
 import { RegisterPage } from './components/auth/RegisterPage';
+import { ForcePasswordModal } from './components/auth/ForcePasswordModal';
 import { useAuthStore } from './stores/authStore';
 import { useTranslation } from './i18n';
 
@@ -12,6 +13,7 @@ function App() {
   const initialize = useAuthStore(s => s.initialize);
   const isLoading = useAuthStore(s => s.isLoading);
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
+  const mustChangePassword = useAuthStore(s => Boolean(s.user?.mustChangePassword));
   // An invite link (?invite=CODE) lands directly on the register view (v0.7.48).
   const [authView, setAuthView] = useState<AuthView>(
     () => new URLSearchParams(window.location.search).get('invite') ? 'register' : 'login'
@@ -47,6 +49,8 @@ function App() {
   return (
     <div className="w-full h-full">
       <Layout isGuest={isGuest} onLogout={() => { setIsGuest(false); }} onSignIn={() => { setIsGuest(false); }} />
+      {/* Forced password change (v0.7.59): blocks the app until resolved. */}
+      {isAuthenticated && mustChangePassword && <ForcePasswordModal />}
     </div>
   )
 }
