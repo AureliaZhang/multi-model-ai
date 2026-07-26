@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# 本地一键启动器（macOS 双击运行）· v0.7.69
+# 本地一键启动器（macOS 双击运行）· v0.7.70
 # 双击本文件 → 自动准备环境 → 启动前后端 → 打开浏览器。
 # 停止：回到这个终端窗口按 Ctrl+C（会同时停掉前后端）。
 # 排查：所有后端日志都在 dev-logs/server.log，前端在 dev-logs/client.log。
@@ -30,16 +30,31 @@ for PORT in 3001 5173; do
   fi
 done
 
-# 数据库原生组件必须匹配本机系统/Node 版本。测试环境曾把它编译成 Linux 版，
-# 检测到加载失败就自动重编译回 macOS 版（首次约 1-2 分钟）。
-if ! node -e "require('./server/node_modules/better-sqlite3')" >/dev/null 2>&1; then
-  xcode-select -p >/dev/null 2>&1 || fail "需要先安装 Xcode 命令行工具才能编译：请在终端运行  xcode-select --install  ，装完再双击我。"
-  echo "🔧 首次准备：为这台 Mac 重新编译数据库组件（约 1-2 分钟，请稍候）..."
-  (cd server && npm rebuild better-sqlite3) >> dev-logs/server.log 2>&1 \
-    || { tail -n 25 dev-logs/server.log; fail "数据库组件编译失败——上面 25 行是详细报错，截图发给 Claude。"; }
-  node -e "require('./server/node_modules/better-sqlite3')" >/dev/null 2>&1 \
-    || fail "编译完成但仍无法加载数据库组件。试试在终端运行： cd server && rm -rf node_modules && npm install"
-  echo "✅ 数据库组件就绪"
+# 数据库原生组件必须匹配本机系统/Node 版本。测试环境曾把它编译成 Linux 版。
+# 注意：光 require 这个包是不够的（它到真正建库时才加载原生文件，所以 v2 的
+# 探测在坏二进制下也会“通过”）。这里改成两道真检查：
+#   1) 看二进制文件本身是不是 macOS (Mach-O) 格式；
+#   2) 真的开一个内存数据库试试。
+SQLITE_BIN="server/node_modules/better-sqlite3/build/Release/better_sqlite3.node"
+sqlite_ok() {
+  if [ -f "$SQLITE_BIN" ] && ! file "$SQLITE_BIN" 2>/dev/null | grep -q "Mach-O"; then
+    return 1  # 二进制是别的系统（Linux）的，必须重编译
+  fi
+  (cd server && node -e "new (require('better-sqlite3'))(':memory:')") >/dev/null 2>&1
+}
+if ! sqlite_ok; then
+  xcode-select -p >/dev/null 2>&1 || fail "需要先安装 Xcode 命令行工具才能编译：请在终端运行  xcode-select --install  ，装完（可能要几分钟）再双击我。"
+  echo "🔧 首次准备：为这台 Mac 重新编译数据库组件（约 1-3 分钟，请稍候，别关窗口）..."
+  : > dev-logs/rebuild.log
+  (cd server && npm rebuild better-sqlite3) >> dev-logs/rebuild.log 2>&1 \
+    || { echo "──────── 编译日志（最后 25 行）────────"; tail -n 25 dev-logs/rebuild.log; \
+         fail "数据库组件编译失败——上面就是详细报错，截图发给 Claude。"; }
+  if ! sqlite_ok; then
+    echo "──────── 编译日志（最后 25 行）────────"
+    tail -n 25 dev-logs/rebuild.log
+    fail "编译完成但仍无法加载。兜底办法：在终端运行  cd \"$(pwd)/server\" && rm -rf node_modules && npm install  ，跑完再双击我；不行就把上面截图发给 Claude。"
+  fi
+  echo "✅ 数据库组件就绪（已编译为本机 macOS 版本）"
 fi
 
 cleanup() {
