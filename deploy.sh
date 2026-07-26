@@ -49,16 +49,25 @@ cd "$APP_DIR"
 echo "⬇️  拉取最新代码..."
 git pull --ff-only
 
-# 注意：安装依赖必须带上开发依赖（typescript/vite 等编译工具都在里面），
-# 否则 NODE_ENV=production 会让 npm 跳过它们，npx tsc 就会去装同名野包。
+# 注意 1：安装依赖必须带上开发依赖（typescript/vite 等编译工具都在里面），
+#         否则 NODE_ENV=production 会让 npm 跳过它们，npx tsc 就会去装同名野包。
+# 注意 2：不同 npm 版本对 lockfile 的严格程度不同——严格安装(ci)失败时
+#         自动退回宽松安装(install)，不让部署卡死在深层小包的版本误差上。
+install_deps() {
+  npm ci --include=dev --no-audit --no-fund || {
+    echo "⚠️  lockfile 与 package.json 不同步，退回宽松安装（npm install）..."
+    npm install --include=dev --no-audit --no-fund
+  }
+}
+
 echo "🔧 后端：依赖 + 编译..."
 cd "$APP_DIR/server"
-npm ci --include=dev --no-audit --no-fund
+install_deps
 npx tsc
 
 echo "🎨 前端：依赖 + 构建..."
 cd "$APP_DIR/client"
-npm ci --include=dev --no-audit --no-fund
+install_deps
 npm run build
 
 command -v pm2 >/dev/null 2>&1 || {
