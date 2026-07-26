@@ -12,6 +12,8 @@ import {
   FlaskConical,
   ListChecks,
   Download,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { useArenaStore } from '../../stores/arenaStore';
 import { useTranslation } from '../../i18n';
@@ -309,6 +311,18 @@ function CandidateCard({
   showPickLabel: string;
   pickedLabel: string;
 }) {
+  const { t } = useTranslation();
+  // Fullscreen reading mode (v0.7.80): modal overlay with the whole answer.
+  const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExpanded(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [expanded]);
+
   return (
     <div
       className={`rounded-xl border p-3 flex flex-col min-h-[120px] ${
@@ -321,11 +335,65 @@ function CandidateCard({
         <div className="text-[13px] font-medium truncate">
           {candidate.modelNormalizedName}
         </div>
-        <div className="text-[11px] text-[var(--color-text-tertiary)] shrink-0">
-          {candidate.status}
-          {candidate.latencyMs != null ? ` · ${candidate.latencyMs}ms` : ''}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-[11px] text-[var(--color-text-tertiary)]">
+            {candidate.status}
+            {candidate.latencyMs != null ? ` · ${candidate.latencyMs}ms` : ''}
+          </span>
+          {(candidate.content || candidate.errorMessage) && (
+            <button
+              type="button"
+              onClick={() => setExpanded(true)}
+              className="p-1 rounded-md hover:bg-[var(--overlay-6)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
+              title={t('arena.expandAnswer')}
+              aria-label={t('arena.expandAnswer')}
+            >
+              <Maximize2 size={13} />
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Fullscreen reading overlay */}
+      {expanded && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4 sm:p-8"
+          onClick={() => setExpanded(false)}
+        >
+          <div
+            className="w-full max-w-4xl h-full rounded-2xl bg-[var(--color-main-surface-primary)] border border-[var(--color-border-light)] shadow-2xl flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 px-5 py-3 border-b border-[var(--color-border-light)] flex-shrink-0">
+              <span className="text-sm font-medium truncate">{candidate.modelNormalizedName}</span>
+              <span className="text-[11px] text-[var(--color-text-tertiary)]">
+                {candidate.status}
+                {candidate.latencyMs != null ? ` · ${candidate.latencyMs}ms` : ''}
+              </span>
+              <button
+                type="button"
+                onClick={() => setExpanded(false)}
+                className="ml-auto p-1.5 rounded-lg hover:bg-[var(--overlay-6)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
+                title={t('arena.collapseAnswer')}
+                aria-label={t('arena.collapseAnswer')}
+              >
+                <Minimize2 size={16} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              {candidate.status === 'error' ? (
+                <p className="text-sm text-[var(--color-text-error)] whitespace-pre-wrap break-words">
+                  {candidate.errorMessage || 'Error'}
+                </p>
+              ) : (
+                <div className="text-[14px] text-[var(--color-text-secondary)] markdown-content">
+                  <MarkdownMessage content={candidate.content || ''} />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {candidate.status === 'error' ? (
         <div className="flex-1 text-[13px] text-[var(--color-text-error)] whitespace-pre-wrap break-words overflow-y-auto max-h-[420px]">
           {candidate.errorMessage || 'Error'}

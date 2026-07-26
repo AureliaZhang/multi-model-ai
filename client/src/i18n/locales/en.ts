@@ -492,6 +492,8 @@ const en = {
   'arena.running': 'Generating…',
   'arena.newBattle': 'New battle',
   'arena.pickThis': 'Pick this',
+  'arena.expandAnswer': 'Expand to read',
+  'arena.collapseAnswer': 'Exit fullscreen (Esc)',
   'arena.picked': 'Selected',
   'arena.selectedModel': 'You selected',
   'arena.noHistory': 'No battles yet',

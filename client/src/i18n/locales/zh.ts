@@ -492,6 +492,8 @@ const zh = {
   'arena.running': '生成中…',
   'arena.newBattle': '新对战',
   'arena.pickThis': '选这个',
+  'arena.expandAnswer': '放大阅读',
+  'arena.collapseAnswer': '退出放大（Esc）',
   'arena.picked': '已选择',
   'arena.selectedModel': '你选择了',
   'arena.noHistory': '还没有对战记录',
