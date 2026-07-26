@@ -16,6 +16,7 @@ import {
 import { useArenaStore } from '../../stores/arenaStore';
 import { useTranslation } from '../../i18n';
 import { TopRightToggles } from '../layout/TopRightToggles';
+import { MarkdownMessage } from '../common/MarkdownMessage';
 import type { BattleCandidate } from '../../types';
 import { PromptLabPanel } from './PromptLabPanel';
 import { BenchmarkPanel } from './BenchmarkPanel';
@@ -274,7 +275,9 @@ function BattleResultView({
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {/* items-start: each card takes its own height — an error card no longer
+          stretches to match a long answer beside it (v0.7.79). */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
         {battle.candidates.map((c) => (
           <CandidateCard
             key={c.id}
@@ -308,7 +311,7 @@ function CandidateCard({
 }) {
   return (
     <div
-      className={`rounded-xl border p-3 flex flex-col min-h-[180px] ${
+      className={`rounded-xl border p-3 flex flex-col min-h-[120px] ${
         selected
           ? 'border-[var(--color-accent-main)] bg-[var(--accent-tint-8)]'
           : 'border-[var(--color-border-light)] bg-[var(--overlay-2)]'
@@ -323,11 +326,15 @@ function CandidateCard({
           {candidate.latencyMs != null ? ` · ${candidate.latencyMs}ms` : ''}
         </div>
       </div>
-      <div className="flex-1 text-[13px] text-[var(--color-text-secondary)] whitespace-pre-wrap overflow-y-auto max-h-[320px]">
-        {candidate.status === 'error'
-          ? candidate.errorMessage || 'Error'
-          : candidate.content || '…'}
-      </div>
+      {candidate.status === 'error' ? (
+        <div className="flex-1 text-[13px] text-[var(--color-text-error)] whitespace-pre-wrap break-words overflow-y-auto max-h-[420px]">
+          {candidate.errorMessage || 'Error'}
+        </div>
+      ) : (
+        <div className="flex-1 text-[13px] text-[var(--color-text-secondary)] overflow-y-auto max-h-[420px] markdown-content">
+          {candidate.content ? <MarkdownMessage content={candidate.content} /> : '…'}
+        </div>
+      )}
       {canSelect && (
         <button
           type="button"

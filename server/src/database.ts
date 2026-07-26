@@ -234,6 +234,16 @@ export const SCHEMA_MIGRATIONS: Migration[] = [
         INSERT OR IGNORE INTO web_search_config (id) VALUES (1);
       `),
   },
+  // v16: daily deep probe (owner request 2026-07-26). Once a day at a RANDOM
+  // time, each enabled station gets a REAL question (not a hello-ping) sent to
+  // a random enabled model — catches "station up but model pool dead" cases
+  // the /models ping can't see. This column remembers the last probe day so a
+  // server restart doesn't re-probe.
+  {
+    version: 16,
+    name: 'stations-last-deep-probe',
+    up: (d) => d.exec(`ALTER TABLE stations ADD COLUMN last_deep_probe TEXT`),
+  },
   {
     version: 9,
     name: 'model-pricing',

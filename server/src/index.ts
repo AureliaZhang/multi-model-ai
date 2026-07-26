@@ -25,6 +25,7 @@ import announcementRoutes from './routes/announcement';
 import lorebookRoutes from './routes/lorebook';
 import webSearchRoutes from './routes/webSearch';
 import { startHealthCheckJob, stopHealthCheckJob } from './services/healthCheck';
+import { startDeepProbeJob, stopDeepProbeJob } from './services/deepProbe';
 import { startBackupJob, stopBackupJob } from './services/backup';
 import { startRetentionJob, stopRetentionJob } from './services/retention';
 import { attachRoomHub } from './services/roomHub';
@@ -122,6 +123,8 @@ server.listen(PORT, () => {
   // Begin periodic station health checks so unhealthy stations are auto-detected
   // and auto-recovered without a manual check (§8.3).
   startHealthCheckJob();
+  // Once a day at a random time, ask each station a REAL question (v0.7.79).
+  startDeepProbeJob();
   // Periodic DB snapshots so a shared team DB is never a single point of loss
   // (§10.8 Phase 2). Env-tunable; skipped for in-memory DBs.
   startBackupJob();
@@ -133,6 +136,7 @@ server.listen(PORT, () => {
 // Graceful shutdown
 process.on('SIGINT', () => {
   stopHealthCheckJob();
+  stopDeepProbeJob();
   stopBackupJob();
   stopRetentionJob();
   closeDb();
@@ -141,6 +145,7 @@ process.on('SIGINT', () => {
 
 process.on('SIGTERM', () => {
   stopHealthCheckJob();
+  stopDeepProbeJob();
   stopBackupJob();
   stopRetentionJob();
   closeDb();
