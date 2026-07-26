@@ -146,6 +146,8 @@ describe('SCHEMA_MIGRATIONS (real migration set)', () => {
     expect(names).toContain('invites');
     const memCfgCols = db.prepare('PRAGMA table_info(memory_config)').all().map((r) => (r as { name: string }).name);
     expect(memCfgCols).toContain('history_max_turns');
+    // v9 table present.
+    expect(names).toContain('model_pricing');
   });
 
   it('re-running against an already-migrated DB is a clean no-op', () => {

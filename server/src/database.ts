@@ -129,6 +129,24 @@ export const SCHEMA_MIGRATIONS: Migration[] = [
     name: 'memory-config-history-max-turns',
     up: (d) => d.exec(`ALTER TABLE memory_config ADD COLUMN history_max_turns INTEGER NOT NULL DEFAULT 20`),
   },
+  // v9: per-model unit pricing for the admin cost dashboard (§10.8 Phase 3's
+  // deferred "$ cost" item; owner opted in 2026-07-26). Prices are PER 1M TOKENS
+  // in whatever currency the team bills in (currency-agnostic on purpose — the
+  // relay stations themselves bill in different currencies). A model with no
+  // row (or zero prices) simply shows no cost; nothing is guessed.
+  {
+    version: 9,
+    name: 'model-pricing',
+    up: (d) =>
+      d.exec(`
+        CREATE TABLE IF NOT EXISTS model_pricing (
+          model_normalized TEXT PRIMARY KEY,
+          prompt_price_per_m REAL NOT NULL DEFAULT 0,
+          completion_price_per_m REAL NOT NULL DEFAULT 0,
+          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+      `),
+  },
 ];
 
 export function getDb(): Database.Database {

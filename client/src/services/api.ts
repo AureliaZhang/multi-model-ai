@@ -773,4 +773,8 @@ export const usageApi = {
     if (params?.to) q.set('to', params.to);
     return request<UsageSummary>(`/usage/summary?${q}`);
   },
+  // Model unit pricing (v0.7.54, admin): per-1M-token prices for the cost columns.
+  getPricing: () => request<import('../types').ModelPricingEntry[]>('/usage/pricing'),
+  setPricing: (model: string, data: { promptPricePerM: number; completionPricePerM: number }) =>
+    request(`/usage/pricing/${encodeURIComponent(model)}`, { method: 'PUT', body: JSON.stringify(data) }),
 };

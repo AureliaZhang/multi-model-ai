@@ -62,6 +62,10 @@ export interface UsageUserAgg {
   promptTokens: number;
   completionTokens: number;
   errors: number;
+  /** Cost over priced models only (v0.7.54); null = nothing priced. */
+  cost?: number | null;
+  /** True when the user also used unpriced models (cost is a floor). */
+  costIncomplete?: boolean;
 }
 export interface UsageModelAgg {
   modelNormalized?: string | null;
@@ -69,11 +73,20 @@ export interface UsageModelAgg {
   tokens: number;
   promptTokens: number;
   completionTokens: number;
+  /** null = model not priced. */
+  cost?: number | null;
 }
 export interface UsageSummary {
   byUser: UsageUserAgg[];
   byModel: UsageModelAgg[];
-  totals: { requests: number; tokens: number; errors: number; users: number };
+  totals: { requests: number; tokens: number; errors: number; users: number; cost?: number | null; costIncomplete?: boolean };
+}
+
+/** A model's configured unit prices, per 1M tokens (v0.7.54). */
+export interface ModelPricingEntry {
+  modelNormalized: string;
+  promptPricePerM: number | null;
+  completionPricePerM: number | null;
 }
 
 

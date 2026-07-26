@@ -630,3 +630,13 @@ export interface InviteRow {
   revoked: number;
   created_at: string;
 }
+
+/** Row shape of `model_pricing` (migration v9 — admin cost dashboard). */
+export interface ModelPricingRow {
+  model_normalized: string;
+  /** Price per 1M prompt tokens (currency-agnostic). */
+  prompt_price_per_m: number;
+  /** Price per 1M completion tokens (currency-agnostic). */
+  completion_price_per_m: number;
+  updated_at: string;
+}

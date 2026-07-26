@@ -537,6 +537,12 @@ const zh = {
   'usage.summaryMeta': '{users} 人 · {tokens} tokens',
   'usage.byUser': '按用户',
   'usage.byModel': '按模型',
+  'usage.cost': '费用',
+  'usage.costIncompleteHint': '该用户还用过未设置单价的模型，此金额是下限',
+  'usage.pricingTitle': '模型单价（每百万 token）',
+  'usage.pricingDesc': '给每个模型设置输入/输出单价（按你实际结算的货币填数字即可）。设置后上方汇总会显示费用；未设置单价的模型不会猜测费用。',
+  'usage.promptPrice': '输入单价',
+  'usage.completionPrice': '输出单价',
   'usage.requests': '次数',
 
   // §10.6 群聊 / 群组

@@ -537,6 +537,12 @@ const en = {
   'usage.summaryMeta': '{users} users · {tokens} tokens',
   'usage.byUser': 'By user',
   'usage.byModel': 'By model',
+  'usage.cost': 'Cost',
+  'usage.costIncompleteHint': 'This user also used models with no unit price set — this amount is a floor',
+  'usage.pricingTitle': 'Model unit prices (per 1M tokens)',
+  'usage.pricingDesc': 'Set prompt/completion prices per model (numbers in whatever currency you bill in). Costs appear in the summary above; unpriced models are never guessed.',
+  'usage.promptPrice': 'Prompt price',
+  'usage.completionPrice': 'Completion price',
   'usage.requests': 'Requests',
 
   // §10.6 Group chat / rooms
