@@ -18,6 +18,7 @@ import { searchFileChunks } from '../services/fileProcessor';
 import { filterVisibleFileIds } from './files';
 import { matchLorebookEntries, buildLorebookContext } from '../services/lorebook';
 import { maybeDistillConversation } from '../services/memoryDistiller';
+import { searchWeb, buildWebSearchContext } from '../services/webSearch';
 
 /** OpenAI-style multimodal content part for chat completions. */
 type ChatContentPart =
@@ -144,7 +145,7 @@ async function extractFileText(mimeType: string, base64Data: string, filename: s
 // POST /api/chat - Send message & get streaming response (SSE)
 router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const { conversationId, modelNormalizedName, message, attachments, fileIds } = req.body;
+    const { conversationId, modelNormalizedName, message, attachments, fileIds, webSearch } = req.body;
     if (!conversationId || !modelNormalizedName || !message) {
       return res.status(400).json({ success: false, error: 'conversationId, modelNormalizedName, and message are required' });
     }
@@ -449,6 +450,19 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
       }
     } catch (loreErr: unknown) {
       console.warn('[chat] Lorebook injection failed:', getErrorMessage(loreErr));
+    }
+
+    // In-chat web search (v0.7.74): the member flipped 联网 for this message —
+    // ask the configured provider and inject snippets + sources. Unavailable /
+    // failed search degrades to a normal answer (never blocks the chat).
+    if (webSearch === true) {
+      const search = await searchWeb(String(message), db);
+      if (search.ok) {
+        const searchContext = buildWebSearchContext(String(message), search.results);
+        if (searchContext) apiMessages.unshift({ role: 'system', content: searchContext });
+      } else {
+        console.warn('[chat] web search unavailable:', search.reason);
+      }
     }
 
     // Inject this conversation's custom system prompt (persona) as the LEADING system message.

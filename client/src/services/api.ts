@@ -217,7 +217,8 @@ export function streamChat(
   message: string,
   callbacks: StreamChatCallbacks,
   attachments?: { filename: string; mimeType: string; base64: string }[],
-  fileIds?: string[]
+  fileIds?: string[],
+  webSearch?: boolean
 ): AbortController {
   const controller = new AbortController();
 
@@ -231,6 +232,9 @@ export function streamChat(
   }
   if (fileIds && fileIds.length > 0) {
     body.fileIds = fileIds;
+  }
+  if (webSearch) {
+    body.webSearch = true;
   }
 
   fetch(`${BASE_URL}/chat`, {
@@ -788,6 +792,21 @@ export interface LorebookEntry {
   createdAt: string;
   updatedAt: string;
 }
+
+// --- In-chat web search (v0.7.74) ---
+export interface WebSearchConfig {
+  enabled: boolean;
+  provider: string;
+  apiKey: string;
+  maxResults: number;
+}
+
+export const webSearchApi = {
+  status: () => request<{ available: boolean }>('/websearch/status'),
+  getConfig: () => request<WebSearchConfig>('/websearch/config'),
+  setConfig: (data: Partial<{ enabled: boolean; apiKey: string; maxResults: number }>) =>
+    request<WebSearchConfig>('/websearch/config', { method: 'PUT', body: JSON.stringify(data) }),
+};
 
 export const lorebookApi = {
   list: () => request<LorebookEntry[]>('/lorebook'),

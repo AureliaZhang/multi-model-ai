@@ -25,7 +25,7 @@ function startStream(
   get: StoreApi<ChatState>['getState'],
   params: FailedSend,
 ): void {
-  const { convId, message, modelNormalizedName, attachments, fileIds } = params;
+  const { convId, message, modelNormalizedName, attachments, fileIds, webSearch } = params;
 
   set({ isStreaming: true, streamingContent: '', error: null, pendingToolCalls: [] });
 
@@ -143,6 +143,7 @@ function startStream(
     },
     apiAttachments,
     fileIds && fileIds.length > 0 ? fileIds : undefined,
+    webSearch,
   );
 
   set({ abortController: controller });
@@ -155,6 +156,7 @@ interface FailedSend {
   modelNormalizedName: string;
   attachments?: PendingAttachment[];
   fileIds?: string[];
+  webSearch?: boolean;
 }
 
 /**
@@ -198,8 +200,8 @@ interface ChatState {
   deleteConversation: (id: string) => Promise<void>;
   selectConversation: (id: string) => Promise<void>;
   updateConversation: (id: string, data: { title?: string; visibility?: ConversationVisibility; selfReview?: boolean; systemPrompt?: string | null; pinned?: boolean; folder?: string | null }) => Promise<void>;
-  sendMessage: (message: string, modelNormalizedName: string, attachments?: PendingAttachment[], fileIds?: string[]) => void;
-  doSendMessage: (convId: string, message: string, modelNormalizedName: string, attachments?: PendingAttachment[], fileIds?: string[]) => void;
+  sendMessage: (message: string, modelNormalizedName: string, attachments?: PendingAttachment[], fileIds?: string[], webSearch?: boolean) => void;
+  doSendMessage: (convId: string, message: string, modelNormalizedName: string, attachments?: PendingAttachment[], fileIds?: string[], webSearch?: boolean) => void;
   /** Re-run the last failed send without inserting a duplicate user message. */
   retryLastSend: () => void;
   /** Regenerate the assistant reply for the user turn at/preceding `messageId`. */
@@ -405,7 +407,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     };
   },
 
-  sendMessage: (message: string, modelNormalizedName: string, attachments?: PendingAttachment[], fileIds?: string[]) => {
+  sendMessage: (message: string, modelNormalizedName: string, attachments?: PendingAttachment[], fileIds?: string[], webSearch?: boolean) => {
     const { currentConversationId, isStreaming } = get();
     if (isStreaming) return;
 
@@ -414,15 +416,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // If no conversation, create one first
     if (!convId) {
       get().createConversation(modelNormalizedName, message.substring(0, 50)).then(id => {
-        get().doSendMessage(id, message, modelNormalizedName, attachments, fileIds);
+        get().doSendMessage(id, message, modelNormalizedName, attachments, fileIds, webSearch);
       });
       return;
     }
 
-    get().doSendMessage(convId, message, modelNormalizedName, attachments, fileIds);
+    get().doSendMessage(convId, message, modelNormalizedName, attachments, fileIds, webSearch);
   },
 
-  doSendMessage: (convId: string, message: string, modelNormalizedName: string, attachments?: PendingAttachment[], fileIds?: string[]) => {
+  doSendMessage: (convId: string, message: string, modelNormalizedName: string, attachments?: PendingAttachment[], fileIds?: string[], webSearch?: boolean) => {
     // Add user message to UI immediately
     const userMsg: Message = {
       id: `temp-${Date.now()}`,
@@ -441,7 +443,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     set(state => ({ messages: [...state.messages, userMsg] }));
 
-    startStream(set, get, { convId, message, modelNormalizedName, attachments, fileIds });
+    startStream(set, get, { convId, message, modelNormalizedName, attachments, fileIds, webSearch });
   },
 
   // Re-run the last failed send. The user bubble is already in the list, so we

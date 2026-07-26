@@ -6,7 +6,7 @@ import { Send, Paperclip, Square, LogIn, X, FileIcon, Globe, Lock, Eye, EyeOff }
 import type { PendingAttachment } from '../../types';
 import { useTranslation } from '../../i18n';
 import { FileSelector } from '../files/FileSelector';
-import { fileApi } from '../../services/api';
+import { fileApi, webSearchApi } from '../../services/api';
 
 interface ChatInputProps {
   isGuest?: boolean;
@@ -54,6 +54,17 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
   const { t } = useTranslation();
 
   const [selectedModel, _setSelectedModel] = useState(() => localStorage.getItem('selected_model') || '');
+
+  // In-chat web search (v0.7.74): the chip shows only when the admin has
+  // configured a provider; the on/off choice is sticky for the session.
+  const [webSearchAvail, setWebSearchAvail] = useState(false);
+  const [webSearchOn, setWebSearchOn] = useState(false);
+  useEffect(() => {
+    if (isGuest) return;
+    webSearchApi.status()
+      .then((res) => setWebSearchAvail(Boolean(res.success && res.data?.available)))
+      .catch(() => undefined);
+  }, [isGuest]);
 
   // Keep a live ref so the unmount cleanup revokes the CURRENT object URLs,
   // not the empty array captured at mount time (that leak left blobs alive).
@@ -144,6 +155,7 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
       model,
       attachments.length > 0 ? attachments : undefined,
       selectedFileIds.length > 0 ? selectedFileIds : undefined,
+      webSearchAvail && webSearchOn ? true : undefined,
     );
     setInput('');
     setAttachments([]);
@@ -152,7 +164,7 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  }, [input, isStreaming, selectedModel, models, sendMessage, isGuest, attachments, selectedFileIds, t]);
+  }, [input, isStreaming, selectedModel, models, sendMessage, isGuest, attachments, selectedFileIds, webSearchAvail, webSearchOn, t]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -314,6 +326,20 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
                 <span>{t('conversation.selfReview')}</span>
               </button>
             </>
+          )}
+          {webSearchAvail && (
+            <button
+              onClick={() => setWebSearchOn((v) => !v)}
+              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-colors ${
+                webSearchOn
+                  ? 'bg-[var(--accent-tint-15)] text-[var(--color-accent-main)]'
+                  : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+              }`}
+              title={t('chat.webSearchDesc')}
+            >
+              <Globe size={11} />
+              <span>{t('chat.webSearch')}</span>
+            </button>
           )}
           <FileSelector
             selectedFileIds={selectedFileIds}

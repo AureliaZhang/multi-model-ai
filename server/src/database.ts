@@ -214,6 +214,26 @@ export const SCHEMA_MIGRATIONS: Migration[] = [
       d.exec(`UPDATE memory_config SET auto_summarize = 1 WHERE id = 1`);
     },
   },
+  // v15: in-chat web search (owner batch #3, 2026-07-26). Admin configures a
+  // search provider key (encrypted like the embedding key); members flip a
+  // per-message 联网 toggle in the composer. Single-row config table (same
+  // pattern as memory_config / announcement).
+  {
+    version: 15,
+    name: 'web-search-config',
+    up: (d) =>
+      d.exec(`
+        CREATE TABLE IF NOT EXISTS web_search_config (
+          id INTEGER PRIMARY KEY CHECK(id = 1),
+          enabled INTEGER NOT NULL DEFAULT 0,
+          provider TEXT NOT NULL DEFAULT 'tavily',
+          api_key TEXT,
+          max_results INTEGER NOT NULL DEFAULT 3,
+          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        INSERT OR IGNORE INTO web_search_config (id) VALUES (1);
+      `),
+  },
   {
     version: 9,
     name: 'model-pricing',

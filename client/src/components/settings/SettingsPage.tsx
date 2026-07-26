@@ -11,7 +11,7 @@ import {
 import type { StationModelRow } from '../../types';
 import { getErrorMessage } from '../../utils/errors';
 import { useAuthStore } from '../../stores/authStore';
-import { announcementApi } from '../../services/api';
+import { announcementApi, webSearchApi } from '../../services/api';
 
 interface SettingsPageProps {
   onClose: () => void;
@@ -79,6 +79,29 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     if (res.success) {
       setAnnSaved(true);
       setTimeout(() => setAnnSaved(false), 1500);
+    }
+  };
+
+  // In-chat web search config (v0.7.74)
+  const [wsEnabled, setWsEnabled] = useState(false);
+  const [wsKey, setWsKey] = useState('');
+  const [wsSaved, setWsSaved] = useState(false);
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    webSearchApi.getConfig().then((res) => {
+      if (!cancelled && res.success && res.data) {
+        setWsEnabled(res.data.enabled);
+        setWsKey(res.data.apiKey);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [isAdmin]);
+  const saveWebSearch = async () => {
+    const res = await webSearchApi.setConfig({ enabled: wsEnabled, apiKey: wsKey });
+    if (res.success) {
+      setWsSaved(true);
+      setTimeout(() => setWsSaved(false), 1500);
     }
   };
 
@@ -287,6 +310,35 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 className="px-3 py-1.5 rounded-lg bg-[var(--button-primary-bg)] hover:bg-[var(--button-primary-hover)] text-white text-xs transition-colors"
               >
                 {annSaved ? '✓' : t('common.save')}
+              </button>
+            </div>
+          </div>
+        )}
+        {/* In-chat web search (v0.7.74): provider key + switch */}
+        {isAdmin && (
+          <div className="mb-5 p-4 rounded-2xl bg-[var(--color-main-surface-secondary)] border border-[var(--color-border-light)]">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-medium text-sm text-[var(--color-text-primary)]">{t('webSearch.title')}</h3>
+              <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)] cursor-pointer">
+                <input type="checkbox" checked={wsEnabled} onChange={e => setWsEnabled(e.target.checked)} />
+                {t('webSearch.enabled')}
+              </label>
+            </div>
+            <p className="text-[11px] text-[var(--color-text-tertiary)] mb-2">{t('webSearch.desc')}</p>
+            <input
+              type="password"
+              value={wsKey}
+              onChange={e => setWsKey(e.target.value)}
+              placeholder={t('webSearch.keyPlaceholder')}
+              className="w-full px-3 py-2 rounded-lg bg-[var(--composer-bg)] border border-[var(--color-border-light)] text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent-main)]"
+            />
+            <div className="mt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => void saveWebSearch()}
+                className="px-3 py-1.5 rounded-lg bg-[var(--button-primary-bg)] hover:bg-[var(--button-primary-hover)] text-white text-xs transition-colors"
+              >
+                {wsSaved ? '✓' : t('common.save')}
               </button>
             </div>
           </div>
