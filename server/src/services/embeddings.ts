@@ -56,7 +56,7 @@ async function generateApiEmbedding(text: string): Promise<number[] | null> {
         const response = await fetch(`${baseUrl}/embeddings`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${memConfig.embedding_api_key}`,
+            'Authorization': `Bearer ${decryptSecret(memConfig.embedding_api_key)}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ model, input: truncatedText }),

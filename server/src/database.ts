@@ -872,6 +872,20 @@ function encryptPlaintextStationKeys(db: Database.Database): void {
   } catch (err) {
     console.error('[crypto] station key encryption sweep failed:', getErrorMessage(err));
   }
+  // v0.7.60 (§10.9 P0 #3): same self-healing for the memory store's dedicated
+  // embedding API key — the one column the v0.7.37 crypto pass deferred.
+  try {
+    const cfg = db.prepare('SELECT embedding_api_key FROM memory_config WHERE id = 1').get() as
+      | { embedding_api_key: string | null }
+      | undefined;
+    if (cfg?.embedding_api_key && !isEncrypted(cfg.embedding_api_key)) {
+      db.prepare('UPDATE memory_config SET embedding_api_key = ? WHERE id = 1')
+        .run(encryptSecret(cfg.embedding_api_key));
+      console.log('🔐 Encrypted the memory-store embedding API key at rest');
+    }
+  } catch (err) {
+    console.error('[crypto] embedding key encryption sweep failed:', getErrorMessage(err));
+  }
 }
 
 function seedDefaultAdmin(db: Database.Database): void {

@@ -6,6 +6,7 @@ import type { MemoryEntryRow, MemoryTagRow, MemoryConfigRow } from '../dbRows';
 import { generateEmbedding, serializeEmbedding, vectorSearch } from '../services/embeddings';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { getErrorMessage, isAbortError } from '../utils/errors';
+import { encryptSecret, decryptSecret } from '../utils/crypto';
 
 const router = Router();
 
@@ -256,7 +257,7 @@ router.get('/config', (_req: AuthRequest, res: Response) => {
       autoSummarize: row.auto_summarize === 1,
       summarizeThreshold: row.summarize_threshold,
       embeddingApiBaseUrl: row.embedding_api_base_url || null,
-      embeddingApiKey: row.embedding_api_key || null,
+      embeddingApiKey: row.embedding_api_key ? decryptSecret(row.embedding_api_key) : null,
       embeddingModel: row.embedding_model || null,
       embeddingStats: { total: totalEntries, embedded: embeddedEntries },
     };
@@ -289,7 +290,9 @@ router.put('/config', requireRole('admin'), (req: AuthRequest, res: Response) =>
       updates.autoSummarize !== undefined ? (updates.autoSummarize ? 1 : 0) : current.auto_summarize,
       updates.summarizeThreshold ?? current.summarize_threshold,
       updates.embeddingApiBaseUrl !== undefined ? updates.embeddingApiBaseUrl : current.embedding_api_base_url,
-      updates.embeddingApiKey !== undefined ? updates.embeddingApiKey : current.embedding_api_key,
+      updates.embeddingApiKey !== undefined
+        ? (updates.embeddingApiKey ? encryptSecret(updates.embeddingApiKey) : updates.embeddingApiKey)
+        : current.embedding_api_key,
       updates.embeddingModel !== undefined ? updates.embeddingModel : current.embedding_model
     );
 
@@ -578,7 +581,7 @@ function rowToMemoryConfig(row: MemoryConfigRow): MemoryConfig {
     autoSummarize: row.auto_summarize === 1,
     summarizeThreshold: row.summarize_threshold,
     embeddingApiBaseUrl: row.embedding_api_base_url || null,
-    embeddingApiKey: row.embedding_api_key || null,
+    embeddingApiKey: row.embedding_api_key ? decryptSecret(row.embedding_api_key) : null,
     embeddingModel: row.embedding_model || null,
   };
 }
