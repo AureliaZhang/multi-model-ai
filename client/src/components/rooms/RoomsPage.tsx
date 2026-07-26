@@ -17,6 +17,7 @@ interface RoomsPageProps {
 export function RoomsPage({ onClose }: RoomsPageProps) {
   const { t } = useTranslation();
   const rooms = useRoomStore((s) => s.rooms);
+  const lastSeen = useRoomStore((s) => s.lastSeen);
   const roomsLoading = useRoomStore((s) => s.roomsLoading);
   const fetchRooms = useRoomStore((s) => s.fetchRooms);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -70,6 +71,10 @@ export function RoomsPage({ onClose }: RoomsPageProps) {
               >
                 <Users2 size={15} className="text-[var(--color-accent-main)] flex-shrink-0" />
                 <span className="truncate text-[13px] text-[var(--color-text-secondary)] flex-1">{r.name}</span>
+                {/* Unread dot (v0.7.61): activity since this member last opened the room */}
+                {(!lastSeen[r.id] || r.updatedAt > lastSeen[r.id]) && selectedId !== r.id && (
+                  <span className="w-2 h-2 rounded-full bg-[var(--color-accent-main)] flex-shrink-0" aria-label={t('room.unread')} />
+                )}
                 <span className="text-[11px] text-[var(--color-text-tertiary)] flex-shrink-0">
                   {r.memberCount ?? r.members?.length ?? ''}
                 </span>

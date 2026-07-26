@@ -11,8 +11,17 @@ import type { Room, RoomMessage, RoomAiMessage, RoomFile, RoomNotepad } from '..
  * - Occupancy (@AI input lock) state comes from the room object itself.
  */
 
+const LAST_SEEN_KEY = 'room_last_seen';
+
+function loadLastSeen(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(LAST_SEEN_KEY) || '{}'); } catch { return {}; }
+}
+
 interface RoomState {
   rooms: Room[];
+  /** Per-room "I looked at this" timestamps (v0.7.61 unread badges). */
+  lastSeen: Record<string, string>;
+  markRoomSeen: (roomId: string) => void;
   roomsLoading: boolean;
   currentRoom: Room | null;
   messages: RoomMessage[]; // left track
@@ -76,14 +85,33 @@ function applySocketEvent(
       const message = event.message as RoomMessage;
       if (!message?.id) return;
       set({ messages: upsertById(get().messages, message) });
+      // The room is open on screen — what just arrived counts as seen.
+      const cur = get().currentRoom;
+      if (cur) get().markRoomSeen(cur.id);
       break;
     }
     case 'ai': {
       const message = event.message as RoomAiMessage;
       if (!message?.id) return;
+      const prev = get().aiMessages.find((m) => m.id === message.id);
       // Streaming updates arrive many times per second: merge by id so
       // content grows in place (thinking → streaming → done|error).
       set({ aiMessages: upsertById(get().aiMessages, message) });
+      const cur = get().currentRoom;
+      if (cur) get().markRoomSeen(cur.id);
+      // v0.7.61: long AI runs finish silently when the tab is hidden — surface
+      // a browser notification on the thinking/streaming → done transition.
+      if (
+        message.status === 'done' &&
+        prev && prev.status !== 'done' &&
+        typeof document !== 'undefined' && document.hidden &&
+        typeof Notification !== 'undefined' && Notification.permission === 'granted'
+      ) {
+        try {
+          const body = (message.content || '').slice(0, 120);
+          new Notification(cur?.name || 'AI', { body, tag: `room-ai-${message.id}` });
+        } catch { /* notification construction can throw on some platforms */ }
+      }
       break;
     }
     case 'room': {
@@ -139,6 +167,12 @@ function stopFallbackPoll(set: (p: Partial<RoomState>) => void, get: () => RoomS
 
 export const useRoomStore = create<RoomState>((set, get) => ({
   rooms: [],
+  lastSeen: loadLastSeen(),
+  markRoomSeen: (roomId: string) => {
+    const next = { ...get().lastSeen, [roomId]: new Date().toISOString() };
+    try { localStorage.setItem(LAST_SEEN_KEY, JSON.stringify(next)); } catch { /* private mode */ }
+    set({ lastSeen: next });
+  },
   roomsLoading: false,
   currentRoom: null,
   messages: [],
@@ -202,6 +236,11 @@ export const useRoomStore = create<RoomState>((set, get) => ({
       aiMessages: aiRes.success && aiRes.data ? aiRes.data : [],
       loadingRoom: false,
     });
+    get().markRoomSeen(id);
+    // First room entry: ask for notification permission (browser coalesces repeats).
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      try { void Notification.requestPermission(); } catch { /* unsupported */ }
+    }
 
     get().fetchFiles();
     get().fetchNotepad();

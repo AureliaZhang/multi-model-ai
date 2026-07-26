@@ -573,6 +573,7 @@ const zh = {
   'room.virtualBadge': '虚拟占位',
   'room.virtualHint': '可勾选「虚拟占位」先建群，之后再邀请真实成员并移出占位用户。',
   'room.virtualName': '虚拟占位成员',
+  'room.unread': '有新动态',
   'room.groupName': '群名称',
   'room.pickMembers': '添加成员（至少一人）',
   'room.create': '创建',

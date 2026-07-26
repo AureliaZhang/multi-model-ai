@@ -573,6 +573,7 @@ const en = {
   'room.virtualBadge': 'Placeholder',
   'room.virtualHint': 'You can check the virtual placeholder to create the group first, then invite real members and remove the placeholder.',
   'room.virtualName': 'Placeholder member',
+  'room.unread': 'New activity',
   'room.groupName': 'Group name',
   'room.pickMembers': 'Add members (at least one)',
   'room.create': 'Create',
