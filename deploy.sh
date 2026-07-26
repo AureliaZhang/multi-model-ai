@@ -49,14 +49,16 @@ cd "$APP_DIR"
 echo "⬇️  拉取最新代码..."
 git pull --ff-only
 
+# 注意：安装依赖必须带上开发依赖（typescript/vite 等编译工具都在里面），
+# 否则 NODE_ENV=production 会让 npm 跳过它们，npx tsc 就会去装同名野包。
 echo "🔧 后端：依赖 + 编译..."
 cd "$APP_DIR/server"
-npm ci --no-audit --no-fund
+npm ci --include=dev --no-audit --no-fund
 npx tsc
 
 echo "🎨 前端：依赖 + 构建..."
 cd "$APP_DIR/client"
-npm ci --no-audit --no-fund
+npm ci --include=dev --no-audit --no-fund
 npm run build
 
 command -v pm2 >/dev/null 2>&1 || {
