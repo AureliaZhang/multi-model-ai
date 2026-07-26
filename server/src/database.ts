@@ -142,6 +142,22 @@ export const SCHEMA_MIGRATIONS: Migration[] = [
     name: 'users-must-change-password',
     up: (d) => d.exec(`ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0`),
   },
+  // v12: team knowledge base (owner request 2026-07-26). KB files live in the
+  // existing file_library but flagged `kb=1`: always team-visible, no folders,
+  // and enriched after processing with an AI digest — doc type + keywords +
+  // summary — so members can search "补贴政策" and get every related document.
+  {
+    version: 12,
+    name: 'file-library-knowledge-base',
+    up: (d) => {
+      d.exec(`ALTER TABLE file_library ADD COLUMN kb INTEGER NOT NULL DEFAULT 0`);
+      d.exec(`ALTER TABLE file_library ADD COLUMN summary TEXT`);
+      d.exec(`ALTER TABLE file_library ADD COLUMN doc_type TEXT`);
+      d.exec(`ALTER TABLE file_library ADD COLUMN ai_keywords TEXT`);
+      d.exec(`ALTER TABLE file_library ADD COLUMN summary_status TEXT NOT NULL DEFAULT 'none' CHECK(summary_status IN ('none','pending','ready','error'))`);
+      d.exec(`CREATE INDEX IF NOT EXISTS idx_file_library_kb ON file_library(kb)`);
+    },
+  },
   // v11: admin announcement banner (§10.9 P2 #6). Single-row table (same
   // pattern as memory_config): the lead broadcasts, members can dismiss
   // client-side (dismissal is per-content-version, stored locally).

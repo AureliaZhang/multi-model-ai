@@ -300,6 +300,12 @@ export interface FileLibraryEntry {
   uploadedBy: string | null;
   /** 'private' = only the uploader + admins; 'team' = everyone. */
   visibility: 'private' | 'team';
+  /** Knowledge-base document (v0.7.65): team-visible + AI digest. */
+  kb?: boolean;
+  summary?: string | null;
+  docType?: string | null;
+  aiKeywords?: string[];
+  summaryStatus?: 'none' | 'pending' | 'ready' | 'error';
   createdAt: string;
   updatedAt: string;
 }

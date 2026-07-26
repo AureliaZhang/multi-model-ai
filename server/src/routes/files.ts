@@ -11,6 +11,7 @@ import type { AuthRequest } from '../types';
 import type { FileLibraryEntry, FileFolder } from '../types';
 import type { FileFolderRow, FileLibraryRow, FileChunkListRow } from '../dbRows';
 import { getErrorMessage } from '../utils/errors';
+import { summarizeKbFile } from '../services/kbSummarizer';
 
 const router = Router();
 
@@ -215,8 +216,45 @@ router.get('/', requireAuth, (req: AuthRequest, res: Response) => {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 50;
     const offset = (page - 1) * limit;
-    const scope = req.query.scope === 'team' ? 'team' : 'mine';
+    const scope = req.query.scope === 'team' ? 'team' : req.query.scope === 'kb' ? 'kb' : 'mine';
     const userId = req.user!.id;
+
+    if (scope === 'kb') {
+      // Knowledge base (v0.7.65): flat, team-visible by definition, searchable
+      // across name/summary/keywords/type. Everyone may read; deletion stays
+      // uploader/admin-gated like any file.
+      const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+      const docType = typeof req.query.doc_type === 'string' ? req.query.doc_type.trim() : '';
+      const where: string[] = ['kb = 1'];
+      const params: (string | number)[] = [];
+      if (q) {
+        const like = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
+        where.push(`(original_name LIKE ? ESCAPE '\\' OR summary LIKE ? ESCAPE '\\' OR ai_keywords LIKE ? ESCAPE '\\' OR doc_type LIKE ? ESCAPE '\\')`);
+        params.push(like, like, like, like);
+      }
+      if (docType) {
+        where.push('doc_type = ?');
+        params.push(docType);
+      }
+      const whereSql = where.join(' AND ');
+      const rows = db.prepare(
+        `SELECT * FROM file_library WHERE ${whereSql} ORDER BY created_at DESC LIMIT ? OFFSET ?`
+      ).all(...params, limit, offset) as FileLibraryRow[];
+      const countRow = db.prepare(
+        `SELECT COUNT(*) as total FROM file_library WHERE ${whereSql}`
+      ).get(...params) as { total: number };
+      return res.json({
+        success: true,
+        data: {
+          folders: [],
+          files: rows.map(rowToFile),
+          total: countRow.total,
+          page,
+          limit,
+          totalPages: Math.ceil(countRow.total / limit),
+        },
+      });
+    }
 
     if (scope === 'team') {
       // Flat: all team-shared files, no folder scoping.
@@ -364,7 +402,10 @@ router.post('/upload', requireAuth, upload.array('files', 20), async (req: AuthR
 
     const db = getDb();
     const now = new Date().toISOString();
-    const folderId = (req.body.folder_id as string) || null;
+    // Knowledge-base upload (v0.7.65): team-visible by definition, flat (no folder),
+    // auto-digested once text extraction completes.
+    const isKb = req.body.kb === '1' || req.body.kb === 'true';
+    const folderId = isKb ? null : (req.body.folder_id as string) || null;
 
     // Validate folder exists if provided
     if (folderId) {
@@ -375,8 +416,8 @@ router.post('/upload', requireAuth, upload.array('files', 20), async (req: AuthR
     }
 
     const insertStmt = db.prepare(`
-      INSERT INTO file_library (id, original_name, stored_name, mime_type, file_size, status, folder_id, uploaded_by, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, 'processing', ?, ?, ?, ?)
+      INSERT INTO file_library (id, original_name, stored_name, mime_type, file_size, status, folder_id, uploaded_by, visibility, kb, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 'processing', ?, ?, ?, ?, ?, ?)
     `);
 
     const results: FileLibraryEntry[] = [];
@@ -387,7 +428,7 @@ router.post('/upload', requireAuth, upload.array('files', 20), async (req: AuthR
       // Fix filename encoding: multer may deliver non-ASCII filenames as latin1
       const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
 
-      insertStmt.run(fileId, originalName, file.filename, mimeType, file.size, folderId, req.user?.id || null, now, now);
+      insertStmt.run(fileId, originalName, file.filename, mimeType, file.size, folderId, req.user?.id || null, isKb ? 'team' : 'private', isKb ? 1 : 0, now, now);
 
       results.push({
         id: fileId,
@@ -400,16 +441,24 @@ router.post('/upload', requireAuth, upload.array('files', 20), async (req: AuthR
         errorMessage: null,
         folderId,
         uploadedBy: req.user?.id || null,
-        visibility: 'private',
+        visibility: isKb ? 'team' : 'private',
+        kb: isKb,
+        summaryStatus: 'none',
         createdAt: now,
         updatedAt: now,
       });
 
       // Process file asynchronously (don't await - fire and forget)
       const filePath = path.join(UPLOADS_DIR, file.filename);
-      processFile(fileId, filePath, mimeType, originalName).catch(err => {
-        console.error(`[files] Background processing failed for ${originalName}:`, getErrorMessage(err));
-      });
+      processFile(fileId, filePath, mimeType, originalName)
+        .then(() => {
+          // KB pipeline: digest right after extraction (fire-and-forget; failures
+          // land in summary_status='error' with a retry button in the UI).
+          if (isKb) return summarizeKbFile(fileId).then(() => undefined);
+        })
+        .catch(err => {
+          console.error(`[files] Background processing failed for ${originalName}:`, getErrorMessage(err));
+        });
     }
 
     res.json({ success: true, data: results });
@@ -625,6 +674,81 @@ router.post('/search', requireAuth, async (req: AuthRequest, res: Response) => {
   }
 });
 
+/**
+ * GET /api/files/:id/reading — the knowledge-base reading view (v0.7.65):
+ * the file's extracted text reassembled from its chunks, served as markdown-
+ * renderable text, plus the entry (digest included). Read access = canSeeFile.
+ */
+router.get('/:id/reading', requireAuth, (req: AuthRequest, res: Response) => {
+  try {
+    const db = getDb();
+    const row = db.prepare('SELECT * FROM file_library WHERE id = ?').get(req.params.id) as FileLibraryRow | undefined;
+    if (!row || !canSeeFile(req.user, row)) {
+      return res.status(404).json({ success: false, error: 'File not found' });
+    }
+    const chunks = db.prepare(
+      'SELECT content FROM file_chunks WHERE file_id = ? ORDER BY chunk_index ASC'
+    ).all(req.params.id) as Array<{ content: string }>;
+    res.json({
+      success: true,
+      data: { file: rowToFile(row), markdown: chunks.map((c) => c.content).join('\n\n') },
+    });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
+  }
+});
+
+/**
+ * GET /api/files/:id/original — download the ORIGINAL uploaded file (v0.7.65
+ * 查看原文). The bytes were always kept on disk; this is the door to them.
+ */
+router.get('/:id/original', requireAuth, (req: AuthRequest, res: Response) => {
+  try {
+    const db = getDb();
+    const row = db.prepare('SELECT * FROM file_library WHERE id = ?').get(req.params.id) as FileLibraryRow | undefined;
+    if (!row || !canSeeFile(req.user, row)) {
+      return res.status(404).json({ success: false, error: 'File not found' });
+    }
+    const filePath = path.join(UPLOADS_DIR, row.stored_name);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, error: 'Original file is no longer on disk' });
+    }
+    res.download(filePath, row.original_name);
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
+  }
+});
+
+/**
+ * POST /api/files/:id/summarize — (re)generate the AI digest (v0.7.65).
+ * Any member may fill in a MISSING/FAILED digest; regenerating an existing one
+ * is uploader/admin only (it costs tokens and overwrites).
+ */
+router.post('/:id/summarize', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const db = getDb();
+    const row = db.prepare('SELECT * FROM file_library WHERE id = ?').get(req.params.id) as FileLibraryRow | undefined;
+    if (!row || !canSeeFile(req.user, row)) {
+      return res.status(404).json({ success: false, error: 'File not found' });
+    }
+    const isOwner = req.user!.role === 'admin' || (row.uploaded_by != null && row.uploaded_by === req.user!.id);
+    if (row.summary_status === 'ready' && !isOwner) {
+      return res.status(403).json({ success: false, error: 'Only the uploader or an admin can regenerate an existing digest' });
+    }
+    if (row.summary_status === 'pending') {
+      return res.status(409).json({ success: false, error: 'A digest is already being generated for this file' });
+    }
+    const result = await summarizeKbFile(req.params.id, db);
+    if (!result.ok) {
+      return res.status(502).json({ success: false, error: `Digest generation failed (${result.reason})` });
+    }
+    const updated = db.prepare('SELECT * FROM file_library WHERE id = ?').get(req.params.id) as FileLibraryRow;
+    res.json({ success: true, data: rowToFile(updated) });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: getErrorMessage(err) });
+  }
+});
+
 function rowToFolder(row: FileFolderRow): FileFolder {
   return {
     id: row.id,
@@ -649,6 +773,11 @@ function rowToFile(row: FileLibraryRow): FileLibraryEntry {
     folderId: row.folder_id || null,
     uploadedBy: row.uploaded_by,
     visibility: (row.visibility === 'team' ? 'team' : 'private'),
+    kb: Boolean(row.kb),
+    summary: row.summary ?? null,
+    docType: row.doc_type ?? null,
+    aiKeywords: (() => { try { return JSON.parse(row.ai_keywords || '[]') as string[]; } catch { return []; } })(),
+    summaryStatus: (['none', 'pending', 'ready', 'error'].includes(row.summary_status) ? row.summary_status : 'none') as FileLibraryEntry['summaryStatus'],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

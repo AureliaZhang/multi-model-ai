@@ -217,6 +217,14 @@ export interface FileLibraryRow {
   uploaded_by: string | null;
   /** 'private' (uploader + admin only) | 'team' (everyone). Migration v4; older rows migrated to 'team'. */
   visibility: string;
+  /** 1 = knowledge-base document (migration v12): team-visible, AI-digested. */
+  kb: number;
+  /** AI digest fields (migration v12). */
+  summary: string | null;
+  doc_type: string | null;
+  /** JSON string array of AI-extracted keywords. */
+  ai_keywords: string | null;
+  summary_status: string;
   created_at: string;
   updated_at: string;
 }

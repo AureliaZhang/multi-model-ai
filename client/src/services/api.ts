@@ -397,13 +397,35 @@ export const fileApi = {
     getPath: (id: string) => request<{ id: string; name: string }[]>(`/files/folders/${id}/path`),
   },
   // File operations
-  list: (params?: { page?: number; limit?: number; folderId?: string; scope?: 'mine' | 'team' }) => {
+  list: (params?: { page?: number; limit?: number; folderId?: string; scope?: 'mine' | 'team' | 'kb'; q?: string; docType?: string }) => {
     const searchParams = new URLSearchParams();
     if (params?.page) searchParams.set('page', String(params.page));
     if (params?.limit) searchParams.set('limit', String(params.limit));
     if (params?.folderId) searchParams.set('folder_id', params.folderId);
     if (params?.scope) searchParams.set('scope', params.scope);
+    if (params?.q) searchParams.set('q', params.q);
+    if (params?.docType) searchParams.set('doc_type', params.docType);
     return request<FileLibraryResponse>(`/files?${searchParams}`);
+  },
+  // Knowledge base (v0.7.65)
+  reading: (id: string) => request<{ file: FileLibraryEntry; markdown: string }>(`/files/${id}/reading`),
+  summarize: (id: string) => request<FileLibraryEntry>(`/files/${id}/summarize`, { method: 'POST' }),
+  downloadOriginal: async (id: string, filename: string): Promise<boolean> => {
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${BASE_URL}/files/${id}/original`, { headers });
+    if (!res.ok) return false;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    return true;
   },
   getOne: (id: string) => request<FileLibraryEntry>(`/files/${id}`),
   delete: (id: string) => request(`/files/${id}`, { method: 'DELETE' }),
@@ -423,13 +445,14 @@ export const fileApi = {
       method: 'POST',
       body: JSON.stringify({ query, fileIds, limit }),
     }),
-  upload: async (files: File[], folderId?: string | null): Promise<ApiResponse<FileLibraryEntry[]>> => {
+  upload: async (files: File[], folderId?: string | null, kb = false): Promise<ApiResponse<FileLibraryEntry[]>> => {
     const token = getToken();
     const formData = new FormData();
     for (const file of files) {
       formData.append('files', file);
     }
     if (folderId) formData.append('folder_id', folderId);
+    if (kb) formData.append('kb', '1');
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
 

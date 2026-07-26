@@ -5,7 +5,7 @@ import { getErrorMessage } from '../utils/errors';
 
 /** Which library view: the caller's own files (browsable by folder) or the flat
  *  team-shared list (visibility='team'). Default 'mine' (default-private model). */
-export type FileScope = 'mine' | 'team';
+export type FileScope = 'mine' | 'team' | 'kb';
 
 interface FileState {
   files: FileLibraryEntry[];
@@ -46,6 +46,12 @@ export const useFileStore = create<FileState>((set, get) => ({
 
   fetchFiles: async (folderId?: string | null) => {
     const scope = get().scope;
+    // The knowledge-base view (v0.7.65) fetches its own data with search
+    // params — nothing for the store to load here.
+    if (scope === 'kb') {
+      set({ folders: [], files: [], currentFolderId: null, loading: false });
+      return;
+    }
     // In the flat team view there are no folders to browse into.
     const targetFolderId =
       scope === 'team' ? null : folderId !== undefined ? folderId : get().currentFolderId;

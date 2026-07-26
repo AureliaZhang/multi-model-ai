@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from '../../i18n';
+import { KnowledgeBasePanel } from './KnowledgeBasePanel';
 import {
   ArrowLeft, Upload, FileText, File, FileCode, FileImage, FileArchive,
   Trash2, RefreshCw, Loader, CheckCircle2, AlertCircle,
   HardDrive, Clock, Layers, FolderPlus, Folder, ChevronRight,
-  FolderOpen, Edit2, X, Lock, Users
-} from 'lucide-react';
+  FolderOpen, Edit2, X, Lock, Users, BookOpen } from 'lucide-react';
 import { useFileStore } from '../../stores/fileStore';
 import { useAuthStore } from '../../stores/authStore';
 import type { FileLibraryEntry, FileFolder } from '../../types';
@@ -391,6 +391,17 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
           <Users size={14} />
           {t('files.scopeTeam')}
         </button>
+        <button
+          onClick={() => setScope('kb')}
+          className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            scope === 'kb'
+              ? 'border-[var(--color-accent-main)] text-[var(--color-text-primary)]'
+              : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+          }`}
+        >
+          <BookOpen size={14} />
+          {t('files.kbTab')}
+        </button>
       </div>
 
       {/* Breadcrumb navigation (only meaningful in the folder-browsable "mine" view) */}
@@ -422,7 +433,7 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
       )}
 
       {/* Stats bar */}
-      {files.length > 0 && (
+      {scope !== 'kb' && files.length > 0 && (
         <div className="flex items-center gap-4 px-5 py-2.5 border-b border-[var(--color-border-light)] bg-[var(--color-bg-secondary)] flex-shrink-0">
           <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-tertiary)]">
             <HardDrive size={13} />
@@ -447,7 +458,11 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
         </div>
       )}
 
+      {/* Knowledge base view (v0.7.65) */}
+      {scope === 'kb' && <KnowledgeBasePanel />}
+
       {/* Content area with drop zone */}
+      {scope !== 'kb' && (
       <div
         className="flex-1 overflow-y-auto relative"
         onDrop={handleDrop}
@@ -807,6 +822,7 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
           </>
         )}
       </div>
+      )}
     </div>
   );
 }
