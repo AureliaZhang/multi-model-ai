@@ -35,7 +35,7 @@ export function AnnouncementBanner() {
   };
 
   return (
-    <div className="flex items-start gap-2.5 px-4 py-2.5 border-b border-[var(--color-border-light)] bg-[var(--accent-tint-8)] text-[13px] text-[var(--color-text-primary)]">
+    <div className="flex items-start gap-2.5 px-4 py-2.5 pr-32 border-b border-[var(--color-border-light)] bg-[var(--accent-tint-8)] text-[13px] text-[var(--color-text-primary)]">
       <Megaphone size={15} className="text-[var(--color-accent-main)] flex-shrink-0 mt-0.5" />
       <p className="flex-1 min-w-0 whitespace-pre-wrap leading-relaxed">{ann.content}</p>
       <button

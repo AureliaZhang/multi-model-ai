@@ -285,7 +285,7 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
   return (
     <div className="h-full flex flex-col bg-[var(--color-main-surface-primary)]">
       {/* Top bar */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--color-border-light)] flex-shrink-0">
+      <div className="flex items-center justify-between px-5 py-3 pr-32 border-b border-[var(--color-border-light)] flex-shrink-0">
         <div className="flex items-center gap-3">
           <button
             onClick={onClose}

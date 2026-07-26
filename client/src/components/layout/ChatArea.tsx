@@ -69,7 +69,7 @@ export function ChatArea({ isGuest = false, onSignIn, sidebarCollapsed = false, 
     <div className="flex flex-col h-full w-full overflow-hidden">
       {/* Header: open-sidebar (when collapsed) + model selector — same row, no overlap */}
       <div
-        className="flex items-center gap-2 px-4 sm:px-5 py-3 border-b border-[var(--color-border-light)] bg-[var(--color-main-surface-primary)]"
+        className="flex items-center gap-2 px-4 sm:px-5 py-3 pr-32 sm:pr-32 border-b border-[var(--color-border-light)] bg-[var(--color-main-surface-primary)]"
         style={{ minHeight: '52px' }}
       >
         {sidebarCollapsed && onOpenSidebar && (

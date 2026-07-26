@@ -390,7 +390,7 @@ export function UserManagement({ onBack }: UserManagementProps) {
   return (
     <div className="min-h-screen bg-[var(--color-main-surface-primary)] text-[var(--color-text-primary)]">
       {/* Header — pr reserves space for fixed TopRightToggles so actions don't collide */}
-      <div className="border-b border-[var(--color-border-light)] px-6 py-4 pr-28 flex flex-wrap items-center gap-3">
+      <div className="border-b border-[var(--color-border-light)] px-6 py-4 pr-32 flex flex-wrap items-center gap-3">
         <button
           onClick={onBack}
           aria-label={t('common.back')}

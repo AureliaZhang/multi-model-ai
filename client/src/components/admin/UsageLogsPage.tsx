@@ -103,7 +103,7 @@ export function UsageLogsPage({ onBack }: Props) {
 
   return (
     <div className="h-full flex flex-col bg-[var(--color-main-surface-primary)]">
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--color-border-light)]">
+      <div className="flex items-center gap-3 px-4 py-3 pr-32 border-b border-[var(--color-border-light)]">
         <button
           type="button"
           onClick={onBack}
