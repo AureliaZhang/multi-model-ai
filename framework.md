@@ -1110,6 +1110,20 @@ Owner 愿景：一个随项目进程越来越了解项目的 AI——既能联�
 2. **自动蒸馏学习**（v0.7.73 ✅）— 每 N 条消息 AI 自动提炼结论/决定/偏好存入记忆库（distilled 标签，带向量，被现有 RAG 注入自动召回）；复用 kbSummarizer 的内部调用基建；记忆设置里可开关/调频率。
 3. **聊天内联网搜索**（v0.7.74 ✅）— 管理员在设置页配置 Tavily API key（加密存储），成员在输入框开启「联网」chip（未配置时不显示），检索结果+来源注入上下文并要求回答附「参考来源」；搜索失败自动退化为普通回答；离线开发机只能测流程，部署后生效。
 
+### 移动端适配计划（owner 手机实测反馈 2026-07-26 · 未开工 · 按优先级分批）
+
+**现状盘点**（2026-07-26 代码扫描）：viewport meta ✓；Tailwind 断点体系（md=768px）✓；已有三个可复用的成熟先例——主侧边栏手机抽屉（Layout）、群聊列表↔详情切换（RoomsPage）、表格卡片化（v0.7.21 给 Memory/Files/Users 做过）。但 37 个组件文件中 **24 个零响应式类**，整体约一半界面未适配。owner 手机实测确认观感差。方法论：把既有模式复制到未适配页面，分小批版本推进，每批 tests+build 绿 → push 自动部署 → owner 手机刷新验收。
+
+**批次 1 · P0 群聊页（最重灾区）**：`GroupChatLayout` 是「人类聊天 | AI 回复」左右双栏硬布局（仅 1 处响应式类），手机上两栏挤压成条 → 手机改单栏 + 顶部「群聊 / AI 回复」标签切换；`NotepadBar`（工作记录条）一并收纳；两栏各自的输入/导出控件按窄屏重排。
+
+**批次 2 · P0 聊天主页**：`ChatArea` 顶栏（模型选择 + 人设 + 主题/语言 inline 集群）小屏溢出 → 图标化压缩或允许折行；`ChatInput` 上方状态行（公开/自我审查/联网/选择文件）小屏溢出 → 改横向滚动；`MessageBubble`/`MarkdownMessage` 宽表格与代码块横滚校验；`ModelSelector` 下拉在窄屏的宽度与触控。
+
+**批次 3 · P1 表格页与面板**：`UsageLogsPage` 纯桌面表格（0 响应式）→ 复用 v0.7.21 堆叠卡片模式；`SettingsPage` 中转站卡片按钮群、公告/联网搜索卡、管理模型列表补断点；`KnowledgeBasePanel` / `LorebookPanel` 半适配 → 卡片栅格、工具栏（搜索+类型 chips+上传+URL导入）窄屏重排；`FileBrowser` 顶栏按钮群折行。
+
+**批次 4 · P2 弹窗与细节打磨**：全站弹窗统一「手机留边距 + max-h 限高内滚」（SystemPromptModal、AnnouncementManager 向导、ForcePasswordModal、DailyModelModal、ImageConfirmModal、竞技场放大阅读、RegexManager、McpServerManager）；触控目标 ≥44px；iPhone 刘海安全区 `env(safe-area-inset-*)`；键盘弹起遮挡输入框（100vh → dvh）；`BenchmarkPanel`/`PromptLabPanel`（竞技场子页，0 响应式）。
+
+**待办输入**：owner 手机测试中发现的其他 bug 清单（待汇总，届时与适配批次合并排班）。
+
 ---
 
 ## 11. Configuration File Format
