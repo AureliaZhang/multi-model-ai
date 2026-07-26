@@ -66,7 +66,7 @@ export function ImageConfirmModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-[85] flex items-center justify-center bg-black/60 p-4">
+    <div role="dialog" aria-modal="true" aria-label={t('prefs.imageConfirmTitle')} className="fixed inset-0 z-[85] flex items-center justify-center bg-black/60 p-4">
       <div className="w-full max-w-sm rounded-2xl border border-[var(--color-border-light)] bg-[var(--color-main-surface-primary)] p-5 relative">
         <button
           type="button"

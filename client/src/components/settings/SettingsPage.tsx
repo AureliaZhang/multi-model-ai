@@ -228,6 +228,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
       <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--color-border-light)]">
         <button
           onClick={onClose}
+          aria-label={t('common.back')}
           className="p-1.5 rounded-lg hover:bg-[var(--overlay-5)] text-[var(--color-text-secondary)] transition-colors"
         >
           <ArrowLeft size={20} />

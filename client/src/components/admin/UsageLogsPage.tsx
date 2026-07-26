@@ -68,6 +68,7 @@ export function UsageLogsPage({ onBack }: Props) {
         <button
           type="button"
           onClick={onBack}
+          aria-label={t('common.back')}
           className="p-1.5 rounded-lg hover:bg-[var(--overlay-5)] text-[var(--color-text-secondary)]"
         >
           <ArrowLeft size={20} />

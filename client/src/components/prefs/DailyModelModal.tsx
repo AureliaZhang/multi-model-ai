@@ -65,7 +65,7 @@ export function DailyModelModal() {
     'w-full rounded-xl bg-[var(--overlay-4)] border border-[var(--color-border-light)] px-3 py-2 text-sm text-[var(--color-text-primary)]';
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4">
+    <div role="dialog" aria-modal="true" aria-label={t('prefs.userTitle')} className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4">
       <div className="w-full max-w-md rounded-2xl border border-[var(--color-border-light)] bg-[var(--color-main-surface-primary)] shadow-2xl p-5 relative">
         <button
           type="button"

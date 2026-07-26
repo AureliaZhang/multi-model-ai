@@ -109,6 +109,9 @@ export function SystemPromptModal({ onClose }: SystemPromptModalProps) {
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={t('persona.title')}
       className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4"
       onClick={onClose}
     >

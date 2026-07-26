@@ -678,7 +678,7 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border-light)]">
         <div className="flex items-center gap-3">
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[var(--overlay-5)] text-[var(--color-text-secondary)] transition-colors">
+          <button onClick={onClose} aria-label={t('common.back')} className="p-1.5 rounded-lg hover:bg-[var(--overlay-5)] text-[var(--color-text-secondary)] transition-colors">
             <ArrowLeft size={20} />
           </button>
           <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">{t('regex.title')}</h1>

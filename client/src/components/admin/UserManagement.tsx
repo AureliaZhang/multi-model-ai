@@ -393,6 +393,7 @@ export function UserManagement({ onBack }: UserManagementProps) {
       <div className="border-b border-[var(--color-border-light)] px-6 py-4 pr-28 flex flex-wrap items-center gap-3">
         <button
           onClick={onBack}
+          aria-label={t('common.back')}
           className="p-2 rounded-lg hover:bg-[var(--button-ghost-hover)] text-[var(--color-text-secondary)] transition-colors"
         >
           <ArrowLeft size={20} />

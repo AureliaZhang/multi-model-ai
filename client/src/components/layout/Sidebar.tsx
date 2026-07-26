@@ -72,6 +72,19 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
 
   const displayList = trimmedQuery ? results : conversations;
 
+  // a11y (v0.7.53): Escape closes whichever sidebar menu is open.
+  useEffect(() => {
+    if (!showNewMenu && folderMenuId === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowNewMenu(false);
+        setFolderMenuId(null);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showNewMenu, folderMenuId]);
+
   const handleExport = async () => {
     try {
       await exportConversations();
@@ -197,6 +210,8 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
               if (isGuest) return;
               setShowNewMenu((v) => !v);
             }}
+            aria-haspopup="menu"
+            aria-expanded={showNewMenu}
             disabled={isGuest}
             className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-[var(--color-border-light)] hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-primary)] text-sm w-full min-w-0 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
             title={isGuest ? t('sidebar.signInToChat') : t('sidebar.newChat')}
@@ -345,6 +360,8 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); setNewFolderName(''); setFolderMenuId(folderMenuId === conv.id ? null : conv.id); }}
+                      aria-haspopup="menu"
+                      aria-expanded={folderMenuId === conv.id}
                       className="p-1 rounded-md hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)] transition-all duration-150"
                       title={t('sidebar.moveToFolder')}
                     >

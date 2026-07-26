@@ -174,6 +174,7 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onClose}
+            aria-label={t('common.back')}
             className="p-1.5 rounded-lg hover:bg-[var(--overlay-5)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
           >
             <ArrowLeft size={20} />
