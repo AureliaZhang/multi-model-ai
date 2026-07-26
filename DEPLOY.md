@@ -1,9 +1,9 @@
 # 测试服务器部署手册（Oracle 小鸡 + Cloudflare + Nginx Proxy Manager）
 
 > 给未来忘记怎么弄的自己 😊 一次性配置做完之后，日常更新是全自动的：
-> **在 Claude Code 里 push → 一两分钟后 https://ai.aureliazhsy.com 自动变新版，什么都不用做。**
+> **在 Claude Code 里 push → 一两分钟后 https://official.aureliazhsy.com 自动变新版，什么都不用做。**
 
-约定：子域名 `ai.aureliazhsy.com`，应用端口 `8500`（在 Oracle 放行的 8000-9000 范围内），
+约定：子域名 `official.aureliazhsy.com`，应用端口 `8500`（在 Oracle 放行的 8000-9000 范围内），
 服务器代码目录 `~/multi-model-ai`。想改端口/域名：部署一次后编辑 `~/.multi-model-ai.env` 再重跑 `deploy.sh`。
 
 ---
@@ -14,7 +14,7 @@
 
 dash.cloudflare.com → aureliazhsy.com → DNS → Add record：
 
-- Type `A`，Name `ai`，Content `167.234.208.190`，Proxy 开着（橙色云）
+- Type `A`，Name `official`，Content `167.234.208.190`，Proxy 开着（橙色云）
 
 ### 第 2 步 · 服务器初始化（SSH 进小鸡逐条执行）
 
@@ -55,14 +55,14 @@ bash ~/multi-model-ai/deploy.sh
 
 NPM（167.234.208.190:81）→ Hosts → Add Proxy Host：
 
-- Domain Names：`ai.aureliazhsy.com`
+- Domain Names：`official.aureliazhsy.com`
 - Forward Hostname / IP：`172.17.0.1`，Port：`8500`（和 st./stock. 同款写法）
 - ⚠️ **勾上 Websockets Support**（群聊实时消息必需！）
 - SSL 标签页：选现有的那张 Custom Certificate
 
 ### 第 6 步 · 验收
 
-浏览器打开 `https://ai.aureliazhsy.com`：
+浏览器打开 `https://official.aureliazhsy.com`：
 
 1. admin / admin123 登录 → 系统强制改密码（安全机制，改一个强密码）
 2. 设置里配置中转站、联网搜索 key；记忆库设置里配 embedding API

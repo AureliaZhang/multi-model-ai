@@ -15,7 +15,7 @@ APP_NAME="multi-model-ai"
 APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 ENV_FILE="$HOME/.multi-model-ai.env"
 DEFAULT_PORT=8500                       # 在 Oracle 放行的 8000-9000 范围内
-DEFAULT_DOMAIN="https://ai.aureliazhsy.com"
+DEFAULT_DOMAIN="https://official.aureliazhsy.com"
 
 echo "📦 multi-model-ai 部署/更新 · $(date '+%F %T')"
 
