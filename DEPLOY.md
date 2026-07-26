@@ -48,7 +48,8 @@ git clone git@github.com:AureliaZhang/multi-model-ai-private.git ~/multi-model-a
 bash ~/multi-model-ai/deploy.sh
 ```
 
-首次运行会自动：生成 JWT/加密密钥（存 `~/.multi-model-ai.env`）、装依赖、编译前后端、装 pm2 并启动。
+首次运行会自动：生成 JWT/加密密钥 + **随机的首任管理员密码**（都存在 `~/.multi-model-ai.env`，
+终端也会打印一次，记下来！）、装依赖、编译前后端、装 pm2 并启动。
 结尾提示运行 `pm2 startup` 的话照做一次（开机自启）。
 
 ### 第 5 步 · Nginx Proxy Manager 加代理（照抄现有条目的做法）
@@ -64,7 +65,8 @@ NPM（167.234.208.190:81）→ Hosts → Add Proxy Host：
 
 浏览器打开 `https://official.aureliazhsy.com`：
 
-1. admin / admin123 登录 → 系统强制改密码（安全机制，改一个强密码）
+1. 用 admin + 部署时打印的管理员密码登录（生产模式没有 admin123——系统拒绝默认弱密码；
+   密码忘了就在小鸡上 `cat ~/.multi-model-ai.env` 看 ADMIN_PASSWORD）
 2. 设置里配置中转站、联网搜索 key；记忆库设置里配 embedding API
 3. 邀请同事前：编辑 `~/.multi-model-ai.env` 把 `# REQUIRE_INVITE=1` 行首的 `#` 去掉，
    重跑 `bash ~/multi-model-ai/deploy.sh`（注册从此需要邀请码，在用户管理里生成）
@@ -88,3 +90,5 @@ NPM（167.234.208.190:81）→ Hosts → Add Proxy Host：
 | 群聊消息不实时 | NPM 该条目的 Websockets Support 是否勾上 |
 | 改了端口/域名 | 编辑 `~/.multi-model-ai.env` → 重跑 deploy.sh → NPM 里同步改 Forward Port |
 | 密钥文件误删 | 已加密的中转站/搜索 key 解不开：重新生成后去设置页重填一遍各个 API key |
+| pm2 显示 errored 反复重启 | `pm2 logs multi-model-ai --err --lines 25 --nostream` 看真实报错；常见：env 文件缺 ADMIN_PASSWORD（补上后按下方"手动重启带环境"三连） |
+| 改了 env 文件后怎么生效 | `cd ~/multi-model-ai/server && set -a && . ~/.multi-model-ai.env && set +a && pm2 delete multi-model-ai && pm2 start dist/index.js --name multi-model-ai && pm2 save` |

@@ -30,16 +30,23 @@ echo "ℹ️  Node $(node -v)"
 # ---- 首次部署：生成密钥文件（chmod 600，永不覆盖已有文件）----
 if [ ! -f "$ENV_FILE" ]; then
   echo "🔑 首次部署：生成密钥 → $ENV_FILE"
+  FIRST_ADMIN_PW="$(openssl rand -base64 12 | tr -d '/+=')"
   cat > "$ENV_FILE" <<ENVEOF
 # multi-model-ai 生产环境配置（此文件不在 git 里，删除会导致已加密的 API key 无法解密！）
 JWT_SECRET=$(openssl rand -hex 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
+# 生产模式拒绝默认弱密码，首任管理员密码在这里（首次登录后建议在页面里再改）
+ADMIN_PASSWORD=$FIRST_ADMIN_PW
 PORT=$DEFAULT_PORT
 CORS_ORIGIN=$DEFAULT_DOMAIN
 NODE_ENV=production
 # REQUIRE_INVITE=1   # 开启邀请制注册：去掉行首的 # 再重跑本脚本
 ENVEOF
   chmod 600 "$ENV_FILE"
+  echo ""
+  echo "🧑‍💼 首任管理员账号: admin   密码: $FIRST_ADMIN_PW"
+  echo "   （也记录在 $ENV_FILE 里，忘了就 cat 它）"
+  echo ""
 fi
 set -a
 . "$ENV_FILE"
