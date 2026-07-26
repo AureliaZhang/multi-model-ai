@@ -23,6 +23,7 @@ import personaRoutes from './routes/personas';
 import backupRoutes from './routes/backup';
 import { startHealthCheckJob, stopHealthCheckJob } from './services/healthCheck';
 import { startBackupJob, stopBackupJob } from './services/backup';
+import { startRetentionJob, stopRetentionJob } from './services/retention';
 import { attachRoomHub } from './services/roomHub';
 import { assertAuthSecurity, optionalAuth } from './middleware/auth';
 import { rateLimit } from './middleware/rateLimit';
@@ -118,12 +119,16 @@ server.listen(PORT, () => {
   // Periodic DB snapshots so a shared team DB is never a single point of loss
   // (§10.8 Phase 2). Env-tunable; skipped for in-memory DBs.
   startBackupJob();
+  // Enforce memory_config.retention_days (TC1 #5) — the setting existed in the
+  // UI since day one but nothing ever purged. 0 (default) = keep forever.
+  startRetentionJob();
 });
 
 // Graceful shutdown
 process.on('SIGINT', () => {
   stopHealthCheckJob();
   stopBackupJob();
+  stopRetentionJob();
   closeDb();
   process.exit(0);
 });
@@ -131,6 +136,7 @@ process.on('SIGINT', () => {
 process.on('SIGTERM', () => {
   stopHealthCheckJob();
   stopBackupJob();
+  stopRetentionJob();
   closeDb();
   process.exit(0);
 });
