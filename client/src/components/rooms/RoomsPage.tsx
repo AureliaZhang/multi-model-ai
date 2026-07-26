@@ -180,7 +180,7 @@ function CreateRoomModal({ onClose, onCreated }: { onClose: () => void; onCreate
               >
                 <input type="checkbox" checked={picked.includes(u.id)} onChange={() => toggle(u.id)} />
                 <span className="text-[13px] text-[var(--color-text-primary)] flex-1 min-w-0 truncate">
-                  {u.displayName || u.username}
+                  {u.isVirtual ? t('room.virtualName') : (u.displayName || u.username)}
                 </span>
                 {u.isVirtual && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] border border-[var(--color-border-light)] flex-shrink-0">

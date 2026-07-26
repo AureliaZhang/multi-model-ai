@@ -1,5 +1,6 @@
 import { Component } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
+import { useI18nStore } from '../i18n';
 
 interface Props {
   children: ReactNode;
@@ -32,13 +33,13 @@ export class ErrorBoundary extends Component<Props, State> {
       }
       return (
         <div className="p-4 m-2 rounded-xl bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.2)] text-[var(--color-text-error)] text-sm">
-          <p className="font-medium mb-1">Something went wrong rendering this content.</p>
+          <p className="font-medium mb-1">{useI18nStore.getState().t('common.renderError')}</p>
           <p className="text-xs opacity-70">{this.state.error?.message}</p>
           <button
             onClick={() => this.setState({ hasError: false, error: null })}
             className="mt-2 text-xs underline hover:opacity-70"
           >
-            Try again
+            {useI18nStore.getState().t('common.tryAgain')}
           </button>
         </div>
       );

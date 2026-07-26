@@ -76,7 +76,7 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
 
     for (const file of Array.from(files)) {
       if (file.size > MAX_FILE_SIZE) {
-        alert(`"${file.name}" 超过 20MB 限制。`);
+        alert(t('chat.fileTooLarge', { name: file.name }));
         continue;
       }
 
@@ -104,7 +104,7 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
         // Silently fail - backup is best-effort
       });
     }
-  }, []);
+  }, [t]);
 
   const removeAttachment = useCallback((id: string) => {
     setAttachments(prev => {

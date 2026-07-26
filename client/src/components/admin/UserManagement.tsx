@@ -515,8 +515,8 @@ export function UserManagement({ onBack }: UserManagementProps) {
                 onChange={e => setCreateData(d => ({ ...d, role: e.target.value as UserRole }))}
                 className="px-3 py-1.5 bg-[var(--composer-bg)] border border-[var(--color-border-light)] rounded-lg text-[var(--color-text-primary)] text-sm outline-none focus:border-[var(--color-accent-main)]"
               >
-                <option value="user">user</option>
-                <option value="admin">admin</option>
+                <option value="user">{t('users.roleUser')}</option>
+                <option value="admin">{t('users.roleAdmin')}</option>
               </select>
               <button
                 type="submit"

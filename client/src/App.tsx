@@ -3,10 +3,12 @@ import { Layout } from './components/layout/Layout'
 import { LoginPage } from './components/auth/LoginPage';
 import { RegisterPage } from './components/auth/RegisterPage';
 import { useAuthStore } from './stores/authStore';
+import { useTranslation } from './i18n';
 
 type AuthView = 'login' | 'register' | 'guest';
 
 function App() {
+  const { t } = useTranslation();
   const initialize = useAuthStore(s => s.initialize);
   const isLoading = useAuthStore(s => s.isLoading);
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
@@ -24,7 +26,7 @@ function App() {
   if (isLoading) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-[var(--color-main-surface-primary)]">
-        <div className="text-[var(--color-text-tertiary)] text-sm">Loading...</div>
+        <div className="text-[var(--color-text-tertiary)] text-sm">{t('common.loading')}</div>
       </div>
     );
   }

@@ -571,7 +571,7 @@ function ManageModal({ isOwner, onClose }: { isOwner: boolean; onClose: () => vo
           {(currentRoom?.members || []).map((m) => (
             <div key={m.userId} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-[var(--color-main-surface-tertiary)]">
               <span className="text-[13px] text-[var(--color-text-primary)] flex-1 truncate">
-                {m.displayName || m.username}
+                {m.username === 'virtual-placeholder' ? t('room.virtualName') : (m.displayName || m.username)}
                 {m.role === 'owner' && <span className="ml-1 text-[10px] text-[var(--color-accent-main)]">({t('room.owner')})</span>}
               </span>
               {isOwner && m.role !== 'owner' && (
@@ -597,7 +597,7 @@ function ManageModal({ isOwner, onClose }: { isOwner: boolean; onClose: () => vo
                       setPicked((p) => (p.includes(u.id) ? p.filter((x) => x !== u.id) : [...p, u.id]))
                     }
                   />
-                  <span className="text-[13px] text-[var(--color-text-primary)]">{u.displayName || u.username}</span>
+                  <span className="text-[13px] text-[var(--color-text-primary)]">{u.username === 'virtual-placeholder' ? t('room.virtualName') : (u.displayName || u.username)}</span>
                 </label>
               ))}
             </div>

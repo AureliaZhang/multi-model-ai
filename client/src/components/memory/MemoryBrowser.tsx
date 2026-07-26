@@ -194,10 +194,10 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
             onClick={handleBackfill}
             disabled={!embeddingConfigured}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--color-border-light)] hover:bg-[var(--overlay-5)] text-[var(--color-text-secondary)] text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Regenerate embeddings for all entries"
+            title={t('memory.reembedHint')}
           >
             <RefreshCw size={14} />
-            <span className="hidden sm:inline">Re-embed</span>
+            <span className="hidden sm:inline">{t('memory.reembed')}</span>
           </button>
           <button
             onClick={() => setShowSettings(!showSettings)}

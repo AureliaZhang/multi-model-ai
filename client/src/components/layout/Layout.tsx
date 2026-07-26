@@ -44,9 +44,10 @@ interface LayoutProps {
 type PageView = 'chat' | 'settings' | 'users' | 'memory' | 'files' | 'arena' | 'usage' | 'rooms';
 
 function PageFallback() {
+  const { t } = useTranslation();
   return (
     <div className="w-full h-full flex items-center justify-center bg-[var(--color-main-surface-primary)]">
-      <div className="text-[var(--color-text-tertiary)] text-sm">Loading...</div>
+      <div className="text-[var(--color-text-tertiary)] text-sm">{t('common.loading')}</div>
     </div>
   );
 }
