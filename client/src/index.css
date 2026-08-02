@@ -367,3 +367,12 @@ h1, h2, h3 {
   0%, 60%, 100% { transform: translateY(0); opacity: 0.45; }
   30% { transform: translateY(-3px); opacity: 1; }
 }
+
+/* Mobile chip rows (composer status row) scroll horizontally without showing
+   a scrollbar — the row must stay on ONE line in portrait, since wrapping
+   pushed the composer down and squeezed the controls. */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}

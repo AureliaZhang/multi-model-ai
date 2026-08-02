@@ -3,6 +3,7 @@ import { useRoomStore } from '../../stores/roomStore';
 import { useTranslation } from '../../i18n';
 import {
   StickyNote, Pencil, Check, X, Lock, BellRing, UserCheck, UserX, Loader2,
+  ChevronDown, ChevronUp,
 } from 'lucide-react';
 
 /**
@@ -29,6 +30,9 @@ export function NotepadBar() {
   const [busy, setBusy] = useState(false);
   const [requested, setRequested] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  // Mobile only: the note body is collapsed to two lines by default so it does
+  // not eat the (already short) message list. Desktop always shows it in full.
+  const [mobileOpen, setMobileOpen] = useState(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
   // Keep the draft in sync when we enter edit mode.
@@ -118,6 +122,19 @@ export function NotepadBar() {
               </button>
             )
           )}
+
+          {/* Mobile-only expand/collapse for the note body (desktop shows it in full) */}
+          {!editing && hasContent && (
+            <button
+              onClick={() => setMobileOpen((v) => !v)}
+              className="md:hidden flex items-center text-[var(--color-text-tertiary)] hover:text-[var(--color-accent-main)]"
+              title={mobileOpen ? t('room.notepadCollapse') : t('room.notepadExpand')}
+              aria-label={mobileOpen ? t('room.notepadCollapse') : t('room.notepadExpand')}
+              aria-expanded={mobileOpen}
+            >
+              {mobileOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            </button>
+          )}
         </div>
 
         {/* body */}
@@ -152,6 +169,10 @@ export function NotepadBar() {
           <p
             className={`text-[12px] leading-5 whitespace-pre-wrap break-words ${
               hasContent ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-tertiary)] italic'
+            } ${
+              // Mobile: clamp to 2 lines until expanded, so a long work log does
+              // not push the message list off screen. Desktop is never clamped.
+              hasContent && !mobileOpen ? 'line-clamp-2 md:line-clamp-none' : ''
             }`}
           >
             {hasContent ? content : t('room.notepadEmpty')}

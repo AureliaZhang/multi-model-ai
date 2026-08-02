@@ -681,6 +681,8 @@ const zh = {
   'room.notepadRequests': '编辑权限申请',
   'room.notepadApprove': '通过',
   'room.notepadDeny': '拒绝',
+  'room.notepadExpand': '展开工作记录',
+  'room.notepadCollapse': '收起工作记录',
   'room.owner': '群主',
   'room.manage': '成员管理',
   'room.modelSettings': '模型设置',

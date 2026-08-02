@@ -109,7 +109,7 @@ export function FileSelector({ selectedFileIds, onSelectionChange }: FileSelecto
   };
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative flex-shrink-0" ref={dropdownRef}>
       <button
         onClick={handleToggleOpen}
         className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] transition-colors ${

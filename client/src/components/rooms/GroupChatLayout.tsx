@@ -69,6 +69,11 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
   const [showExport, setShowExport] = useState(false);
   const [exporting, setExporting] = useState(false);
 
+  // Mobile only (<md): the two desktop columns collapse into one pane with a
+  // tab switcher, because side-by-side b|c squeezes both into unreadable strips
+  // on a phone. Desktop keeps the real two-column layout.
+  const [mobilePane, setMobilePane] = useState<'chat' | 'ai'>('chat');
+
   // composer
   const [mode, setMode] = useState<'chat' | 'ai'>('chat');
   const [text, setText] = useState('');
@@ -245,21 +250,22 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
             <ChevronLeft size={18} />
           </button>
         )}
-        <Users2 size={16} className="text-[var(--color-accent-main)]" />
+        <Users2 size={16} className="text-[var(--color-accent-main)] flex-shrink-0" />
         <span className="text-[14px] font-medium text-[var(--color-text-primary)] truncate">{currentRoom.name}</span>
-        <span className="text-[11px] text-[var(--color-text-tertiary)]">
+        {/* member count is the first thing to go on a narrow header */}
+        <span className="hidden sm:inline text-[11px] text-[var(--color-text-tertiary)] flex-shrink-0">
           {currentRoom.memberCount ?? currentRoom.members?.length ?? ''} {t('room.members')}
         </span>
         <div className="flex-1" />
         <button
-          className="p-1.5 rounded-lg hover:bg-[var(--overlay-6)] text-[var(--color-text-secondary)]"
+          className="p-1.5 rounded-lg hover:bg-[var(--overlay-6)] text-[var(--color-text-secondary)] flex-shrink-0"
           onClick={() => setShowModels(true)}
           title={t('room.modelSettings')}
         >
           <Settings2 size={16} />
         </button>
         <button
-          className="p-1.5 rounded-lg hover:bg-[var(--overlay-6)] text-[var(--color-text-secondary)]"
+          className="p-1.5 rounded-lg hover:bg-[var(--overlay-6)] text-[var(--color-text-secondary)] flex-shrink-0"
           onClick={() => setShowManage(true)}
           title={t('room.manage')}
         >
@@ -268,20 +274,56 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
         <TopRightToggles variant="inline" />
       </div>
 
+      {/* Mobile pane switcher (<md only) — the two desktop columns become one
+          pane, so the user picks which track to look at. A spinner on the AI
+          tab shows a reply is landing there while you stay in the chat tab. */}
+      <div className="md:hidden flex border-b border-[var(--color-border-light)] text-[12px]">
+        <button
+          onClick={() => setMobilePane('chat')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 border-b-2 transition-colors ${
+            mobilePane === 'chat'
+              ? 'border-[var(--color-accent-main)] text-[var(--color-accent-main)]'
+              : 'border-transparent text-[var(--color-text-tertiary)]'
+          }`}
+          aria-current={mobilePane === 'chat' ? 'page' : undefined}
+        >
+          <Users2 size={13} /> {t('room.paneChat')}
+        </button>
+        <button
+          onClick={() => setMobilePane('ai')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 border-b-2 transition-colors ${
+            mobilePane === 'ai'
+              ? 'border-[var(--color-accent-main)] text-[var(--color-accent-main)]'
+              : 'border-transparent text-[var(--color-text-tertiary)]'
+          }`}
+          aria-current={mobilePane === 'ai' ? 'page' : undefined}
+        >
+          {aiGenerating ? (
+            <Loader2 size={13} className="animate-spin text-[var(--color-assistant)]" />
+          ) : (
+            <Bot size={13} />
+          )}
+          {t('room.paneAi')}
+        </button>
+      </div>
+
       {/* Two columns: b = human chat + composer (left), c = AI replies (right).
           The AI never reads the human track; @AI replies live only in column c.
           The "X → AI:" delivery rows stay in column b (rendered as ai_stub) so
           the group sees who asked; column c holds only the assistant answers. */}
       <div className="flex-1 min-h-0 flex">
         {/* Column b — human chat + composer */}
-        <div className="flex flex-col min-w-0 flex-1 border-r border-[var(--color-border-light)]">
-          <div className="px-4 py-2 border-b border-[var(--color-border-light)] flex items-center gap-1.5 text-[11px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
+        <div
+          className={`${mobilePane === 'chat' ? 'flex' : 'hidden'} md:flex flex-col min-w-0 flex-1 md:border-r border-[var(--color-border-light)]`}
+        >
+          {/* Desktop-only pane label — on mobile the tab bar above says which pane this is */}
+          <div className="hidden md:flex px-4 py-2 border-b border-[var(--color-border-light)] items-center gap-1.5 text-[11px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
             <Users2 size={12} /> {t('room.paneChat')}
           </div>
           <NotepadBar />
 
           {/* messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3">
             {humanItems.length === 0 && !aiGenerating && (
               <div className="flex flex-col items-center justify-center h-full text-center text-[var(--color-text-tertiary)]">
                 <MessageSquare size={20} className="mb-2 opacity-40" />
@@ -311,7 +353,7 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
                     </span>
                   )}
                   <div
-                    className={`max-w-[85%] rounded-2xl px-3 py-1.5 text-[13px] whitespace-pre-wrap break-words ${
+                    className={`max-w-[90%] md:max-w-[85%] rounded-2xl px-3 py-1.5 text-[13px] whitespace-pre-wrap break-words ${
                       mine
                         ? 'bg-[var(--color-accent-main)] text-white'
                         : 'bg-[var(--color-main-surface-tertiary)] text-[var(--color-text-primary)]'
@@ -350,9 +392,10 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
               </div>
             )}
 
-            {/* mode toggle + status */}
-            <div className="flex items-center gap-2 mb-2">
-              <div className="inline-flex rounded-lg border border-[var(--color-border-light)] overflow-hidden text-[12px]">
+            {/* mode toggle + status — wraps on narrow (portrait) screens instead of
+                squeezing the toggle and the status text into one cramped row. */}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 mb-2">
+              <div className="inline-flex flex-shrink-0 rounded-lg border border-[var(--color-border-light)] overflow-hidden text-[12px]">
                 <button
                   onClick={switchToChat}
                   className={`flex items-center gap-1 px-2.5 py-1 transition-colors ${
@@ -386,16 +429,16 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
                   <Clock size={11} /> {t('room.someoneTyping', { name: '' })}
                 </span>
               ) : mode === 'ai' && iHoldLock ? (
-                <span className="flex items-center gap-1 text-[11px] text-[var(--color-accent-main)]">
-                  <Clock size={11} /> {t('room.youHold')} {remaining > 0 ? `(${fmt(remaining)})` : ''}
-                  <button onClick={renew} className="ml-1 underline hover:opacity-80">{t('room.yesNeed')}</button>
+                <span className="flex min-w-0 items-center gap-1 text-[11px] text-[var(--color-accent-main)]">
+                  <Clock size={11} className="flex-shrink-0" /> {t('room.youHold')} {remaining > 0 ? `(${fmt(remaining)})` : ''}
+                  <button onClick={renew} className="ml-1 flex-shrink-0 underline hover:opacity-80">{t('room.yesNeed')}</button>
                 </span>
               ) : mode === 'ai' && !hasChatModel ? (
-                <button onClick={() => setShowModels(true)} className="flex items-center gap-1 text-[11px] text-amber-400 hover:opacity-80">
-                  <AlertCircle size={11} /> {t('room.needChatModel')}
+                <button onClick={() => setShowModels(true)} className="flex min-w-0 items-center gap-1 text-[11px] text-amber-400 hover:opacity-80">
+                  <AlertCircle size={11} className="flex-shrink-0" /> {t('room.needChatModel')}
                 </button>
               ) : (
-                <span className="text-[11px] text-[var(--color-text-tertiary)]">
+                <span className="min-w-0 flex-1 truncate text-[11px] text-[var(--color-text-tertiary)]">
                   {mode === 'ai' ? t('room.atAiHint') : t('room.chatHint')}
                 </span>
               )}
@@ -458,9 +501,11 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
         </div>
 
         {/* Column c — AI replies (assistant answers only) */}
-        <div className="flex flex-col min-w-0 flex-1">
-          <div className="px-4 py-2 border-b border-[var(--color-border-light)] flex items-center gap-1.5 text-[11px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
-            <Bot size={12} className="text-[var(--color-assistant)]" /> {t('room.paneAi')}
+        <div className={`${mobilePane === 'ai' ? 'flex' : 'hidden'} md:flex flex-col min-w-0 flex-1`}>
+          {/* On mobile the tab bar names the pane, so only the export control stays. */}
+          <div className="px-3 md:px-4 py-2 border-b border-[var(--color-border-light)] flex items-center gap-1.5 text-[11px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
+            <Bot size={12} className="hidden md:block text-[var(--color-assistant)]" />
+            <span className="hidden md:inline">{t('room.paneAi')}</span>
             <div className="flex-1" />
             {/* Export AI replies (docx / pdf) */}
             <div className="relative">
@@ -495,7 +540,7 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
               )}
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-4">
             {aiMessages.filter((m) => m.role === 'assistant').length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center text-[var(--color-text-tertiary)]">
                 <Sparkles size={22} className="mb-2 text-[var(--color-accent-main)]" />

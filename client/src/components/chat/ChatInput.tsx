@@ -289,17 +289,20 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
         )}
 
         {/* Visibility, Self-Review toggles & File Selector */}
-        <div className="flex items-center gap-1.5 mb-2 px-1 flex-wrap">
+        {/* Mobile (portrait) keeps these chips on ONE horizontally-scrollable row:
+            wrapping them pushed the composer down and squeezed the row. Desktop
+            keeps the original wrap behaviour. */}
+        <div className="flex items-center gap-1.5 mb-2 px-1 flex-nowrap overflow-x-auto no-scrollbar md:flex-wrap md:overflow-visible">
           {currentConversationId && (
             <>
-              <span className="text-[11px] text-[var(--color-text-tertiary)] mr-0.5">{t('conversation.currentStatus')}</span>
+              <span className="flex-shrink-0 text-[11px] text-[var(--color-text-tertiary)] mr-0.5">{t('conversation.currentStatus')}</span>
               <button
                 onClick={() => {
                   const newVis = currentVisibility === 'public' ? 'private' as const : 'public' as const;
                   setVisibility(newVis);
                   updateConversation(currentConversationId, { visibility: newVis });
                 }}
-                className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-colors ${
+                className={`flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-colors ${
                   currentVisibility === 'public'
                     ? 'bg-[rgba(34,197,94,0.15)] text-[#22c55e]'
                     : 'bg-[rgba(168,85,247,0.15)] text-[#a855f7]'
@@ -315,7 +318,7 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
                   setSelfReview(newVal);
                   updateConversation(currentConversationId, { selfReview: newVal });
                 }}
-                className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-colors ${
+                className={`flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-colors ${
                   currentSelfReview
                     ? 'bg-[var(--accent-tint-15)] text-[var(--color-accent-main)]'
                     : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
@@ -330,7 +333,7 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
           {webSearchAvail && (
             <button
               onClick={() => setWebSearchOn((v) => !v)}
-              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-colors ${
+              className={`flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-colors ${
                 webSearchOn
                   ? 'bg-[var(--accent-tint-15)] text-[var(--color-accent-main)]'
                   : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'

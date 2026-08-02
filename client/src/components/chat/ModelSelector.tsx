@@ -65,14 +65,14 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[var(--overlay-5)] text-[var(--color-text-primary)] text-base font-medium transition-colors duration-150"
+        className="flex items-center gap-2 w-full min-w-0 px-2 sm:px-3 py-2 rounded-lg hover:bg-[var(--overlay-5)] text-[var(--color-text-primary)] text-[15px] sm:text-base font-medium transition-colors duration-150"
       >
-        <span>{selectedModel?.displayName || t('model.select')}</span>
-        <ChevronDown size={18} className={`text-[var(--color-text-tertiary)] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        <span className="truncate">{selectedModel?.displayName || t('model.select')}</span>
+        <ChevronDown size={18} className={`flex-shrink-0 text-[var(--color-text-tertiary)] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 w-80 max-h-[420px] overflow-y-auto bg-[var(--color-main-surface-tertiary)] border border-[var(--color-border-medium)] rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] z-50 py-1.5 dropdown-enter">
+        <div className="absolute top-full left-0 mt-1 w-[min(20rem,calc(100vw-2rem))] sm:w-80 max-h-[60vh] sm:max-h-[420px] overflow-y-auto bg-[var(--color-main-surface-tertiary)] border border-[var(--color-border-medium)] rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] z-50 py-1.5 dropdown-enter">
           {models.length === 0 ? (
             <div className="px-4 py-8 text-center text-[var(--color-text-tertiary)] text-sm">
               <Sparkles size={24} className="mx-auto mb-2 text-[var(--color-text-tertiary)]" />

@@ -680,6 +680,8 @@ const en = {
   'room.notepadRequests': 'Edit requests',
   'room.notepadApprove': 'Approve',
   'room.notepadDeny': 'Deny',
+  'room.notepadExpand': 'Expand work log',
+  'room.notepadCollapse': 'Collapse work log',
   'room.replyGenerating': 'Reply is being generated on the right…',
   'room.owner': 'Owner',
   'room.manage': 'Manage members',
