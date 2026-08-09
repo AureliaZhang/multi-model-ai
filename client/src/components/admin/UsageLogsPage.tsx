@@ -308,7 +308,9 @@ export function UsageLogsPage({ onBack }: Props) {
         )}
       </div>
 
-      <div className="flex-1 overflow-auto p-3">
+      {/* Desktop: the full 8-column table (min-w-[900px] — needs a wide viewport).
+          Mobile: the stacked-card list below (same data, v0.7.21 pattern). */}
+      <div className="hidden md:block flex-1 overflow-auto p-3">
         <table className="w-full text-left text-[12px] border-collapse min-w-[900px]">
           <thead className="text-[var(--color-text-tertiary)] sticky top-0 bg-[var(--color-main-surface-primary)]">
             <tr>
@@ -369,6 +371,66 @@ export function UsageLogsPage({ onBack }: Props) {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile: one stacked card per log row (v0.7.21 pattern) — the 8-column
+          table cannot fit a portrait phone, so each row becomes a small card
+          with the identifying line on top and the metrics as labelled chips. */}
+      <div className="md:hidden flex-1 overflow-y-auto p-3 space-y-2">
+        {items.map((row) => (
+          <div
+            key={row.id}
+            className="rounded-xl border border-[var(--color-border-light)] bg-[var(--color-main-surface-secondary)] p-2.5 text-[12px]"
+          >
+            <div className="flex items-baseline gap-2">
+              <span className="text-[var(--color-text-primary)] font-medium truncate">
+                {row.username || '—'}
+              </span>
+              {row.role && (
+                <span className="text-[10px] text-[var(--color-text-tertiary)] flex-shrink-0">{row.role}</span>
+              )}
+              <div className="flex-1" />
+              <span className={`font-medium flex-shrink-0 ${statusColor(row.status)}`}>
+                {row.status}
+                {row.httpStatus ? ` ${row.httpStatus}` : ''}
+              </span>
+            </div>
+
+            <div className="mt-1 truncate text-[var(--color-text-secondary)]" title={row.modelNormalized || ''}>
+              {row.modelNormalized || '—'}
+            </div>
+            {(row.modelUsed || row.stationName) && (
+              <div className="truncate text-[10px] text-[var(--color-text-tertiary)]">
+                {row.modelUsed || row.stationName}
+              </div>
+            )}
+
+            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-[var(--color-text-tertiary)]">
+              <span>{new Date(row.createdAt).toLocaleString()}</span>
+              <span>{row.kind}</span>
+              <span>
+                {t('usage.tokens')}:{' '}
+                {row.totalTokens != null
+                  ? row.totalTokens
+                  : row.promptTokens != null || row.completionTokens != null
+                    ? `${row.promptTokens ?? 0}+${row.completionTokens ?? 0}`
+                    : '—'}
+              </span>
+              {row.latencyMs != null && <span>{row.latencyMs}ms</span>}
+            </div>
+
+            {row.errorMessage && (
+              <div className="mt-1 text-[11px] text-[var(--color-text-error)] break-words">
+                {row.errorMessage}
+              </div>
+            )}
+          </div>
+        ))}
+        {items.length === 0 && !loading && (
+          <div className="py-10 text-center text-[var(--color-text-tertiary)] text-[12px]">
+            {t('usage.empty')}
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-between px-4 py-2 border-t border-[var(--color-border-light)] text-xs text-[var(--color-text-tertiary)]">
