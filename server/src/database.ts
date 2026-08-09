@@ -134,6 +134,19 @@ export const SCHEMA_MIGRATIONS: Migration[] = [
   // in whatever currency the team bills in (currency-agnostic on purpose — the
   // relay stations themselves bill in different currencies). A model with no
   // row (or zero prices) simply shows no cost; nothing is guessed.
+  {
+    version: 9,
+    name: 'model-pricing',
+    up: (d) =>
+      d.exec(`
+        CREATE TABLE IF NOT EXISTS model_pricing (
+          model_normalized TEXT PRIMARY KEY,
+          prompt_price_per_m REAL NOT NULL DEFAULT 0,
+          completion_price_per_m REAL NOT NULL DEFAULT 0,
+          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+      `),
+  },
   // v10: forced password change (§10.9 P0 #2, closes §10.8 TC0 #5's second half).
   // Flagged accounts must change their password before using the app; the boot
   // sweep below flags any admin still on the known seeded default.
@@ -141,22 +154,6 @@ export const SCHEMA_MIGRATIONS: Migration[] = [
     version: 10,
     name: 'users-must-change-password',
     up: (d) => d.exec(`ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0`),
-  },
-  // v12: team knowledge base (owner request 2026-07-26). KB files live in the
-  // existing file_library but flagged `kb=1`: always team-visible, no folders,
-  // and enriched after processing with an AI digest — doc type + keywords +
-  // summary — so members can search "补贴政策" and get every related document.
-  {
-    version: 12,
-    name: 'file-library-knowledge-base',
-    up: (d) => {
-      d.exec(`ALTER TABLE file_library ADD COLUMN kb INTEGER NOT NULL DEFAULT 0`);
-      d.exec(`ALTER TABLE file_library ADD COLUMN summary TEXT`);
-      d.exec(`ALTER TABLE file_library ADD COLUMN doc_type TEXT`);
-      d.exec(`ALTER TABLE file_library ADD COLUMN ai_keywords TEXT`);
-      d.exec(`ALTER TABLE file_library ADD COLUMN summary_status TEXT NOT NULL DEFAULT 'none' CHECK(summary_status IN ('none','pending','ready','error'))`);
-      d.exec(`CREATE INDEX IF NOT EXISTS idx_file_library_kb ON file_library(kb)`);
-    },
   },
   // v11: admin announcement banner (§10.9 P2 #6). Single-row table (same
   // pattern as memory_config): the lead broadcasts, members can dismiss
@@ -175,6 +172,22 @@ export const SCHEMA_MIGRATIONS: Migration[] = [
         );
         INSERT OR IGNORE INTO announcement (id) VALUES (1);
       `),
+  },
+  // v12: team knowledge base (owner request 2026-07-26). KB files live in the
+  // existing file_library but flagged `kb=1`: always team-visible, no folders,
+  // and enriched after processing with an AI digest — doc type + keywords +
+  // summary — so members can search "补贴政策" and get every related document.
+  {
+    version: 12,
+    name: 'file-library-knowledge-base',
+    up: (d) => {
+      d.exec(`ALTER TABLE file_library ADD COLUMN kb INTEGER NOT NULL DEFAULT 0`);
+      d.exec(`ALTER TABLE file_library ADD COLUMN summary TEXT`);
+      d.exec(`ALTER TABLE file_library ADD COLUMN doc_type TEXT`);
+      d.exec(`ALTER TABLE file_library ADD COLUMN ai_keywords TEXT`);
+      d.exec(`ALTER TABLE file_library ADD COLUMN summary_status TEXT NOT NULL DEFAULT 'none' CHECK(summary_status IN ('none','pending','ready','error'))`);
+      d.exec(`CREATE INDEX IF NOT EXISTS idx_file_library_kb ON file_library(kb)`);
+    },
   },
   // v13: project lorebook / 世界书 (owner request 2026-07-26, SillyTavern-style
   // World Info). Team-shared keyword-triggered knowledge entries: when a chat
@@ -243,19 +256,6 @@ export const SCHEMA_MIGRATIONS: Migration[] = [
     version: 16,
     name: 'stations-last-deep-probe',
     up: (d) => d.exec(`ALTER TABLE stations ADD COLUMN last_deep_probe TEXT`),
-  },
-  {
-    version: 9,
-    name: 'model-pricing',
-    up: (d) =>
-      d.exec(`
-        CREATE TABLE IF NOT EXISTS model_pricing (
-          model_normalized TEXT PRIMARY KEY,
-          prompt_price_per_m REAL NOT NULL DEFAULT 0,
-          completion_price_per_m REAL NOT NULL DEFAULT 0,
-          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-        );
-      `),
   },
 ];
 
