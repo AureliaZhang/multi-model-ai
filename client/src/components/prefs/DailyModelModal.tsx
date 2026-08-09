@@ -66,7 +66,7 @@ export function DailyModelModal() {
 
   return (
     <div role="dialog" aria-modal="true" aria-label={t('prefs.userTitle')} className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-md rounded-2xl border border-[var(--color-border-light)] bg-[var(--color-main-surface-primary)] shadow-2xl p-5 relative">
+      <div className="w-full max-w-md rounded-2xl border border-[var(--color-border-light)] bg-[var(--color-main-surface-primary)] shadow-2xl p-5 relative dialog-panel overflow-y-auto">
         <button
           type="button"
           onClick={onSkipToday}

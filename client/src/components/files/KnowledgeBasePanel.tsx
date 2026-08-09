@@ -116,7 +116,7 @@ export function KnowledgeBasePanel() {
     <div className="flex-1 overflow-y-auto">
       {/* Toolbar: search + type filter + upload */}
       <div className="px-5 py-3 border-b border-[var(--color-border-light)] bg-[var(--color-bg-secondary)] space-y-2">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 max-w-md">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
             <input
@@ -151,7 +151,7 @@ export function KnowledgeBasePanel() {
           <input ref={inputRef} type="file" multiple className="hidden" onChange={handleUpload} />
         </div>
         {showUrl && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <input
               value={urlValue}
               onChange={(e) => { setUrlValue(e.target.value); setUrlError(''); }}

@@ -198,7 +198,7 @@ function CreateRoomModal({ onClose, onCreated }: { onClose: () => void; onCreate
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="bg-[var(--color-main-surface-secondary)] rounded-2xl w-full max-w-md p-4"
+        className="bg-[var(--color-main-surface-secondary)] rounded-2xl w-full max-w-md p-4 dialog-panel overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">

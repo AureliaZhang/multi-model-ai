@@ -44,7 +44,7 @@ export function ForcePasswordModal() {
 
   return (
     <div role="dialog" aria-modal="true" aria-label={t('auth.pwdChangeTitle')} className="fixed inset-0 z-[95] flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-sm rounded-2xl bg-[var(--color-main-surface-primary)] border border-[var(--color-border-light)] p-6 shadow-xl">
+      <div className="w-full max-w-sm rounded-2xl bg-[var(--color-main-surface-primary)] border border-[var(--color-border-light)] p-6 shadow-xl dialog-panel overflow-y-auto">
         <div className="flex items-center gap-2.5 mb-2">
           <KeyRound size={18} className="text-[var(--color-accent-main)]" />
           <h2 className="text-base font-semibold text-[var(--color-text-primary)]">{t('auth.pwdChangeTitle')}</h2>

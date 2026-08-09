@@ -236,7 +236,7 @@ export function McpServerManager() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-2 mt-3">
+                <div className="flex flex-wrap gap-2 mt-3">
                   <button
                     onClick={() => handleConnect(server.id)}
                     disabled={actionLoading === `connect-${server.id}`}

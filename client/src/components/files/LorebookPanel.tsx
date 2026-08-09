@@ -118,7 +118,7 @@ export function LorebookPanel() {
         <p className="text-xs text-[var(--color-text-tertiary)] leading-relaxed mb-3">
           {t('lorebook.intro')}
         </p>
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex flex-wrap items-center gap-2 mb-4">
           <div className="relative flex-1">
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
             <input

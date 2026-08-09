@@ -113,7 +113,7 @@ export function AnnouncementManager() {
       {step !== null && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" onClick={() => !busy && setStep(null)}>
           <div
-            className="w-full max-w-lg rounded-2xl bg-[var(--color-main-surface-primary)] border border-[var(--color-border-light)] shadow-xl p-5"
+            className="w-full max-w-lg rounded-2xl bg-[var(--color-main-surface-primary)] border border-[var(--color-border-light)] shadow-xl p-5 dialog-panel overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-3">

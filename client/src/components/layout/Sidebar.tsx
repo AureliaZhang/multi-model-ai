@@ -355,7 +355,7 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
                   <div className="pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 flex items-center gap-0.5 transition-all duration-150 ml-1">
                     <button
                       onClick={(e) => handleTogglePin(e, conv.id, conv.pinned)}
-                      className="p-1 rounded-md hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)] transition-all duration-150"
+                      className="touch-target p-1 rounded-md hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)] transition-all duration-150"
                       title={conv.pinned ? t('sidebar.unpin') : t('sidebar.pin')}
                     >
                       {conv.pinned ? <PinOff size={13} /> : <Pin size={13} />}
@@ -364,21 +364,21 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
                       onClick={(e) => { e.stopPropagation(); setNewFolderName(''); setFolderMenuId(folderMenuId === conv.id ? null : conv.id); }}
                       aria-haspopup="menu"
                       aria-expanded={folderMenuId === conv.id}
-                      className="p-1 rounded-md hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)] transition-all duration-150"
+                      className="touch-target p-1 rounded-md hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)] transition-all duration-150"
                       title={t('sidebar.moveToFolder')}
                     >
                       <FolderInput size={13} />
                     </button>
                     <button
                       onClick={(e) => handleToggleVisibility(e, conv.id, conv.visibility)}
-                      className="p-1 rounded-md hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)] transition-all duration-150"
+                      className="touch-target p-1 rounded-md hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)] transition-all duration-150"
                       title={conv.visibility === 'private' ? t('conversation.public') : t('conversation.private')}
                     >
                       {conv.visibility === 'private' ? <Globe size={13} /> : <Lock size={13} />}
                     </button>
                     <button
                       onClick={(e) => handleToggleSelfReview(e, conv.id, conv.selfReview)}
-                      className="p-1 rounded-md hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)] transition-all duration-150"
+                      className="touch-target p-1 rounded-md hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)] transition-all duration-150"
                       title={t('conversation.toggleSelfReview')}
                     >
                       {conv.selfReview ? <Eye size={13} /> : <EyeOff size={13} />}

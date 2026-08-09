@@ -180,7 +180,7 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
           placeholder={t('regex.scriptNamePlaceholder')}
         />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="text-xs text-[var(--color-text-secondary)] mb-1 block">{t('regex.findPattern')}</label>
           <input
@@ -202,7 +202,7 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
           />
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
           <label className="text-xs text-[var(--color-text-secondary)] mb-1 block">{t('regex.flags')}</label>
           <input
@@ -252,7 +252,7 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
   const tabsContent = (
     <>
       {/* Tabs */}
-      <div className="flex items-center gap-1 px-4 py-2 border-b border-[var(--color-border-light)] bg-[var(--color-main-surface-tertiary)]">
+      <div className="flex flex-wrap items-center gap-1 px-4 py-2 border-b border-[var(--color-border-light)] bg-[var(--color-main-surface-tertiary)]">
         {[
           { key: 'scripts' as TabView, icon: List, label: t('regex.scriptsTab') },
           { key: 'presets' as TabView, icon: Package, label: t('regex.presetsTab') },
@@ -488,7 +488,7 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
                 <div key={preset.id} className="bg-[var(--color-surface)] border border-[var(--color-border-light)] rounded-xl p-3">
                   {editingPreset?.id === preset.id ? (
                     <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <input
                           type="text"
                           value={editingPreset.name}
@@ -593,7 +593,7 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
         {/* ===== TEST TAB ===== */}
         {tab === 'test' && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-[var(--color-text-secondary)] mb-1 block">{t('regex.findPattern')}</label>
                 <input
@@ -615,7 +615,7 @@ export function RegexManager({ onClose, embedded }: RegexManagerProps) {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="text-xs text-[var(--color-text-secondary)] mb-1 block">{t('regex.flags')}</label>
                 <input

@@ -164,7 +164,7 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
                 type="button"
                 onClick={handleCopy}
                 title={t('message.copy')}
-                className="p-1.5 rounded-md hover:bg-[var(--overlay-5)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
+                className="touch-target p-1.5 rounded-md hover:bg-[var(--overlay-5)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
               >
                 {copied ? <Check size={13} className="text-[var(--color-text-success)]" /> : <Copy size={13} />}
               </button>
@@ -174,7 +174,7 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
                   onClick={() => regenerateMessage(message.id)}
                   disabled={globalStreaming}
                   title={t('message.regenerate')}
-                  className="p-1.5 rounded-md hover:bg-[var(--overlay-5)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="touch-target p-1.5 rounded-md hover:bg-[var(--overlay-5)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <RefreshCw size={13} />
                 </button>
@@ -185,7 +185,7 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
                   onClick={startEdit}
                   disabled={globalStreaming}
                   title={t('message.edit')}
-                  className="p-1.5 rounded-md hover:bg-[var(--overlay-5)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="touch-target p-1.5 rounded-md hover:bg-[var(--overlay-5)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Pencil size={13} />
                 </button>

@@ -116,7 +116,7 @@ export function SystemPromptModal({ onClose }: SystemPromptModalProps) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg rounded-2xl border border-[var(--color-border-light)] bg-[var(--color-main-surface-primary)] shadow-2xl p-5 relative max-h-[85vh] overflow-y-auto"
+        className="w-full max-w-lg rounded-2xl border border-[var(--color-border-light)] bg-[var(--color-main-surface-primary)] shadow-2xl p-5 relative dialog-panel overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -285,7 +285,7 @@ export function SystemPromptModal({ onClose }: SystemPromptModalProps) {
                             <button
                               type="button"
                               onClick={() => startRename(p)}
-                              className="flex-shrink-0 p-1.5 rounded-lg text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--overlay-6)] pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100"
+                              className="touch-target flex-shrink-0 p-1.5 rounded-lg text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--overlay-6)] pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100"
                               aria-label={t('persona.rename')}
                               title={t('persona.rename')}
                             >
@@ -294,7 +294,7 @@ export function SystemPromptModal({ onClose }: SystemPromptModalProps) {
                             <button
                               type="button"
                               onClick={() => void removePersona(p.id)}
-                              className="flex-shrink-0 p-1.5 rounded-lg text-[var(--color-text-tertiary)] hover:text-[var(--color-danger,#e5484d)] hover:bg-[var(--overlay-6)] pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100"
+                              className="touch-target flex-shrink-0 p-1.5 rounded-lg text-[var(--color-text-tertiary)] hover:text-[var(--color-danger,#e5484d)] hover:bg-[var(--overlay-6)] pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100"
                               aria-label={t('common.delete')}
                               title={t('common.delete')}
                             >

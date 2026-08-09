@@ -607,7 +607,7 @@ function ManageModal({ isOwner, onClose }: { isOwner: boolean; onClose: () => vo
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[var(--color-main-surface-secondary)] rounded-2xl w-full max-w-md p-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-[var(--color-main-surface-secondary)] rounded-2xl w-full max-w-md p-4 dialog-panel overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-[15px] font-medium text-[var(--color-text-primary)]">{t('room.manage')}</h3>
           <button onClick={onClose}><X size={18} className="text-[var(--color-text-tertiary)]" /></button>
@@ -719,7 +719,7 @@ function ModelsModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[var(--color-main-surface-secondary)] rounded-2xl w-full max-w-md p-4" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-[var(--color-main-surface-secondary)] rounded-2xl w-full max-w-md p-4 dialog-panel overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-[15px] font-medium text-[var(--color-text-primary)]">{t('room.modelSettings')}</h3>
           <button onClick={onClose}><X size={18} className="text-[var(--color-text-tertiary)]" /></button>

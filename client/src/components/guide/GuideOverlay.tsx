@@ -55,11 +55,11 @@ export function GuideOverlay({ onClose }: GuideOverlayProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="relative w-full max-w-md mx-4 bg-[var(--color-main-surface-primary)] border border-[var(--color-border)] rounded-2xl shadow-2xl overflow-hidden"
+        className="relative w-full max-w-md mx-4 bg-[var(--color-main-surface-primary)] border border-[var(--color-border)] rounded-2xl shadow-2xl overflow-hidden dialog-panel flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         {/* Progress bar */}
-        <div className="h-1 bg-[var(--color-surface-elevated)]">
+        <div className="h-1 bg-[var(--color-surface-elevated)] flex-shrink-0">
           <div
             className="h-full bg-[var(--color-accent-main)] transition-all duration-300 ease-out"
             style={{ width: `${((currentStep + 1) / GUIDE_STEPS.length) * 100}%` }}
@@ -75,7 +75,7 @@ export function GuideOverlay({ onClose }: GuideOverlayProps) {
         </button>
 
         {/* Content */}
-        <div className="px-8 pt-8 pb-6 text-center">
+        <div className="px-8 pt-8 pb-6 text-center overflow-y-auto">
           {/* Icon */}
           <div className="w-16 h-16 rounded-2xl bg-[var(--overlay-5)] border border-[var(--color-border-light)] flex items-center justify-center mx-auto mb-5">
             {step.icon}
@@ -98,7 +98,7 @@ export function GuideOverlay({ onClose }: GuideOverlayProps) {
         </div>
 
         {/* Navigation */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-[var(--color-border-light)] bg-[var(--overlay-2)]">
+        <div className="flex items-center justify-between px-6 py-4 border-t border-[var(--color-border-light)] bg-[var(--overlay-2)] flex-shrink-0">
           <button
             onClick={() => setCurrentStep(prev => prev - 1)}
             disabled={isFirst}

@@ -308,7 +308,7 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
 
         {/* Uploads / folder creation only in the "mine" view (new files are private;
             the team view is a flat read-only listing of what's been shared). */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
         {scope === 'mine' && (
         <>
           {/* New Folder button */}
@@ -511,7 +511,7 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
         {/* Create folder dialog */}
         {showCreateFolder && (
           <div className="mx-5 mt-3 p-3 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border-light)]">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Folder size={16} className="text-yellow-400 flex-shrink-0" />
               <input
                 autoFocus

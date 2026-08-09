@@ -193,6 +193,47 @@ html, body, #root {
   overflow: hidden;
 }
 
+/* Keyboard-safe app height.
+   `height: 100%` above resolves against the LARGE viewport on iOS, so the
+   software keyboard used to cover the bottom of the shell (the composer) with
+   `overflow: hidden` preventing any scroll to it. `--app-height` is published
+   from utils/viewportHeight by the VisualViewport API — the only value that
+   shrinks when the keyboard opens — with 100dvh as the fallback for the
+   browser-chrome case. Gated on @supports so browsers without dvh keep the
+   plain 100% rule instead of computing an invalid height. */
+@supports (height: 100dvh) {
+  html, body, #root {
+    height: var(--app-height, 100dvh);
+  }
+}
+
+/* Shared dialog height bound.
+   Dialog backdrops are `fixed inset-0`, which on iOS resolves against the LARGE
+   viewport — so a tall dialog overflowed the screen with no way to scroll to its
+   buttons, and an open keyboard pushed its content out of reach. Bounding the
+   panel by --app-height (the VISIBLE viewport) keeps it on screen in both cases.
+   Pair it with the panel's own overflow rule: `overflow-y-auto` when the whole
+   panel scrolls, or a flex column with an inner scroll region. */
+.dialog-panel {
+  max-height: calc(var(--app-height, 100dvh) - 2rem);
+}
+
+/* Minimum tap size for icon buttons.
+   Icon-only buttons are padded for a mouse (~25px square), which is well under
+   the 44px a fingertip needs. Grow them on coarse pointers only, so desktop
+   density is untouched. Applied to the controls a phone user actually reaches —
+   notably the message actions and sidebar conversation actions that v0.7.85
+   made visible on touch in the first place. */
+@media (pointer: coarse) {
+  .touch-target {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
 body {
   font-family: var(--font-sans);
   background-color: var(--color-main-surface-primary);
