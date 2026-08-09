@@ -280,10 +280,12 @@ export function SystemPromptModal({ onClose }: SystemPromptModalProps) {
                         </button>
                         {canEdit && (
                           <>
+                            {/* Reveal-on-hover only on hover-capable pointers; on
+                                touch these stay visible (see MessageBubble). */}
                             <button
                               type="button"
                               onClick={() => startRename(p)}
-                              className="flex-shrink-0 p-1.5 rounded-lg text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--overlay-6)] opacity-0 group-hover:opacity-100"
+                              className="flex-shrink-0 p-1.5 rounded-lg text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--overlay-6)] pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100"
                               aria-label={t('persona.rename')}
                               title={t('persona.rename')}
                             >
@@ -292,7 +294,7 @@ export function SystemPromptModal({ onClose }: SystemPromptModalProps) {
                             <button
                               type="button"
                               onClick={() => void removePersona(p.id)}
-                              className="flex-shrink-0 p-1.5 rounded-lg text-[var(--color-text-tertiary)] hover:text-[var(--color-danger,#e5484d)] hover:bg-[var(--overlay-6)] opacity-0 group-hover:opacity-100"
+                              className="flex-shrink-0 p-1.5 rounded-lg text-[var(--color-text-tertiary)] hover:text-[var(--color-danger,#e5484d)] hover:bg-[var(--overlay-6)] pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100"
                               aria-label={t('common.delete')}
                               title={t('common.delete')}
                             >

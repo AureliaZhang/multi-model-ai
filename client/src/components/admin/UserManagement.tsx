@@ -91,7 +91,7 @@ function QuotaCell({ user, onSaved }: { user: UserPublic; onSaved: () => void })
       <span>
         {t('users.quotaLabel')}: {limit > 0 ? limit.toLocaleString() : t('users.quotaUnlimited')}
       </span>
-      <Pencil size={10} className="opacity-0 group-hover:opacity-100" />
+      <Pencil size={10} className="pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100" />
     </button>
   );
 }

@@ -155,9 +155,11 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
             </div>
           )}
 
-          {/* Message actions (copy / regenerate / edit) — appear on hover */}
+          {/* Message actions (copy / regenerate / edit). Reveal-on-hover ONLY where
+              a hover-capable pointer exists — on touch there is no hover, so these
+              stay visible or the whole feature is unreachable on a phone. */}
           {showActions && !editing && (
-            <div className="flex items-center gap-1 mt-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+            <div className="flex items-center gap-1 mt-2 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
               <button
                 type="button"
                 onClick={handleCopy}

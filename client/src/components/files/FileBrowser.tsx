@@ -738,7 +738,7 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center justify-end gap-1 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -813,7 +813,7 @@ export function FileBrowser({ onClose }: FileBrowserProps) {
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center justify-end gap-1 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 transition-opacity">
                   {(file.status === 'error' || file.status === 'processing') && (
                     <button
                       onClick={() => handleReindex(file.id)}

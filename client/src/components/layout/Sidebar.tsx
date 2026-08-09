@@ -349,8 +349,10 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
                     </span>
                   )}
 
-                  {/* Action buttons on hover */}
-                  <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-all duration-150 ml-1">
+                  {/* Pin / move-to-folder actions. Hidden until hover only where a
+                      hover-capable pointer exists — touch has no hover, so on a phone
+                      these would otherwise be permanently invisible. */}
+                  <div className="pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 flex items-center gap-0.5 transition-all duration-150 ml-1">
                     <button
                       onClick={(e) => handleTogglePin(e, conv.id, conv.pinned)}
                       className="p-1 rounded-md hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)] transition-all duration-150"

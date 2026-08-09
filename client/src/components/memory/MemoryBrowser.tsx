@@ -645,7 +645,7 @@ export function MemoryBrowser({ onClose }: MemoryBrowserProps) {
                       className={`p-1 rounded-md transition-colors ${
                         deleteConfirmId === entry.id
                           ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-                          : 'opacity-0 group-hover:opacity-100 hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] hover:text-red-400'
+                          : 'pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] hover:text-red-400'
                       }`}
                     >
                       {deleteConfirmId === entry.id ? <X size={14} /> : <Trash2 size={14} />}
