@@ -53,7 +53,9 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
   const setSelfReview = useChatStore(s => s.setSelfReview);
   const { t } = useTranslation();
 
-  const [selectedModel, _setSelectedModel] = useState(() => localStorage.getItem('selected_model') || '');
+  // (No `selectedModel` state: it was seeded from localStorage at mount and
+  // never updated, so it went stale the moment the user changed the header
+  // selector. The send path reads localStorage directly instead.)
 
   // In-chat web search (v0.7.74): the chip shows only when the admin has
   // configured a provider; the on/off choice is sticky for the session.
@@ -142,9 +144,24 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
       }
     }
 
-    // Prefer user default chat model from prefs
-    const prefsChat = usePrefsStore.getState().prefs?.chatModel;
-    const model = prefsChat || selectedModel || models[0]?.normalizedName;
+    // Resolve the model AT SEND TIME, against the models that actually exist
+    // (v0.7.91). The previous `prefsChat || selectedModel || models[0]` had
+    // three ways to send a name the server cannot serve:
+    //   1. the saved daily default silently outranked the visible selector, so
+    //      switching models in the header changed nothing about what was sent;
+    //   2. `selectedModel` is seeded from localStorage once at mount and never
+    //      updated, so a later pick did not reach here at all;
+    //   3. neither candidate was checked against the live list, so a model that
+    //      had been renamed or unpicked still went out and came back as
+    //      "no station provides model …".
+    // An explicit pick wins; the daily default is only a starting value.
+    const prefsChat = usePrefsStore.getState().prefs?.chatModel || '';
+    const picked = localStorage.getItem('selected_model') || '';
+    const available = new Set(models.map((m) => m.normalizedName));
+    const model = models.length === 0
+      // Catalogue not loaded yet — don't block a send on a list we don't have.
+      ? (picked || prefsChat)
+      : [picked, prefsChat, models[0]?.normalizedName].find((c) => c && available.has(c)) || '';
     if (!model) {
       alert(t('model.noModels') + ' ' + t('model.addStationFirst'));
       return;
@@ -164,7 +181,7 @@ export function ChatInput({ isGuest = false, onSignIn }: ChatInputProps) {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  }, [input, isStreaming, selectedModel, models, sendMessage, isGuest, attachments, selectedFileIds, webSearchAvail, webSearchOn, t]);
+  }, [input, isStreaming, models, sendMessage, isGuest, attachments, selectedFileIds, webSearchAvail, webSearchOn, t]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

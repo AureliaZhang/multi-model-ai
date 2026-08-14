@@ -50,6 +50,11 @@ export function DailyModelModal() {
       markModalSeen: true,
       autoTts: true,
     });
+    // Keep the header selector showing the same model this modal just chose
+    // (v0.7.91). They are two views of one decision; letting them disagree is
+    // how a stale default ended up being sent while the selector showed
+    // something else entirely.
+    if (chatModel) localStorage.setItem('selected_model', chatModel);
     setSaving(false);
     closeDailyModal();
   };

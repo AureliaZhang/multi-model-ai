@@ -163,7 +163,18 @@ export function ChatArea({ isGuest = false, onSignIn, sidebarCollapsed = false, 
             {error && (
               <div className="mx-4 mb-4 p-3 rounded-xl bg-[var(--color-surface-error)] border border-[rgba(239,68,68,0.2)] text-[var(--color-text-error)] text-sm">
                 <div className="flex items-center justify-between">
-                  <span title={error}>{(() => { const k = friendlyErrorKey(error); return k ? t(k) : error; })()}</span>
+                  <span title={error}>
+                    {(() => { const k = friendlyErrorKey(error); return k ? t(k) : error; })()}
+                    {/* Name the model the request actually carried (v0.7.91).
+                        The server quotes it in every station-pool message; the
+                        localized text alone left "this model" ambiguous, which
+                        cost an afternoon when the name sent was not the one
+                        showing in the selector. */}
+                    {(() => {
+                      const named = friendlyErrorKey(error) && error.match(/"([^"]+)"/)?.[1];
+                      return named ? <span className="opacity-70"> （{named}）</span> : null;
+                    })()}
+                  </span>
                   <div className="flex items-center gap-3 ml-2 shrink-0">
                     {lastFailedSend && (
                       <button onClick={retryLastSend} className="text-[var(--color-text-error)] hover:opacity-70 text-xs font-medium">{t('common.retry')}</button>
