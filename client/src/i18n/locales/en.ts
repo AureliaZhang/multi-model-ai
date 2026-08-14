@@ -91,6 +91,7 @@ const en = {
   'sidebar.unpin': 'Unpin',
   'sidebar.pinnedSection': 'Pinned',
   'sidebar.moveToFolder': 'Move to folder',
+  'sidebar.moreActions': 'More actions',
   'sidebar.removeFromFolder': 'Remove from folder',
   'sidebar.newFolderPlaceholder': 'New folder…',
   'sidebar.guestCannotCreate': 'Guests can browse but cannot create conversations',
@@ -331,6 +332,8 @@ const en = {
   // Conversation Visibility & Self-Review
   'conversation.public': 'Public',
   'conversation.private': 'Private',
+  'conversation.makePublic': 'Make public',
+  'conversation.makePrivate': 'Make private',
   'conversation.visibilityDesc': 'Public conversations are visible to all users',
   'conversation.selfReview': 'Self-Review',
   'conversation.selfReviewDesc': 'AI reviews its response for grammar, typos, and formatting before displaying',
@@ -649,6 +652,16 @@ const en = {
 
   // Friendly errors
   'error.noStation': 'No service node is available for this model right now. Wait a moment and retry, or try another model.',
+  'error.modelNotEnabled': 'This model is not enabled yet. An admin can tick it under Settings → station → model list (freshly pulled models start off).',
+  'error.stationDisabled': 'The station providing this model is switched off. An admin can turn it back on under Settings → stations.',
+  'error.modelUnknown': 'This model cannot be found — it may have been renamed or removed. Try another model; in an older chat, pick a model again before sending.',
+  'error.upstreamAuth': 'The station rejected the credentials (401/403) — the API key is most likely wrong or expired. Re-enter it under Settings → stations.',
+  'error.upstreamNotFound': 'The station could not find that endpoint or model (404) — check the base URL (a missing trailing /v1 is the usual culprit) and the model name.',
+  'error.upstreamRateLimited': 'The station rate limited this request (429). This one really is temporary — wait a moment and retry, or use another model.',
+  'error.upstreamServerError': 'The station returned a server error (5xx). That is on their side, not your configuration — retry later or use another station.',
+  'error.upstreamUnreachable': 'Could not reach the station — check the base URL and whether the service is still up.',
+  'error.allStationsFailed': 'Every station failed. Expand the details below to see what each one said.',
+  'error.stationDetails': 'See what each station said',
   'error.quota': 'You have used up this month\'s quota. Ask your admin to raise it to continue.',
   'error.rateLimit': 'Sending a bit too fast — take a few seconds and try again.',
   'error.network': 'Cannot reach the server. Check your connection and retry.',

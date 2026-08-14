@@ -38,4 +38,27 @@ d2('friendlyErrorKey', () => {
     e2(friendlyErrorKey('Something exotic happened')).toBeNull();
     e2(friendlyErrorKey('')).toBeNull();
   });
+
+  // v0.7.89 — the other half of the contract in server noStationMessage().
+  // These strings are copied verbatim from it; if it changes, this fails.
+  it2('tells the three no-station causes apart', () => {
+    e2(friendlyErrorKey('Model "gpt-4o" is not enabled for use — an admin must enable it in Settings'))
+      .toBe('error.modelNotEnabled');
+    e2(friendlyErrorKey('Every station providing model "gpt-4o" is disabled'))
+      .toBe('error.stationDisabled');
+    e2(friendlyErrorKey('No station provides model "gpt-4o" — it may have been renamed or removed'))
+      .toBe('error.modelUnknown');
+  });
+
+  // v0.7.90 — upstream refusals, copied verbatim from upstreamFailureMessage().
+  // These are the "not your config, or your key" family, as opposed to the
+  // pool-state family above.
+  it2('tells the upstream refusal causes apart', () => {
+    e2(friendlyErrorKey('Upstream rejected the credentials (401/403)')).toBe('error.upstreamAuth');
+    e2(friendlyErrorKey('Upstream endpoint or model not found (404)')).toBe('error.upstreamNotFound');
+    e2(friendlyErrorKey('Upstream rate limited the request (429)')).toBe('error.upstreamRateLimited');
+    e2(friendlyErrorKey('Upstream returned a server error (5xx)')).toBe('error.upstreamServerError');
+    e2(friendlyErrorKey('Could not reach any station')).toBe('error.upstreamUnreachable');
+    e2(friendlyErrorKey('All stations failed')).toBe('error.allStationsFailed');
+  });
 });

@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { useChatStore } from '../../stores/chatStore';
 import { useAuthStore } from '../../stores/authStore';
-import { MessageSquarePlus, Settings, Trash2, LogOut, Users, Users2, Shield, User, Brain, Globe, Lock, Eye, EyeOff, FolderOpen, X, Swords, PanelLeftClose, ScrollText, Download, Upload, Search, Pin, PinOff, FolderInput, Folder, ChevronDown, ChevronRight } from 'lucide-react';
+import { MessageSquarePlus, Settings, Trash2, LogOut, Users, Users2, Shield, User, Brain, Globe, Lock, Eye, EyeOff, FolderOpen, X, Swords, PanelLeftClose, ScrollText, Download, Upload, Search, Pin, PinOff, FolderInput, Folder, ChevronDown, ChevronRight, MoreHorizontal } from 'lucide-react';
 import { useTranslation } from '../../i18n';
 import { conversationApi } from '../../services/api';
 import type { ConversationVisibility, Conversation } from '../../types';
@@ -46,6 +46,12 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
   const [newFolderName, setNewFolderName] = useState('');
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
 
+  // Touch-only overflow menu (v0.7.88). The row's five inline actions are 44px
+  // each on a coarse pointer (.touch-target), which ate the whole 263px row and
+  // left the title one character wide. On touch they collapse into this one
+  // menu; the inline row is unchanged for mice.
+  const [actionMenuId, setActionMenuId] = useState<string | null>(null);
+
   // Conversation search (title + message content, server-side). Debounced; when
   // the query is empty we fall back to the full conversation list.
   const [query, setQuery] = useState('');
@@ -74,16 +80,17 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
 
   // a11y (v0.7.53): Escape closes whichever sidebar menu is open.
   useEffect(() => {
-    if (!showNewMenu && folderMenuId === null) return;
+    if (!showNewMenu && folderMenuId === null && actionMenuId === null) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setShowNewMenu(false);
         setFolderMenuId(null);
+        setActionMenuId(null);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [showNewMenu, folderMenuId]);
+  }, [showNewMenu, folderMenuId, actionMenuId]);
 
   const handleExport = async () => {
     try {
@@ -351,8 +358,10 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
 
                   {/* Pin / move-to-folder actions. Hidden until hover only where a
                       hover-capable pointer exists — touch has no hover, so on a phone
-                      these would otherwise be permanently invisible. */}
-                  <div className="pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 flex items-center gap-0.5 transition-all duration-150 ml-1">
+                      these would otherwise be permanently invisible. On touch the whole
+                      strip is replaced by the ⋯ menu below: five 44px tap targets
+                      (v0.7.86) left the title 12px wide on a 263px row. */}
+                  <div className="hidden pointer-fine:flex pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 items-center gap-0.5 transition-all duration-150 ml-1">
                     <button
                       onClick={(e) => handleTogglePin(e, conv.id, conv.pinned)}
                       className="touch-target p-1 rounded-md hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)] transition-all duration-150"
@@ -395,6 +404,83 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
                       {deleteConfirmId === conv.id ? <X size={13} /> : <Trash2 size={13} />}
                     </button>
                   </div>
+
+                  {/* Touch-only overflow trigger + menu (v0.7.88). One 44px target
+                      instead of five, so the title keeps the row. Labelled items also
+                      beat bare icons on a phone, where there is no tooltip to hover. */}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(null); setActionMenuId(actionMenuId === conv.id ? null : conv.id); }}
+                    aria-haspopup="menu"
+                    aria-expanded={actionMenuId === conv.id}
+                    className="pointer-fine:hidden touch-target flex-shrink-0 ml-1 p-1 rounded-md text-[var(--color-text-tertiary)]"
+                    title={t('sidebar.moreActions')}
+                    aria-label={t('sidebar.moreActions')}
+                  >
+                    <MoreHorizontal size={16} />
+                  </button>
+
+                  {actionMenuId === conv.id && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setActionMenuId(null); setDeleteConfirmId(null); }} aria-hidden />
+                      <div
+                        role="menu"
+                        className="absolute right-2 top-full mt-0.5 z-50 w-52 rounded-xl border border-[var(--color-border-light)] bg-[var(--color-main-surface-secondary)] shadow-lg overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={(e) => { handleTogglePin(e, conv.id, conv.pinned); setActionMenuId(null); }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-[13px] text-[var(--color-text-primary)] hover:bg-[var(--color-sidebar-surface-hover)]"
+                        >
+                          {conv.pinned ? <PinOff size={14} className="text-[var(--color-text-tertiary)] flex-shrink-0" /> : <Pin size={14} className="text-[var(--color-text-tertiary)] flex-shrink-0" />}
+                          <span className="truncate">{conv.pinned ? t('sidebar.unpin') : t('sidebar.pin')}</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => { setActionMenuId(null); setNewFolderName(''); setFolderMenuId(conv.id); }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-[13px] text-[var(--color-text-primary)] hover:bg-[var(--color-sidebar-surface-hover)]"
+                        >
+                          <FolderInput size={14} className="text-[var(--color-text-tertiary)] flex-shrink-0" />
+                          <span className="truncate">{t('sidebar.moveToFolder')}</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={(e) => { handleToggleVisibility(e, conv.id, conv.visibility); setActionMenuId(null); }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-[13px] text-[var(--color-text-primary)] hover:bg-[var(--color-sidebar-surface-hover)]"
+                        >
+                          {conv.visibility === 'private' ? <Globe size={14} className="text-[var(--color-text-tertiary)] flex-shrink-0" /> : <Lock size={14} className="text-[var(--color-text-tertiary)] flex-shrink-0" />}
+                          <span className="truncate">{conv.visibility === 'private' ? t('conversation.makePublic') : t('conversation.makePrivate')}</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={(e) => { handleToggleSelfReview(e, conv.id, conv.selfReview); setActionMenuId(null); }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-[13px] text-[var(--color-text-primary)] hover:bg-[var(--color-sidebar-surface-hover)]"
+                        >
+                          {conv.selfReview ? <EyeOff size={14} className="text-[var(--color-text-tertiary)] flex-shrink-0" /> : <Eye size={14} className="text-[var(--color-text-tertiary)] flex-shrink-0" />}
+                          <span className="truncate">{t('conversation.toggleSelfReview')}</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          /* Two taps, same as the desktop icon: the first arms the
+                             confirm, the second deletes. The menu stays open between. */
+                          onClick={async (e) => { const armed = deleteConfirmId === conv.id; await handleDelete(e, conv.id); if (armed) setActionMenuId(null); }}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-[13px] border-t border-[var(--color-border-light)] ${
+                            deleteConfirmId === conv.id
+                              ? 'bg-red-500/15 text-red-400'
+                              : 'text-[var(--color-text-primary)] hover:bg-[var(--color-sidebar-surface-hover)]'
+                          }`}
+                        >
+                          <Trash2 size={14} className={`flex-shrink-0 ${deleteConfirmId === conv.id ? 'text-red-400' : 'text-[var(--color-text-tertiary)]'}`} />
+                          <span className="truncate">{deleteConfirmId === conv.id ? t('common.confirm') : t('sidebar.deleteChat')}</span>
+                        </button>
+                      </div>
+                    </>
+                  )}
 
                   {/* Move-to-folder dropdown */}
                   {folderMenuId === conv.id && (

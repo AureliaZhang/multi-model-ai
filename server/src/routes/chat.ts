@@ -10,7 +10,15 @@ import { getDb } from '../database';
 import { ApiResponse } from '../types';
 import { loadEnabledMcpTools, resolveToolCall, executeToolCall } from '../services/mcpClient';
 import { generateEmbedding, serializeEmbedding, vectorSearch } from '../services/embeddings';
-import { getStationsForModel as getModelStations } from '../services/modelInvocation';
+import {
+  getStationsForModel as getModelStations,
+  diagnoseNoStation,
+  noStationMessage,
+  classifyUpstreamFailures,
+  upstreamFailureMessage,
+  sanitizeUpstreamDetail,
+  type StationFailure,
+} from '../services/modelInvocation';
 import { checkUserQuota } from '../services/quota';
 import { getActiveScripts, applyRegexScripts } from '../services/regexEngine';
 import { getErrorMessage } from '../utils/errors';
@@ -275,9 +283,15 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
     // pool before, 503-ing admins whose model was admin-only).
     const stations = getModelStations(modelNormalizedName, { adminPool: isAdmin });
     if (stations.length === 0) {
+      // Say WHICH of the three states this is (v0.7.89). The old single message
+      // ("no healthy stations, wait and retry") sent the owner hunting for a
+      // provider outage when the real cause was that a freshly pulled model is
+      // left disabled by design — see routes/stations.ts "First pull: nothing selected".
+      const reason = diagnoseNoStation(modelNormalizedName);
       return res.status(503).json({
         success: false,
-        error: `No healthy stations available for model "${modelNormalizedName}"`,
+        error: noStationMessage(reason, modelNormalizedName),
+        reason,
       });
     }
 
@@ -479,6 +493,10 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
     // Load enabled MCP tools
     const mcpTools = loadEnabledMcpTools(db);
 
+    // What each station actually said when it refused (v0.7.90) — collected so
+    // the failure can name a cause instead of a bare "All stations failed".
+    const stationFailures: StationFailure[] = [];
+
     for (const s of stations) {
       try {
         const requestBody: ChatRequestBody = {
@@ -502,7 +520,14 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
         });
 
         if (!response.ok) {
-          console.error(`Station ${s.station.name} returned ${response.status}`);
+          // Read the body before discarding the attempt — this is where the
+          // provider says WHY (invalid key, unknown model, quota). It used to be
+          // dropped on the floor, leaving the user with "All stations failed".
+          let body = '';
+          try { body = await response.text(); } catch { /* body already consumed/absent */ }
+          const detail = sanitizeUpstreamDetail(body, s.station.apiKey);
+          console.error(`Station ${s.station.name} returned ${response.status}: ${detail}`);
+          stationFailures.push({ stationName: s.station.name, status: response.status, detail });
           continue;
         }
 
@@ -658,7 +683,10 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
         // Success - break out of failover loop
         break;
       } catch (err: unknown) {
-        console.error(`Station ${s.station.name} failed:`, getErrorMessage(err));
+        const detail = sanitizeUpstreamDetail(getErrorMessage(err), s.station.apiKey);
+        console.error(`Station ${s.station.name} failed:`, detail);
+        // status null = the request never landed (DNS, refused, timeout)
+        stationFailures.push({ stationName: s.station.name, status: null, detail });
         // Mark station unhealthy temporarily
         const failTime = new Date().toISOString();
         db.prepare('UPDATE stations SET health_status = ?, updated_at = ? WHERE id = ?')
@@ -668,6 +696,14 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
     }
 
     if (!assistantContent) {
+      const kind = classifyUpstreamFailures(stationFailures);
+      const summary = upstreamFailureMessage(kind);
+      // Per-station breakdown: admins only. It names stations and echoes
+      // upstream bodies, which a regular member has no way to act on anyway —
+      // their message already says to fetch an admin.
+      const detailLines = stationFailures.map(
+        (f) => `${f.stationName}: ${f.status !== null ? `HTTP ${f.status}` : 'no response'}${f.detail ? ` — ${f.detail}` : ''}`
+      );
       logApiUsage({
         userId: req.user?.id || conv.user_id || null,
         username: req.user?.username || null,
@@ -676,10 +712,14 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
         modelNormalized: modelNormalizedName,
         conversationId,
         status: 'error',
-        errorMessage: 'All stations failed',
+        // The log keeps the full breakdown regardless of who was asking.
+        errorMessage: detailLines.length ? `${summary} | ${detailLines.join(' | ')}` : summary,
         latencyMs: Date.now() - chatStarted,
       });
-      res.write(`data: ${JSON.stringify({ error: 'All stations failed' })}\n\n`);
+      res.write(`data: ${JSON.stringify({
+        error: summary,
+        ...(isAdmin && detailLines.length ? { detail: detailLines.join('\n') } : {}),
+      })}\n\n`);
       res.write('data: [DONE]\n\n');
       res.end();
       return;

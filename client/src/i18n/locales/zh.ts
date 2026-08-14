@@ -91,6 +91,7 @@ const zh = {
   'sidebar.unpin': '取消置顶',
   'sidebar.pinnedSection': '已置顶',
   'sidebar.moveToFolder': '移动到文件夹',
+  'sidebar.moreActions': '更多操作',
   'sidebar.removeFromFolder': '移出文件夹',
   'sidebar.newFolderPlaceholder': '新建文件夹…',
   'sidebar.guestCannotCreate': '访客可以浏览但无法创建对话',
@@ -331,6 +332,8 @@ const zh = {
   // 对话可见性与自我审查
   'conversation.public': '公开',
   'conversation.private': '私密',
+  'conversation.makePublic': '设为公开',
+  'conversation.makePrivate': '设为私密',
   'conversation.visibilityDesc': '公开对话对所有用户可见',
   'conversation.selfReview': '自我审查',
   'conversation.selfReviewDesc': 'AI 在显示前检查回答中的语病、错别字和格式问题',
@@ -649,6 +652,16 @@ const zh = {
 
   // 友好错误提示
   'error.noStation': '这个模型暂时没有可用的服务节点。稍等片刻重试，或先换一个模型试试。',
+  'error.modelNotEnabled': '这个模型还没启用。管理员到「设置 → 中转站 → 模型列表」把它勾上即可（新拉取的模型默认是关着的）。',
+  'error.stationDisabled': '提供这个模型的中转站被关掉了。管理员到「设置 → 中转站」把它重新打开即可。',
+  'error.modelUnknown': '找不到这个模型，可能已被改名或移除。换一个模型试试；如果是旧对话，重新选一次模型再发。',
+  'error.upstreamAuth': '中转站拒绝了认证（401/403）——多半是 API key 填错了或已过期。到「设置 → 中转站」重新填一次 key。',
+  'error.upstreamNotFound': '中转站找不到这个接口或模型（404）——检查地址填得对不对（常见是漏了结尾的 /v1，或模型名对方不认）。',
+  'error.upstreamRateLimited': '中转站限流了（429）。这个是暂时的，等一会儿重试，或先换个模型。',
+  'error.upstreamServerError': '中转站自己出错了（5xx），是对方服务的问题，不是你的配置。可以稍后重试或换个中转站。',
+  'error.upstreamUnreachable': '连不上中转站——检查地址是否正确、对方是否还在服务。',
+  'error.allStationsFailed': '所有中转站都调用失败了。展开下面的详情看每个站的具体报错。',
+  'error.stationDetails': '查看各中转站的具体报错',
   'error.quota': '你本月的用量额度已用完。需要继续使用请联系管理员调高额度。',
   'error.rateLimit': '发送得太频繁啦，休息几秒再试。',
   'error.network': '连不上服务器了，请检查网络后重试。',

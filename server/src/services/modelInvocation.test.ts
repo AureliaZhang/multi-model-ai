@@ -8,6 +8,7 @@ import {
 } from './modelInvocation';
 import type { StationModelJoinRow } from '../dbRows';
 import { _resetRoundRobin } from './loadBalancer';
+import { normalizeModelName } from './normalizeModelName';
 
 function row(
   partial: Partial<StationModelJoinRow> & Pick<StationModelJoinRow, 'model_id' | 'id' | 'name'>
@@ -266,5 +267,98 @@ describe('token usage capture (v0.7.66)', () => {
     expect(extractSseUsage('[DONE]')).toBeNull();
     expect(extractSseUsage('not json')).toBeNull();
     expect(extractSseUsage('{"usage":{"prompt_tokens":"NaN?"}}')).toBeNull();
+  });
+});
+
+// v0.7.89: telling the three empty-pool states apart
+import { diagnoseNoStationFromRows, noStationMessage } from './modelInvocation';
+
+describe('diagnoseNoStation (v0.7.89)', () => {
+  const rows = (...r: [string, number][]) => r.map(([model_id, station_enabled]) => ({ model_id, station_enabled }));
+
+  it('no row for the model at all → model-unknown', () => {
+    expect(diagnoseNoStationFromRows(rows(['gpt-4o', 1]), 'claude-sonnet-4')).toBe('model-unknown');
+    expect(diagnoseNoStationFromRows([], 'gpt-4o')).toBe('model-unknown');
+  });
+
+  it('every station carrying the model is switched off → station-disabled', () => {
+    expect(diagnoseNoStationFromRows(rows(['gpt-4o', 0], ['gpt-4o', 0]), 'gpt-4o')).toBe('station-disabled');
+  });
+
+  it('at least one live station has it → the pool flag is what excluded it', () => {
+    // The exact state a first pull leaves behind: enabled=0/admin_enabled=0.
+    expect(diagnoseNoStationFromRows(rows(['gpt-4o', 1]), 'gpt-4o')).toBe('model-not-enabled');
+    // Mixed: one station off, one on — the live one decides.
+    expect(diagnoseNoStationFromRows(rows(['gpt-4o', 0], ['gpt-4o', 1]), 'gpt-4o')).toBe('model-not-enabled');
+  });
+
+  it('matches on the NORMALIZED name, like the pool query does', () => {
+    expect(diagnoseNoStationFromRows(rows(['openai/GPT-4o', 1]), normalizeModelName('openai/GPT-4o'))).toBe('model-not-enabled');
+  });
+
+  it('each reason gets a distinct message the client can match on', () => {
+    const msgs = (['model-unknown', 'station-disabled', 'model-not-enabled'] as const).map((r) => noStationMessage(r, 'gpt-4o'));
+    expect(new Set(msgs).size).toBe(3);
+    expect(msgs.every((m) => m.includes('gpt-4o'))).toBe(true);
+    // The client regexes key off these fragments — keep them in sync.
+    expect(msgs[0]).toMatch(/no station provides model/i);
+    expect(msgs[1]).toMatch(/every station providing model .* is disabled/i);
+    expect(msgs[2]).toMatch(/is not enabled for use/i);
+  });
+});
+
+// v0.7.90: naming the upstream cause instead of "All stations failed"
+import { classifyUpstreamFailures, upstreamFailureMessage, sanitizeUpstreamDetail, type StationFailure } from './modelInvocation';
+
+describe('classifyUpstreamFailures (v0.7.90)', () => {
+  const f = (status: number | null, detail = ''): StationFailure => ({ stationName: 's', status, detail });
+
+  it('picks the cause the user can act on, not the most common one', () => {
+    // A wrong key matters more than another station merely timing out.
+    expect(classifyUpstreamFailures([f(null), f(401)])).toBe('upstream-auth');
+    expect(classifyUpstreamFailures([f(403)])).toBe('upstream-auth');
+    expect(classifyUpstreamFailures([f(404), f(500)])).toBe('upstream-not-found');
+    expect(classifyUpstreamFailures([f(502)])).toBe('upstream-server-error');
+  });
+
+  it('rate limiting ranks last — it must not mask a real misconfiguration', () => {
+    expect(classifyUpstreamFailures([f(429), f(401)])).toBe('upstream-auth');
+    expect(classifyUpstreamFailures([f(429), f(500)])).toBe('upstream-server-error');
+    expect(classifyUpstreamFailures([f(429)])).toBe('upstream-rate-limited');
+  });
+
+  it('nothing answered at all → unreachable; nothing recorded → unknown', () => {
+    expect(classifyUpstreamFailures([f(null), f(null)])).toBe('upstream-unreachable');
+    expect(classifyUpstreamFailures([])).toBe('upstream-unknown');
+  });
+
+  it('every kind has its own client-matchable message', () => {
+    const kinds = ['upstream-auth', 'upstream-not-found', 'upstream-rate-limited', 'upstream-server-error', 'upstream-unreachable', 'upstream-unknown'] as const;
+    const msgs = kinds.map(upstreamFailureMessage);
+    expect(new Set(msgs).size).toBe(kinds.length);
+  });
+});
+
+describe('sanitizeUpstreamDetail (v0.7.90)', () => {
+  it('never echoes the station key back to the browser', () => {
+    const key = 'sk-abcdef1234567890';
+    const out = sanitizeUpstreamDetail(`{"error":"bad key ${key}"}`, key);
+    expect(out).not.toContain(key);
+    expect(out).toContain('***');
+  });
+
+  it('redacts token-shaped strings even when they are not this station key', () => {
+    expect(sanitizeUpstreamDetail('leaked sk-9f8e7d6c5b4a3210 here', 'other-key')).not.toContain('sk-9f8e7d6c5b4a3210');
+  });
+
+  it('collapses whitespace and truncates the HTML error pages some providers return', () => {
+    expect(sanitizeUpstreamDetail('a\n\n  b', 'k')).toBe('a b');
+    const long = sanitizeUpstreamDetail('x'.repeat(500), 'k');
+    expect(long.length).toBeLessThanOrEqual(301);
+    expect(long.endsWith('…')).toBe(true);
+  });
+
+  it('tolerates an empty body', () => {
+    expect(sanitizeUpstreamDetail('', 'k')).toBe('');
   });
 });

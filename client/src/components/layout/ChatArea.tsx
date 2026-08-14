@@ -25,6 +25,7 @@ export function ChatArea({ isGuest = false, onSignIn, sidebarCollapsed = false, 
   const isStreaming = useChatStore(s => s.isStreaming);
   const streamingContent = useChatStore(s => s.streamingContent);
   const error = useChatStore(s => s.error);
+  const errorDetail = useChatStore(s => s.errorDetail);
   const clearError = useChatStore(s => s.clearError);
   const lastFailedSend = useChatStore(s => s.lastFailedSend);
   const retryLastSend = useChatStore(s => s.retryLastSend);
@@ -160,14 +161,39 @@ export function ChatArea({ isGuest = false, onSignIn, sidebarCollapsed = false, 
             )}
 
             {error && (
-              <div className="mx-4 mb-4 p-3 rounded-xl bg-[var(--color-surface-error)] border border-[rgba(239,68,68,0.2)] text-[var(--color-text-error)] text-sm flex items-center justify-between">
-                <span title={error}>{(() => { const k = friendlyErrorKey(error); return k ? t(k) : error; })()}</span>
-                <div className="flex items-center gap-3 ml-2 shrink-0">
-                  {lastFailedSend && (
-                    <button onClick={retryLastSend} className="text-[var(--color-text-error)] hover:opacity-70 text-xs font-medium">{t('common.retry')}</button>
-                  )}
-                  <button onClick={clearError} className="text-[var(--color-text-error)] hover:opacity-70 text-xs font-medium">{t('common.dismiss')}</button>
+              <div className="mx-4 mb-4 p-3 rounded-xl bg-[var(--color-surface-error)] border border-[rgba(239,68,68,0.2)] text-[var(--color-text-error)] text-sm">
+                <div className="flex items-center justify-between">
+                  <span title={error}>{(() => { const k = friendlyErrorKey(error); return k ? t(k) : error; })()}</span>
+                  <div className="flex items-center gap-3 ml-2 shrink-0">
+                    {lastFailedSend && (
+                      <button onClick={retryLastSend} className="text-[var(--color-text-error)] hover:opacity-70 text-xs font-medium">{t('common.retry')}</button>
+                    )}
+                    <button onClick={clearError} className="text-[var(--color-text-error)] hover:opacity-70 text-xs font-medium">{t('common.dismiss')}</button>
+                  </div>
                 </div>
+                {/* What each station actually answered (v0.7.90, admins only —
+                    the server omits it otherwise). Collapsed by default so a
+                    401 body doesn't shove the composer down the screen, and a
+                    real element rather than a title= tooltip, which a phone
+                    cannot hover. */}
+                {errorDetail && (
+                  <details
+                    className="mt-2"
+                    // The banner sits inside the scrolling message list, so
+                    // expanding it otherwise grows the box below the fold —
+                    // exactly the text the user opened it to read.
+                    onToggle={(e) => {
+                      if (e.currentTarget.open) e.currentTarget.scrollIntoView({ block: 'nearest' });
+                    }}
+                  >
+                    <summary className="cursor-pointer text-xs opacity-80 hover:opacity-100 select-none">
+                      {t('error.stationDetails')}
+                    </summary>
+                    <pre className="mt-1.5 max-h-40 overflow-auto whitespace-pre-wrap break-words text-[11px] leading-relaxed opacity-90 font-mono">
+                      {errorDetail}
+                    </pre>
+                  </details>
+                )}
               </div>
             )}
 

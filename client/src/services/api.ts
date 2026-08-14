@@ -203,7 +203,8 @@ export const personaApi = {
 export interface StreamChatCallbacks {
   onChunk: (content: string) => void;
   onDone: () => void;
-  onError: (error: string) => void;
+  /** `detail` carries the per-station breakdown (admins only, v0.7.90). */
+  onError: (error: string, detail?: string) => void;
   onToolCall?: (toolCall: { id: string; name: string; arguments: Record<string, unknown> }) => void;
   onToolResult?: (toolResult: { id: string; name: string; result: string }) => void;
   onAttachments?: (attachments: { id: string; type: string; filename: string; mimeType: string }[]) => void;
@@ -277,7 +278,7 @@ export function streamChat(
             try {
               const parsed = JSON.parse(data);
               if (parsed.error) {
-                callbacks.onError(parsed.error);
+                callbacks.onError(parsed.error, parsed.detail);
                 return;
               }
               if (parsed.attachments) {

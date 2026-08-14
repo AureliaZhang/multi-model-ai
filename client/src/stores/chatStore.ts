@@ -27,7 +27,7 @@ function startStream(
 ): void {
   const { convId, message, modelNormalizedName, attachments, fileIds, webSearch } = params;
 
-  set({ isStreaming: true, streamingContent: '', error: null, pendingToolCalls: [] });
+  set({ isStreaming: true, streamingContent: '', error: null, errorDetail: null, pendingToolCalls: [] });
 
   // Convert attachments to API format
   const apiAttachments = attachments?.map(a => ({
@@ -112,11 +112,12 @@ function startStream(
         set({ streamingContent: regexContent });
       },
       // onError — keep the params so the user can retry (e.g. all stations down)
-      onError: (error) => {
+      onError: (error, detail) => {
         set({
           isStreaming: false,
           streamingContent: '',
           error,
+          errorDetail: detail ?? null,
           abortController: null,
           pendingToolCalls: [],
           lastFailedSend: params,
@@ -188,6 +189,8 @@ interface ChatState {
   isStreaming: boolean;
   streamingContent: string;
   error: string | null;
+  /** Per-station breakdown behind `error` — admins only, may be absent (v0.7.90). */
+  errorDetail: string | null;
   abortController: AbortController | null;
   pendingToolCalls: ToolCallInfo[];
   currentVisibility: ConversationVisibility;
@@ -230,6 +233,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isStreaming: false,
   streamingContent: '',
   error: null,
+  errorDetail: null,
   abortController: null,
   pendingToolCalls: [],
   currentVisibility: 'private', // team default (v0.7.58): new chats start private
@@ -524,7 +528,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  clearError: () => set({ error: null }),
+  clearError: () => set({ error: null, errorDetail: null }),
   setVisibility: (v: ConversationVisibility) => set({ currentVisibility: v }),
   setSelfReview: (v: boolean) => set({ currentSelfReview: v }),
 }));

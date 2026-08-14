@@ -121,6 +121,135 @@ export function getStationsForModel(
   return roundRobin(normalizedName, pool);
 }
 
+/** Why getStationsForModel() came back empty. */
+export type NoStationReason = 'model-unknown' | 'station-disabled' | 'model-not-enabled';
+
+/**
+ * Explain an empty station pool (v0.7.89). All three states used to surface as
+ * one "no healthy stations available" message telling the user to wait and
+ * retry — misleading, because none of them is transient and waiting never helps.
+ * Note what is NOT in here: an unhealthy station is not a cause, since
+ * filterStationsForModel falls back to unhealthy ones rather than returning [].
+ *
+ * Only meaningful when the pool really is empty; call it on that path only.
+ * Pure half, so it can be tested without SQLite (same split as
+ * filterStationsForModel / getStationsForModel above).
+ */
+export function diagnoseNoStationFromRows(
+  rows: { model_id: string; station_enabled: number }[],
+  normalizedName: string
+): NoStationReason {
+  const matching = rows.filter((r) => normalizeModelName(r.model_id) === normalizedName);
+  if (matching.length === 0) return 'model-unknown';
+  if (!matching.some((r) => r.station_enabled === 1)) return 'station-disabled';
+  // The model exists behind a live station, so the only filter left is the pool
+  // flag (station_models.enabled / admin_enabled).
+  return 'model-not-enabled';
+}
+
+export function diagnoseNoStation(normalizedName: string): NoStationReason {
+  const db = getDb();
+  // Deliberately unfiltered: we are asking why the filters excluded everything.
+  const rows = db.prepare(`
+    SELECT sm.model_id, s.enabled AS station_enabled
+    FROM station_models sm
+    JOIN stations s ON sm.station_id = s.id
+  `).all() as { model_id: string; station_enabled: number }[];
+  return diagnoseNoStationFromRows(rows, normalizedName);
+}
+
+/**
+ * Server-side text for each reason. The client matches on these to pick a
+ * localized string (client/src/utils/errors.ts), so they are a contract —
+ * both sides are unit-tested against them. Keep them distinctive.
+ */
+export function noStationMessage(reason: NoStationReason, normalizedName: string): string {
+  switch (reason) {
+    case 'model-unknown':
+      return `No station provides model "${normalizedName}" — it may have been renamed or removed`;
+    case 'station-disabled':
+      return `Every station providing model "${normalizedName}" is disabled`;
+    case 'model-not-enabled':
+      return `Model "${normalizedName}" is not enabled for use — an admin must enable it in Settings`;
+  }
+}
+
+/** One station's failed attempt, kept so the user can be told what actually happened. */
+export interface StationFailure {
+  stationName: string;
+  /** HTTP status when the station answered, null when the request never landed. */
+  status: number | null;
+  /** Upstream body or thrown error, already truncated and key-redacted. */
+  detail: string;
+}
+
+export type UpstreamFailureKind =
+  | 'upstream-auth'
+  | 'upstream-not-found'
+  | 'upstream-rate-limited'
+  | 'upstream-server-error'
+  | 'upstream-unreachable'
+  | 'upstream-unknown';
+
+/**
+ * Turn a round of failed attempts into ONE cause (v0.7.90). Before this, every
+ * upstream failure — a wrong API key, a typo'd base URL, the provider being
+ * down — collapsed into the bare string "All stations failed", with each
+ * station's real answer thrown away (the !response.ok branch never even read
+ * the body). The owner had no way to tell "my key is wrong" from "they're down".
+ *
+ * Picked by severity of what the user must DO, not by count: a 401 anywhere is
+ * worth reporting even if another station merely timed out, because a wrong key
+ * is the actionable one. Rate limiting ranks last of the answered statuses — it
+ * is the only genuinely transient cause, so it should not mask a real misconfig.
+ */
+export function classifyUpstreamFailures(failures: StationFailure[]): UpstreamFailureKind {
+  if (failures.length === 0) return 'upstream-unknown';
+  const has = (pred: (s: number) => boolean) =>
+    failures.some((f) => f.status !== null && pred(f.status));
+
+  if (has((s) => s === 401 || s === 403)) return 'upstream-auth';
+  if (has((s) => s === 404)) return 'upstream-not-found';
+  if (has((s) => s >= 500)) return 'upstream-server-error';
+  if (has((s) => s === 429)) return 'upstream-rate-limited';
+  // Nothing answered at all → the requests never landed.
+  if (failures.every((f) => f.status === null)) return 'upstream-unreachable';
+  return 'upstream-unknown';
+}
+
+/**
+ * Client-matchable text per cause — same contract style as noStationMessage(),
+ * unit-tested on both sides.
+ */
+export function upstreamFailureMessage(kind: UpstreamFailureKind): string {
+  switch (kind) {
+    case 'upstream-auth':
+      return 'Upstream rejected the credentials (401/403)';
+    case 'upstream-not-found':
+      return 'Upstream endpoint or model not found (404)';
+    case 'upstream-rate-limited':
+      return 'Upstream rate limited the request (429)';
+    case 'upstream-server-error':
+      return 'Upstream returned a server error (5xx)';
+    case 'upstream-unreachable':
+      return 'Could not reach any station';
+    case 'upstream-unknown':
+      return 'All stations failed';
+  }
+}
+
+/**
+ * Keep a station's own key out of anything we echo back, and keep the line
+ * short enough to read — some providers return an entire HTML error page.
+ */
+export function sanitizeUpstreamDetail(raw: string, apiKey: string, max = 300): string {
+  let out = (raw || '').replace(/\s+/g, ' ').trim();
+  if (apiKey && apiKey.length >= 8) out = out.split(apiKey).join('***');
+  // Belt and braces: redact anything else shaped like a bearer token.
+  out = out.replace(/\b(sk-|Bearer\s+)[A-Za-z0-9_\-]{8,}/g, '$1***');
+  return out.length > max ? `${out.slice(0, max)}…` : out;
+}
+
 function defaultMarkStationHealth(stationId: string, status: 'healthy' | 'unhealthy'): void {
   const db = getDb();
   const now = new Date().toISOString();

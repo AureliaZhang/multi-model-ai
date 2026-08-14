@@ -146,7 +146,10 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
 
   if (!currentRoom) {
     return (
-      <div className="h-full flex items-center justify-center text-[var(--color-text-tertiary)]">
+      /* flex-1 min-w-0 for the same reason as the main return below: this is a
+         flex item of RoomsPage's right pane, so without it the spinner centres
+         inside a shrink-wrapped strip instead of the pane. */
+      <div className="h-full flex flex-1 min-w-0 items-center justify-center text-[var(--color-text-tertiary)]">
         <Loader2 className="animate-spin mr-2" size={18} /> {t('common.loading')}
       </div>
     );
@@ -237,7 +240,14 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
   const composerLocked = mode === 'chat' && (aiRunning || someoneElseHolds);
 
   return (
-    <div className="h-full flex flex-col bg-[var(--color-main-surface-primary)]">
+    /* flex-1 min-w-0: RoomsPage's right pane is a flex ROW (it has been since
+       v0.7.6, when the mobile list/detail switch needed `hidden md:flex` on it),
+       so this root is a flex ITEM. Without a grow factor it sized to its own
+       max-content instead of the column — measured at ~635px of a 1160px column,
+       leaving the rest of the window blank, and drifting with message length.
+       The sibling empty state escaped it only because it carries an explicit
+       w-full. */
+    <div className="h-full flex flex-1 min-w-0 flex-col bg-[var(--color-main-surface-primary)]">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[var(--color-border-light)]">
         {onBack && (
