@@ -26,7 +26,6 @@ const RoomsPage = lazy(() =>
 const GuideOverlay = lazy(() =>
   import('../guide/GuideOverlay').then((m) => ({ default: m.GuideOverlay }))
 );
-import { DailyModelModal } from '../prefs/DailyModelModal';
 import { ImageConfirmModal } from '../prefs/ImageConfirmModal';
 import { useModelStore } from '../../stores/modelStore';
 import { useChatStore } from '../../stores/chatStore';
@@ -88,7 +87,6 @@ export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
   // the icons are always aligned and evenly spaced (and can't cover anything).
   const withLang = (node: ReactNode) => (
     <>
-      {!isGuest && <DailyModelModal />}
       {!isGuest && <ImageConfirmModal />}
       {node}
     </>

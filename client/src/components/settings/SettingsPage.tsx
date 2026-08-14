@@ -14,6 +14,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { webSearchApi } from '../../services/api';
 import { AnnouncementManager } from './AnnouncementManager';
 import { TopRightToggles } from '../layout/TopRightToggles';
+import { ModelPrefsSection } from './ModelPrefsSection';
 
 interface SettingsPageProps {
   onClose: () => void;
@@ -296,6 +297,9 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-3xl mx-auto w-full">
+        {/* Default model slots (v0.7.92) — everyone's, so it sits above the
+            admin-only blocks. Replaces the daily-model modal. */}
+        <ModelPrefsSection />
         {/* Admin announcement (v0.7.76): compact card → dialog → preview → confirm */}
         {isAdmin && <AnnouncementManager />}
         {/* In-chat web search (v0.7.74): provider key + switch */}

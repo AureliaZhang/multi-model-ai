@@ -14,10 +14,6 @@ import { getErrorMessage } from '../utils/errors';
 const router = Router();
 router.use(requireAuth);
 
-function todayUtc(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function listModelsByCapability(
   cap: 'text' | 'image-gen' | 'tts',
   opts?: { adminPool?: boolean }
@@ -91,10 +87,6 @@ router.get('/', (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const row = getPrefsRow(userId);
-    const skip = row ? Boolean(row.skipDailyModal) : false;
-    const last = row?.lastModalDate || null;
-    const today = todayUtc();
-    const needsModal = !skip && last !== today;
 
     res.json({
       success: true,
@@ -102,10 +94,7 @@ router.get('/', (req: AuthRequest, res: Response) => {
         chatModel: row?.chatModel || null,
         imageModel: row?.imageModel || null,
         ttsModel: row?.ttsModel || null,
-        skipDailyModal: skip,
-        lastModalDate: last,
         autoTts: row ? Boolean(row.autoTts) : true,
-        needsDailyModal: needsModal,
         role: req.user!.role,
       },
     } as ApiResponse);
@@ -117,26 +106,21 @@ router.get('/', (req: AuthRequest, res: Response) => {
 router.put('/', (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const {
-      chatModel,
-      imageModel,
-      ttsModel,
-      skipDailyModal,
-      markModalSeen,
-      autoTts,
-    } = req.body || {};
+    const { chatModel, imageModel, ttsModel, autoTts } = req.body || {};
 
     const db = getDb();
     const existing = getPrefsRow(userId);
     const now = new Date().toISOString();
-    const today = todayUtc();
 
     const next = {
       chatModel: chatModel !== undefined ? (chatModel ? normalizeModelName(String(chatModel)) : null) : (existing?.chatModel ?? null),
       imageModel: imageModel !== undefined ? (imageModel ? normalizeModelName(String(imageModel)) : null) : (existing?.imageModel ?? null),
       ttsModel: ttsModel !== undefined ? (ttsModel ? normalizeModelName(String(ttsModel)) : null) : (existing?.ttsModel ?? null),
-      skipDailyModal: skipDailyModal !== undefined ? (skipDailyModal ? 1 : 0) : (existing?.skipDailyModal ? 1 : 0),
-      lastModalDate: markModalSeen ? today : (existing?.lastModalDate ?? null),
+      // v0.7.92: the daily-model modal is gone (its slots now live in Settings,
+      // editable any time). The two columns stay in the table — dropping columns
+      // in SQLite means rebuilding it, for no gain — but nothing writes them now.
+      skipDailyModal: existing?.skipDailyModal ? 1 : 0,
+      lastModalDate: existing?.lastModalDate ?? null,
       autoTts: autoTts !== undefined ? (autoTts ? 1 : 0) : (existing ? (existing.autoTts ? 1 : 0) : 1),
     };
 
@@ -180,10 +164,7 @@ router.put('/', (req: AuthRequest, res: Response) => {
         chatModel: row.chatModel,
         imageModel: row.imageModel,
         ttsModel: row.ttsModel,
-        skipDailyModal: Boolean(row.skipDailyModal),
-        lastModalDate: row.lastModalDate,
         autoTts: Boolean(row.autoTts),
-        needsDailyModal: false,
         role: req.user!.role,
       },
     });

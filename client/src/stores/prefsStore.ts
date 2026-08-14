@@ -12,10 +12,7 @@ export interface UserModelPrefs {
   chatModel: string | null;
   imageModel: string | null;
   ttsModel: string | null;
-  skipDailyModal: boolean;
-  lastModalDate: string | null;
   autoTts: boolean;
-  needsDailyModal: boolean;
   role?: string;
 }
 
@@ -23,13 +20,11 @@ interface PrefsState {
   prefs: UserModelPrefs | null;
   catalog: { chat: PrefsCatalogModel[]; image: PrefsCatalogModel[]; tts: PrefsCatalogModel[] } | null;
   loading: boolean;
-  showDailyModal: boolean;
   imageConfirm: { open: boolean; prompt: string } | null;
 
   fetchPrefs: () => Promise<void>;
   fetchCatalog: () => Promise<void>;
-  savePrefs: (patch: Partial<UserModelPrefs> & { markModalSeen?: boolean }) => Promise<boolean>;
-  closeDailyModal: () => void;
+  savePrefs: (patch: Partial<UserModelPrefs>) => Promise<boolean>;
   openImageConfirm: (prompt: string) => void;
   closeImageConfirm: () => void;
 }
@@ -49,7 +44,6 @@ export const usePrefsStore = create<PrefsState>((set) => ({
   prefs: null,
   catalog: null,
   loading: false,
-  showDailyModal: false,
   imageConfirm: null,
 
   fetchPrefs: async () => {
@@ -59,7 +53,6 @@ export const usePrefsStore = create<PrefsState>((set) => ({
       if (res.success && res.data) {
         set({
           prefs: res.data,
-          showDailyModal: !!res.data.needsDailyModal,
           loading: false,
         });
       } else {
@@ -86,22 +79,18 @@ export const usePrefsStore = create<PrefsState>((set) => ({
     if (patch.chatModel !== undefined) body.chatModel = patch.chatModel;
     if (patch.imageModel !== undefined) body.imageModel = patch.imageModel;
     if (patch.ttsModel !== undefined) body.ttsModel = patch.ttsModel;
-    if (patch.skipDailyModal !== undefined) body.skipDailyModal = patch.skipDailyModal;
     if (patch.autoTts !== undefined) body.autoTts = patch.autoTts;
-    if (patch.markModalSeen) body.markModalSeen = true;
 
     const res = await api<UserModelPrefs>('/prefs', {
       method: 'PUT',
       body: JSON.stringify(body),
     });
     if (res.success && res.data) {
-      set({ prefs: res.data, showDailyModal: false });
+      set({ prefs: res.data });
       return true;
     }
     return false;
   },
-
-  closeDailyModal: () => set({ showDailyModal: false }),
 
   openImageConfirm: (prompt) => set({ imageConfirm: { open: true, prompt } }),
   closeImageConfirm: () => set({ imageConfirm: null }),
