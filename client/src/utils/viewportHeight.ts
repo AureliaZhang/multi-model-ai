@@ -17,9 +17,19 @@ export function trackViewportHeight(): () => void {
   if (!vv) return () => {};
 
   const apply = () => {
-    // Pinch-zoom also shrinks visualViewport.height. Resizing the app shell for
-    // it would fight the user mid-gesture, so only track the unzoomed height.
-    if (vv.scale !== 1) return;
+    // Pinch-zoom also shrinks visualViewport.height, and resizing the app shell
+    // mid-gesture would fight the user — but *skipping* the write leaves the
+    // last value frozen in place, which is worse. On iOS a zoom is not always
+    // deliberate (focusing a control under 16px triggers one) and never undoes
+    // itself, so the shell could stay stuck at the keyboard-open height long
+    // after the keyboard was dismissed: composer marooned two thirds up the
+    // screen, blank below, until a reload. Dropping the property instead hands
+    // the rule back to its 100dvh fallback, which is never stale. v0.7.95 also
+    // removes the usual cause by raising touch control fonts to 16px.
+    if (vv.scale !== 1) {
+      document.documentElement.style.removeProperty('--app-height');
+      return;
+    }
     document.documentElement.style.setProperty('--app-height', `${vv.height}px`);
   };
 

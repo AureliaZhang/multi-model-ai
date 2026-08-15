@@ -234,6 +234,30 @@ html, body, #root {
   }
 }
 
+/* No zoom-on-focus (v0.7.95).
+   iOS Safari magnifies the whole page whenever a focused input/textarea/select
+   computes under 16px — and it never zooms back out. The page then sits wider
+   AND taller than the screen until the user pinches out or reloads, and the
+   next tap on any control does it again. This app's controls are 13–15px for
+   desktop density, so on a phone every single one of them triggers it; the
+   composer (15px) fired it on the very first tap.
+   It also broke the keyboard-safe height: utils/viewportHeight ignores resize
+   events while zoomed, so `--app-height` could stay frozen at the
+   keyboard-open value, stranding the composer two thirds up the screen with
+   blank space beneath it (owner, real iPhone 13 Pro).
+   `maximum-scale=1` / `user-scalable=no` in the viewport meta is not the fix:
+   iOS has deliberately ignored both since iOS 10, because they take zoom away
+   from people who need it. Raising the font is the only lever that works.
+   Coarse pointers only, so desktop density is untouched — and nothing in the
+   app asks for a control above 16px, so this only ever raises. */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
 body {
   font-family: var(--font-sans);
   background-color: var(--color-main-surface-primary);
