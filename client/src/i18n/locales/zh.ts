@@ -160,6 +160,9 @@ const zh = {
 
   // 设置
   'settings.title': '设置',
+  // v0.7.94 — 侧边栏底部的六个入口搬进来了
+  'settings.toolsTitle': '工具与数据',
+  'settings.toolsDesc': '记忆库、文件库、对话导入导出，以及管理员专用的成员和用量页面。',
   'settings.relayStations': '中转站',
   'settings.relayStationsDesc': '中转站 — 配置 API 中转端点',
   'settings.addStation': '添加中转站',

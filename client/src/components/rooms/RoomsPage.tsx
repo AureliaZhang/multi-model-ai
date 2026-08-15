@@ -37,9 +37,14 @@ export function RoomsPage({ onClose }: RoomsPageProps) {
       {/* Team announcement also shows in the group-chat view (v0.7.76) */}
       <AnnouncementBanner />
       <div className="flex-1 min-h-0 flex">
-      {/* Left: group list — full-width on mobile when nothing is open; a fixed
-          column on desktop. Hidden on mobile once a group is open (list/detail). */}
-      <div className={`${selectedId ? 'hidden' : 'flex'} ${listOpen ? 'md:flex' : 'md:hidden'} w-full md:w-[280px] flex-shrink-0 border-r border-[var(--color-border-light)] flex-col`}>
+      {/* Left: group list — full-width on mobile when nothing is open; the "1"
+          of the page's 1:2:3 desktop split (this : group chat : AI replies,
+          owner request). Clamped 200–320px so it neither squeezes group names
+          on a laptop nor wastes a third of an ultrawide on a list of names —
+          past those bounds the remaining space still splits 2:3. Hidden on
+          mobile once a group is open (list/detail), and collapsible on desktop
+          via listOpen, in which case the 2:3 below simply takes the full width. */}
+      <div className={`${selectedId ? 'hidden' : 'flex'} ${listOpen ? 'md:flex' : 'md:hidden'} w-full md:w-auto md:flex-[1] md:min-w-[200px] md:max-w-[320px] flex-shrink-0 border-r border-[var(--color-border-light)] flex-col`}>
         <div className="p-2 flex items-center gap-1.5 border-b border-[var(--color-border-light)]">
           <button
             onClick={onClose}
@@ -130,7 +135,13 @@ export function RoomsPage({ onClose }: RoomsPageProps) {
 
       {/* Right: open group or empty state. On mobile this is hidden until a
           group is picked (then it's full-width with a back arrow). */}
-      <div className={`${selectedId ? 'flex' : 'hidden md:flex'} flex-1 min-w-0`}>
+      {/* md:flex-[5] is the "2+3" of the 1:2:3 split: this wrapper is a SIBLING
+          of the group list, so the ratio the user sees is decided here, not
+          inside GroupChatLayout. Leaving it at flex-1 next to a flex-[1] list
+          would split the page 1:1 and then divide 2:3 inside that half —
+          the same sibling-context trap that made group chat render at
+          max-content in v0.7.87. */}
+      <div className={`${selectedId ? 'flex' : 'hidden md:flex'} flex-1 md:flex-[5] min-w-0`}>
         {selectedId ? (
           <GroupChatLayout key={selectedId} roomId={selectedId} onBack={() => setSelectedId(null)} />
         ) : (

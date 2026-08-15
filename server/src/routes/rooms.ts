@@ -18,7 +18,15 @@ import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../database';
 import { requireAuth } from '../middleware/auth';
-import { streamInvokeModel } from '../services/modelInvocation';
+import {
+  streamInvokeModel,
+  getStationsForModel,
+  diagnoseNoStation,
+  noStationMessage,
+  classifyUpstreamFailures,
+  upstreamFailureMessage,
+} from '../services/modelInvocation';
+import { normalizeModelName } from '../services/normalizeModelName';
 import { logApiUsage } from '../services/usageLog';
 import { broadcast, closeRoom as closeRoomSockets, disconnectUser } from '../services/roomHub';
 import {
@@ -516,6 +524,31 @@ router.post('/:id/ai/ask', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, error: 'Group has no chat model set. Pick one in group settings.' });
     }
 
+    // Resolve the station pool exactly the way private chat does (routes/chat.ts),
+    // admin flag included. Group chat used to omit `adminPool`, so it only ever
+    // saw the PUBLIC pool: a model an admin had enabled for themselves worked in
+    // private chat and failed here, under a raw English message that blamed the
+    // station rather than naming the pool (v0.7.93).
+    //
+    // Scoped to the ASKER, deliberately not to whoever configured the room: any
+    // member can change the room's model (PUT /:id/models guards on isMember
+    // only), so trusting the room's choice regardless of who asked would let a
+    // member reach a model an admin kept out of the public pool on purpose.
+    //
+    // Checked here, before beginAiTask, so a misconfiguration costs no occupancy
+    // lock and leaves no orphan "thinking" bubble in the shared thread — same
+    // placement as the no-chat-model guard directly above.
+    const isAdmin = req.user!.role === 'admin';
+    const normalizedChatModel = normalizeModelName(chatModel);
+    if (getStationsForModel(normalizedChatModel, { adminPool: isAdmin }).length === 0) {
+      const reason = diagnoseNoStation(normalizedChatModel);
+      return res.status(503).json({
+        success: false,
+        error: noStationMessage(reason, normalizedChatModel),
+        reason,
+      });
+    }
+
     // Transition to ai_running via pure FSM (reconciles stale locks; enforces single task)
     const start = beginAiTask(roomToSnap(room), req.user!.id, Date.now());
     if (!start.ok) {
@@ -635,6 +668,7 @@ router.post('/:id/ai/ask', async (req: AuthRequest, res: Response) => {
 
     const result = await streamInvokeModel({
       modelNormalizedName: chatModel,
+      adminPool: isAdmin,
       messages,
       onDelta: (delta, full) => {
         streamed = full;
@@ -677,9 +711,27 @@ router.post('/:id/ai/ask', async (req: AuthRequest, res: Response) => {
       });
       broadcastStream('done', { modelUsed: result.modelUsed });
     } else {
+      // One cause, no station names, no upstream bodies (v0.7.93). This row is
+      // broadcast to every member and re-read on reload, so the raw
+      // `result.error` — a join of station names and provider responses, which
+      // can echo the station's own API key straight back — must never land in
+      // it. Private chat solved the same problem in v0.7.90 by gating the
+      // breakdown to admins, but a row shared by the whole room has no such
+      // seam, so the breakdown goes to the usage log (already admin-only).
+      //
+      // No failures recorded at all can only mean the pool went empty between
+      // the pre-check above and the call, so diagnose that rather than fall
+      // back to a raw English string.
+      const failures = result.stationFailures ?? [];
+      const summary = failures.length
+        ? upstreamFailureMessage(classifyUpstreamFailures(failures))
+        : noStationMessage(diagnoseNoStation(normalizedChatModel), normalizedChatModel);
+      const detailLines = failures.map(
+        (f) => `${f.stationName}: ${f.status !== null ? `HTTP ${f.status}` : 'no response'}${f.detail ? ` — ${f.detail}` : ''}`
+      );
       db.prepare(`UPDATE room_ai_messages SET content = ?, status = 'error', error_message = ? WHERE id = ?`).run(
         streamed || '',
-        result.error,
+        summary,
         asstId
       );
       logApiUsage({
@@ -689,10 +741,11 @@ router.post('/:id/ai/ask', async (req: AuthRequest, res: Response) => {
         kind: 'chat',
         modelNormalized: chatModel,
         status: 'error',
-        errorMessage: result.error,
+        // The log keeps the full breakdown; it is admin-only to begin with.
+        errorMessage: detailLines.length ? `${summary} | ${detailLines.join(' | ')}` : summary,
         latencyMs: result.latencyMs,
       });
-      broadcastStream('error', { errorMessage: result.error });
+      broadcastStream('error', { errorMessage: summary });
     }
 
     // Back to idle — next @AI allowed only now (§10.6.4 / §10.6.5)

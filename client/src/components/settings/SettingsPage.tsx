@@ -15,9 +15,16 @@ import { webSearchApi } from '../../services/api';
 import { AnnouncementManager } from './AnnouncementManager';
 import { TopRightToggles } from '../layout/TopRightToggles';
 import { ModelPrefsSection } from './ModelPrefsSection';
+import { ToolsSection } from './ToolsSection';
 
 interface SettingsPageProps {
   onClose: () => void;
+  /** Destinations moved out of the sidebar footer in v0.7.94 (see ToolsSection). */
+  isGuest?: boolean;
+  onOpenMemory: () => void;
+  onOpenFiles: () => void;
+  onOpenUsers: () => void;
+  onOpenUsage: () => void;
 }
 
 function capLabel(cap: string, t: (k: string) => string): string {
@@ -46,7 +53,7 @@ function capColor(cap: string): string {
   }
 }
 
-export function SettingsPage({ onClose }: SettingsPageProps) {
+export function SettingsPage({ onClose, isGuest, onOpenMemory, onOpenFiles, onOpenUsers, onOpenUsage }: SettingsPageProps) {
   const stations = useStationStore(s => s.stations);
   const stationModels = useStationStore(s => s.stationModels);
   const loading = useStationStore(s => s.loading);
@@ -300,6 +307,16 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
         {/* Default model slots (v0.7.92) — everyone's, so it sits above the
             admin-only blocks. Replaces the daily-model modal. */}
         <ModelPrefsSection />
+        {/* Tools & data (v0.7.94) — moved out of the sidebar footer. Sits right
+            under the model slots because both are everyone's, above the
+            admin-only blocks below. */}
+        <ToolsSection
+          isGuest={isGuest}
+          onOpenMemory={onOpenMemory}
+          onOpenFiles={onOpenFiles}
+          onOpenUsers={onOpenUsers}
+          onOpenUsage={onOpenUsage}
+        />
         {/* Admin announcement (v0.7.76): compact card → dialog → preview → confirm */}
         {isAdmin && <AnnouncementManager />}
         {/* In-chat web search (v0.7.74): provider key + switch */}

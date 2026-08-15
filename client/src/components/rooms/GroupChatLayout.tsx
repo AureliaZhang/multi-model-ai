@@ -20,6 +20,22 @@ import {
   Download, ChevronDown, FileText as FileDoc,
 } from 'lucide-react';
 import { NotepadBar } from './NotepadBar';
+import { friendlyErrorKey } from '../../utils/errors';
+
+/**
+ * Group chat has two error surfaces — the store banner and a failed AI bubble —
+ * and both printed the server's raw English until v0.7.93, because nothing here
+ * ever called friendlyErrorKey (ChatArea has done so for private chat since
+ * v0.7.64). The model name is appended the same way ChatArea does it: every
+ * station-pool message quotes the name, and the localized text alone leaves
+ * "this model" ambiguous when the room's model is not the one you expected.
+ */
+function localizeError(raw: string, t: (key: string) => string): string {
+  const key = friendlyErrorKey(raw);
+  if (!key) return raw;
+  const named = raw.match(/"([^"]+)"/)?.[1];
+  return named ? `${t(key)}（${named}）` : t(key);
+}
 
 /**
  * §10.6 Group room — single unified timeline + one composer.
@@ -322,9 +338,14 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
           The "X → AI:" delivery rows stay in column b (rendered as ai_stub) so
           the group sees who asked; column c holds only the assistant answers. */}
       <div className="flex-1 min-h-0 flex">
-        {/* Column b — human chat + composer */}
+        {/* Column b — human chat + composer.
+            Desktop widths across the whole page are 1:2:3 (group list : this :
+            AI replies), owner request — an even 1:1 split left the AI column too
+            narrow to read long answers in. Ratios apply from md: up only; on
+            mobile these two panes are tab-switched and one-at-a-time, so a grow
+            factor there would mean nothing. See RoomsPage for the "1". */}
         <div
-          className={`${mobilePane === 'chat' ? 'flex' : 'hidden'} md:flex flex-col min-w-0 flex-1 md:border-r border-[var(--color-border-light)]`}
+          className={`${mobilePane === 'chat' ? 'flex' : 'hidden'} md:flex flex-col min-w-0 flex-1 md:flex-[2] md:border-r border-[var(--color-border-light)]`}
         >
           {/* Desktop-only pane label — on mobile the tab bar above says which pane this is */}
           <div className="hidden md:flex px-4 py-2 border-b border-[var(--color-border-light)] items-center gap-1.5 text-[11px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
@@ -397,7 +418,7 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
             {error && (
               <div className="mb-2 px-2.5 py-1.5 rounded-lg bg-[var(--color-surface-error)] text-[var(--color-text-error)] text-[12px] flex items-center gap-1.5">
                 <AlertCircle size={13} className="flex-shrink-0" />
-                <span className="flex-1">{error}</span>
+                <span className="flex-1" title={error}>{localizeError(error, t)}</span>
                 <button onClick={clearError} className="hover:opacity-70"><X size={13} /></button>
               </div>
             )}
@@ -510,8 +531,9 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
           </div>
         </div>
 
-        {/* Column c — AI replies (assistant answers only) */}
-        <div className={`${mobilePane === 'ai' ? 'flex' : 'hidden'} md:flex flex-col min-w-0 flex-1`}>
+        {/* Column c — AI replies (assistant answers only). Widest of the three:
+            it holds the long-form markdown answers. */}
+        <div className={`${mobilePane === 'ai' ? 'flex' : 'hidden'} md:flex flex-col min-w-0 flex-1 md:flex-[3]`}>
           {/* On mobile the tab bar names the pane, so only the export control stays. */}
           <div className="px-3 md:px-4 py-2 border-b border-[var(--color-border-light)] flex items-center gap-1.5 text-[11px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
             <Bot size={12} className="hidden md:block text-[var(--color-assistant)]" />
@@ -575,7 +597,7 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
                       <span>{t('room.formatting')}</span>
                     </div>
                   ) : m.status === 'error' ? (
-                    <div className="text-[13px] text-red-400">{m.errorMessage || t('room.aiError')}</div>
+                    <div className="text-[13px] text-red-400">{m.errorMessage ? localizeError(m.errorMessage, t) : t('room.aiError')}</div>
                   ) : (
                     <div className="markdown-content text-[13.5px] leading-6 text-[var(--color-text-primary)]">
                       <MarkdownMessage content={m.content} />

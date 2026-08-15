@@ -47,6 +47,13 @@ export interface InvokeModelFailure {
   error: string;
   latencyMs: number;
   modelNormalizedName: string;
+  /**
+   * Per-station breakdown, already key-redacted (v0.7.93). `error` above stays
+   * the raw joined string for callers that only log it; anything shown to a
+   * user should classify these instead — see routes/rooms.ts, which must not
+   * broadcast upstream bodies to a whole room.
+   */
+  stationFailures?: StationFailure[];
 }
 
 export type InvokeModelResult = InvokeModelSuccess | InvokeModelFailure;
@@ -289,6 +296,10 @@ export async function invokeModel(
   }
 
   const errors: string[] = [];
+  // Structured twin of `errors` (v0.7.93): same events, but with the status and
+  // a redacted body kept apart, so a caller can classify the cause instead of
+  // showing the raw join. `errors` stays as-is for existing callers.
+  const stationFailures: StationFailure[] = [];
 
   for (const s of stations) {
     const controller = new AbortController();
@@ -316,6 +327,11 @@ export async function invokeModel(
       if (!response.ok) {
         const text = await response.text().catch(() => '');
         errors.push(`${s.station.name}: HTTP ${response.status} ${text.slice(0, 200)}`);
+        stationFailures.push({
+          stationName: s.station.name,
+          status: response.status,
+          detail: sanitizeUpstreamDetail(text, s.station.apiKey),
+        });
         try {
           markHealth(s.station.id, 'unhealthy');
         } catch {
@@ -335,6 +351,13 @@ export async function invokeModel(
 
       if (!content || !String(content).trim()) {
         errors.push(`${s.station.name}: empty content`);
+        stationFailures.push({
+          stationName: s.station.name,
+          // 2xx with nothing usable in it. Recorded with the real status rather
+          // than null so it is not mistaken for "never reached the station".
+          status: response.status,
+          detail: 'empty content',
+        });
         continue;
       }
 
@@ -364,6 +387,12 @@ export async function invokeModel(
     } catch (err: unknown) {
       const msg = isAbortError(err) ? 'timeout' : getErrorMessage(err);
       errors.push(`${s.station.name}: ${msg}`);
+      // status null = the request never got an answer (DNS, TLS, refused, timeout).
+      stationFailures.push({
+        stationName: s.station.name,
+        status: null,
+        detail: sanitizeUpstreamDetail(msg, s.station.apiKey),
+      });
       try {
         markHealth(s.station.id, 'unhealthy');
       } catch {
@@ -379,6 +408,7 @@ export async function invokeModel(
     error: errors.length ? errors.join(' | ') : 'All stations failed',
     latencyMs: Date.now() - started,
     modelNormalizedName: normalized,
+    stationFailures,
   };
 }
 
@@ -456,6 +486,10 @@ export async function streamInvokeModel(
   }
 
   const errors: string[] = [];
+  // Structured twin of `errors` (v0.7.93): same events, but with the status and
+  // a redacted body kept apart, so a caller can classify the cause instead of
+  // showing the raw join. `errors` stays as-is for existing callers.
+  const stationFailures: StationFailure[] = [];
 
   for (const s of stations) {
     const controller = new AbortController();
@@ -483,6 +517,11 @@ export async function streamInvokeModel(
       if (!response.ok) {
         const text = await response.text().catch(() => '');
         errors.push(`${s.station.name}: HTTP ${response.status} ${text.slice(0, 200)}`);
+        stationFailures.push({
+          stationName: s.station.name,
+          status: response.status,
+          detail: sanitizeUpstreamDetail(text, s.station.apiKey),
+        });
         try {
           markHealth(s.station.id, 'unhealthy');
         } catch {
@@ -494,6 +533,11 @@ export async function streamInvokeModel(
       const reader = response.body?.getReader();
       if (!reader) {
         errors.push(`${s.station.name}: no response body`);
+        stationFailures.push({
+          stationName: s.station.name,
+          status: response.status,
+          detail: 'no response body',
+        });
         continue;
       }
 
@@ -542,6 +586,13 @@ export async function streamInvokeModel(
 
       if (!full.trim()) {
         errors.push(`${s.station.name}: empty content`);
+        stationFailures.push({
+          stationName: s.station.name,
+          // 2xx with nothing usable in it. Recorded with the real status rather
+          // than null so it is not mistaken for "never reached the station".
+          status: response.status,
+          detail: 'empty content',
+        });
         continue;
       }
 
@@ -564,6 +615,12 @@ export async function streamInvokeModel(
     } catch (err: unknown) {
       const msg = isAbortError(err) ? 'timeout' : getErrorMessage(err);
       errors.push(`${s.station.name}: ${msg}`);
+      // status null = the request never got an answer (DNS, TLS, refused, timeout).
+      stationFailures.push({
+        stationName: s.station.name,
+        status: null,
+        detail: sanitizeUpstreamDetail(msg, s.station.apiKey),
+      });
       try {
         markHealth(s.station.id, 'unhealthy');
       } catch {
@@ -579,5 +636,6 @@ export async function streamInvokeModel(
     error: errors.length ? errors.join(' | ') : 'All stations failed',
     latencyMs: Date.now() - started,
     modelNormalizedName: normalized,
+    stationFailures,
   };
 }

@@ -93,23 +93,36 @@ export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
   );
 
   if (page === 'settings') {
-    return lazyPage(<SettingsPage onClose={() => setPage('chat')} />, withLang);
+    return lazyPage(
+      <SettingsPage
+        onClose={() => setPage('chat')}
+        isGuest={isGuest}
+        onOpenMemory={() => setPage('memory')}
+        onOpenFiles={() => setPage('files')}
+        onOpenUsers={() => setPage('users')}
+        onOpenUsage={() => setPage('usage')}
+      />,
+      withLang
+    );
   }
 
+  // v0.7.94: these four left the sidebar footer for Settings, so Settings is
+  // their only entrance and "back" belongs there — returning to the chat would
+  // drop you somewhere you never came from.
   if (page === 'users') {
-    return lazyPage(<UserManagement onBack={() => setPage('chat')} />, withLang);
+    return lazyPage(<UserManagement onBack={() => setPage('settings')} />, withLang);
   }
 
   if (page === 'usage') {
-    return lazyPage(<UsageLogsPage onBack={() => setPage('chat')} />, withLang);
+    return lazyPage(<UsageLogsPage onBack={() => setPage('settings')} />, withLang);
   }
 
   if (page === 'memory') {
-    return lazyPage(<MemoryBrowser onClose={() => setPage('chat')} />, withLang);
+    return lazyPage(<MemoryBrowser onClose={() => setPage('settings')} />, withLang);
   }
 
   if (page === 'files') {
-    return lazyPage(<FileBrowser onClose={() => setPage('chat')} />, withLang);
+    return lazyPage(<FileBrowser onClose={() => setPage('settings')} />, withLang);
   }
 
   if (page === 'arena') {
@@ -141,16 +154,16 @@ export function Layout({ isGuest = false, onLogout, onSignIn }: LayoutProps) {
         />
       )}
 
-      {/* Sidebar: inline column on desktop, fixed slide-in drawer on mobile */}
+      {/* Sidebar: inline column on desktop, fixed slide-in drawer on mobile.
+          Desktop column is 190px since v0.7.94 (owner request): with the six
+          tool destinations moved into Settings the footer no longer needs the
+          room, and the chat gets it back. The mobile drawer stays 280px — it
+          overlays the chat rather than competing with it for width. */}
       {sidebarOpen && (
-        <div className="fixed inset-y-0 left-0 z-40 w-[280px] max-w-[85vw] md:static md:z-auto md:w-[260px] md:max-w-none flex-shrink-0 border-r border-[var(--color-border-light)] fade-in md:animate-none">
+        <div className="fixed inset-y-0 left-0 z-40 w-[280px] max-w-[85vw] md:static md:z-auto md:w-[190px] md:max-w-none flex-shrink-0 border-r border-[var(--color-border-light)] fade-in md:animate-none">
           <Sidebar
             isGuest={isGuest}
             onOpenSettings={() => goToPage('settings')}
-            onOpenUsers={() => goToPage('users')}
-            onOpenUsage={() => goToPage('usage')}
-            onOpenMemory={() => goToPage('memory')}
-            onOpenFiles={() => goToPage('files')}
             onOpenArena={() => goToPage('arena')}
             onOpenRooms={() => goToPage('rooms')}
             onToggleSidebar={() => setSidebarOpen(false)}

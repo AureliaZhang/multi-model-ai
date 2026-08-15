@@ -1,7 +1,7 @@
-import { useRef, useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useChatStore } from '../../stores/chatStore';
 import { useAuthStore } from '../../stores/authStore';
-import { MessageSquarePlus, Settings, Trash2, LogOut, Users, Users2, Shield, User, Brain, Globe, Lock, Eye, EyeOff, FolderOpen, X, Swords, PanelLeftClose, ScrollText, Download, Upload, Search, Pin, PinOff, FolderInput, Folder, ChevronDown, ChevronRight, MoreHorizontal } from 'lucide-react';
+import { MessageSquarePlus, Settings, Trash2, LogOut, Users2, Shield, User, Globe, Lock, Eye, EyeOff, X, Swords, PanelLeftClose, Search, Pin, PinOff, FolderInput, Folder, ChevronDown, ChevronRight, MoreHorizontal } from 'lucide-react';
 import { useTranslation } from '../../i18n';
 import { conversationApi } from '../../services/api';
 import type { ConversationVisibility, Conversation } from '../../types';
@@ -9,10 +9,9 @@ import type { ConversationVisibility, Conversation } from '../../types';
 interface SidebarProps {
   isGuest?: boolean;
   onOpenSettings: () => void;
-  onOpenUsers: () => void;
-  onOpenUsage?: () => void;
-  onOpenMemory: () => void;
-  onOpenFiles: () => void;
+  // v0.7.94: memory / files / users / usage and the export-import pair left for
+  // Settings (see settings/ToolsSection), so the footer keeps only the two
+  // destinations used daily plus Settings itself.
   onOpenArena?: () => void;
   onOpenRooms?: () => void;
   onToggleSidebar: () => void;
@@ -21,7 +20,7 @@ interface SidebarProps {
   onNavigate?: () => void;
 }
 
-export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUsage, onOpenMemory, onOpenFiles, onOpenArena, onOpenRooms, onToggleSidebar, onLogout, onNavigate }: SidebarProps) {
+export function Sidebar({ isGuest = false, onOpenSettings, onOpenArena, onOpenRooms, onToggleSidebar, onLogout, onNavigate }: SidebarProps) {
   const conversations = useChatStore(s => s.conversations);
   const currentConversationId = useChatStore(s => s.currentConversationId);
   const selectConversation = useChatStore(s => s.selectConversation);
@@ -31,15 +30,12 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
   const currentSelfReview = useChatStore(s => s.currentSelfReview);
   const setVisibility = useChatStore(s => s.setVisibility);
   const setSelfReview = useChatStore(s => s.setSelfReview);
-  const exportConversations = useChatStore(s => s.exportConversations);
-  const importConversations = useChatStore(s => s.importConversations);
   const user = useAuthStore(s => s.user);
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
   const logout = useAuthStore(s => s.logout);
   const { t } = useTranslation();
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [showNewMenu, setShowNewMenu] = useState(false);
-  const importInputRef = useRef<HTMLInputElement>(null);
 
   // Chat organize (v0.7.47): folder-move dropdown + collapsed folder headers.
   const [folderMenuId, setFolderMenuId] = useState<string | null>(null);
@@ -91,42 +87,6 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [showNewMenu, folderMenuId, actionMenuId]);
-
-  const handleExport = async () => {
-    try {
-      await exportConversations();
-    } catch (err) {
-      console.error('[Sidebar] export failed:', err);
-      alert(t('sidebar.exportFailed'));
-    }
-  };
-
-  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // reset so re-selecting the same file fires change again
-    if (!file) return;
-    try {
-      const text = await file.text();
-      const data = JSON.parse(text);
-      const summary = await importConversations(data);
-      const atts = summary.importedAttachments ?? 0;
-      alert(
-        atts > 0
-          ? t('sidebar.importDoneWithAtts', {
-              convs: summary.importedConversations,
-              msgs: summary.importedMessages,
-              atts,
-            })
-          : t('sidebar.importDone', {
-              convs: summary.importedConversations,
-              msgs: summary.importedMessages,
-            })
-      );
-    } catch (err) {
-      console.error('[Sidebar] import failed:', err);
-      alert(t('sidebar.importFailed'));
-    }
-  };
 
   const handleNewPrivateChat = () => {
     setShowNewMenu(false);
@@ -581,56 +541,19 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
         )}
       </div>
 
-      {/* Footer */}
+      {/* Footer — v0.7.94: only what gets opened daily. Memory store, file
+          library, export/import and the two admin pages now live under
+          Settings → Tools & data (settings/ToolsSection). */}
       <div className="p-2 border-t border-[var(--color-border-light)] space-y-0.5">
-        {!isGuest && (
-          <>
-            <button
-              onClick={onOpenMemory}
-              className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-secondary)] text-[13px] w-full transition-colors duration-150"
-            >
-              <Brain size={16} strokeWidth={1.5} />
-              <span>{t('sidebar.memoryStore')}</span>
-            </button>
-            <button
-              onClick={onOpenFiles}
-              className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-secondary)] text-[13px] w-full transition-colors duration-150"
-            >
-              <FolderOpen size={16} strokeWidth={1.5} />
-              <span>{t('sidebar.fileLibrary')}</span>
-            </button>
-            {/* Group chats: create only via “New chat → New group”; list still via openRooms when needed */}
-            {onOpenRooms && (
-              <button
-                onClick={onOpenRooms}
-                className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-secondary)] text-[13px] w-full transition-colors duration-150"
-              >
-                <Users2 size={16} strokeWidth={1.5} />
-                <span>{t('sidebar.rooms')}</span>
-              </button>
-            )}
-            <button
-              onClick={handleExport}
-              className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-secondary)] text-[13px] w-full transition-colors duration-150"
-            >
-              <Download size={16} strokeWidth={1.5} />
-              <span>{t('sidebar.exportChats')}</span>
-            </button>
-            <button
-              onClick={() => importInputRef.current?.click()}
-              className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-secondary)] text-[13px] w-full transition-colors duration-150"
-            >
-              <Upload size={16} strokeWidth={1.5} />
-              <span>{t('sidebar.importChats')}</span>
-            </button>
-            <input
-              ref={importInputRef}
-              type="file"
-              accept="application/json,.json"
-              onChange={handleImportFile}
-              className="hidden"
-            />
-          </>
+        {/* Group chats: create only via “New chat → New group”; list still via openRooms when needed */}
+        {!isGuest && onOpenRooms && (
+          <button
+            onClick={onOpenRooms}
+            className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-secondary)] text-[13px] w-full transition-colors duration-150"
+          >
+            <Users2 size={16} strokeWidth={1.5} className="flex-shrink-0" />
+            <span className="truncate">{t('sidebar.rooms')}</span>
+          </button>
         )}
 
         {isAuthenticated && user?.role === 'admin' && (
@@ -638,28 +561,8 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
             onClick={onOpenArena}
             className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-secondary)] text-[13px] w-full transition-colors duration-150"
           >
-            <Swords size={16} strokeWidth={1.5} />
-            <span>{t('sidebar.arena')}</span>
-          </button>
-        )}
-
-        {isAuthenticated && user?.role === 'admin' && (
-          <button
-            onClick={onOpenUsers}
-            className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-secondary)] text-[13px] w-full transition-colors duration-150"
-          >
-            <Users size={16} strokeWidth={1.5} />
-            <span>{t('sidebar.userManagement')}</span>
-          </button>
-        )}
-
-        {isAuthenticated && user?.role === 'admin' && onOpenUsage && (
-          <button
-            onClick={onOpenUsage}
-            className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-secondary)] text-[13px] w-full transition-colors duration-150"
-          >
-            <ScrollText size={16} strokeWidth={1.5} />
-            <span>{t('sidebar.usageLogs')}</span>
+            <Swords size={16} strokeWidth={1.5} className="flex-shrink-0" />
+            <span className="truncate">{t('sidebar.arena')}</span>
           </button>
         )}
 
@@ -667,8 +570,8 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenUsers, onOpenUs
           onClick={onOpenSettings}
           className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-[var(--color-sidebar-surface-hover)] text-[var(--color-text-secondary)] text-[13px] w-full transition-colors duration-150"
         >
-          <Settings size={16} strokeWidth={1.5} />
-          <span>{t('sidebar.settings')}</span>
+          <Settings size={16} strokeWidth={1.5} className="flex-shrink-0" />
+          <span className="truncate">{t('sidebar.settings')}</span>
         </button>
 
         {isAuthenticated && user ? (

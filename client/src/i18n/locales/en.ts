@@ -160,6 +160,9 @@ const en = {
 
   // Settings
   'settings.title': 'Settings',
+  // v0.7.94 — the six sidebar-footer destinations moved in here
+  'settings.toolsTitle': 'Tools & data',
+  'settings.toolsDesc': 'Memory store, file library, chat import/export, plus the admin-only member and usage pages.',
   'settings.relayStations': 'Relay Stations',
   'settings.relayStationsDesc': '中转站 — Configure your API relay endpoints',
   'settings.addStation': 'Add Station',

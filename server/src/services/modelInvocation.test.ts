@@ -362,3 +362,130 @@ describe('sanitizeUpstreamDetail (v0.7.90)', () => {
     expect(sanitizeUpstreamDetail('', 'k')).toBe('');
   });
 });
+
+// v0.7.93 — the failover loops always knew what each station answered, but only
+// ever kept it as one joined English string. Group chat printed that string to
+// the whole room (station names, upstream bodies, and whatever key a provider
+// echoed back). Now the same events are also kept apart, so a caller can name
+// one cause and decide for itself who may see the breakdown.
+describe('stationFailures on the result (v0.7.93)', () => {
+  beforeEach(() => {
+    _resetRoundRobin();
+  });
+
+  function sse(chunks: string[]): Response {
+    const body = chunks.map((c) => `data: ${c}\n\n`).join('') + 'data: [DONE]\n\n';
+    return new Response(body, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+  }
+
+  function keyedPick(id: string, name: string, apiKey: string): StationPick {
+    return {
+      station: { id, name, baseUrl: `https://${id}.example/v1`, apiKey, healthStatus: 'healthy' },
+      modelId: 'gpt-4o',
+    };
+  }
+
+  const deps = (stations: StationPick[], fetchImpl: unknown) => ({
+    getStations: () => stations,
+    fetchImpl: fetchImpl as typeof fetch,
+    markStationHealth: () => {},
+  });
+
+  it('records one entry per failed station, status kept apart from the body', async () => {
+    const fetchImpl = vi.fn(async (url: string | URL | Request) =>
+      String(url).includes('s1')
+        ? jsonResponse({ error: { message: 'incorrect api key' } }, 401)
+        : jsonResponse({ error: { message: 'slow down' } }, 429)
+    );
+
+    const result = await invokeModel(
+      { modelNormalizedName: 'gpt-4o', messages: [{ role: 'user', content: 'hi' }] },
+      deps([pick('s1', 'A'), pick('s2', 'B')], fetchImpl)
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.stationFailures?.map((f) => [f.stationName, f.status])).toEqual([
+      ['A', 401],
+      ['B', 429],
+    ]);
+    // The point of keeping them apart: one actionable cause instead of the join.
+    expect(classifyUpstreamFailures(result.stationFailures!)).toBe('upstream-auth');
+    expect(result.stationFailures![0].detail).toMatch(/incorrect api key/);
+  });
+
+  it('never carries the station key into the detail', async () => {
+    const KEY = 'sk-supersecret-1234567890';
+    // Some providers quote the key you sent straight back at you.
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({ error: { message: `invalid key ${KEY}` } }, 401)
+    );
+
+    const result = await invokeModel(
+      { modelNormalizedName: 'gpt-4o', messages: [{ role: 'user', content: 'hi' }] },
+      deps([keyedPick('s1', 'A', KEY)], fetchImpl)
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.stationFailures![0].detail).not.toContain(KEY);
+    expect(result.stationFailures![0].detail).toContain('***');
+  });
+
+  it('marks a request that never landed with a null status', async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new Error('ECONNREFUSED');
+    });
+
+    const result = await invokeModel(
+      { modelNormalizedName: 'gpt-4o', messages: [{ role: 'user', content: 'hi' }] },
+      deps([pick('s1', 'A')], fetchImpl)
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.stationFailures![0].status).toBeNull();
+    expect(classifyUpstreamFailures(result.stationFailures!)).toBe('upstream-unreachable');
+  });
+
+  it('streamInvokeModel records them too — this is the one group chat reads', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({ error: { message: 'no such model' } }, 404));
+
+    const result = await streamInvokeModel(
+      { modelNormalizedName: 'gpt-4o', messages: [{ role: 'user', content: 'hi' }] },
+      deps([pick('s1', 'A')], fetchImpl)
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.stationFailures?.[0]).toMatchObject({ stationName: 'A', status: 404 });
+    expect(classifyUpstreamFailures(result.stationFailures!)).toBe('upstream-not-found');
+  });
+
+  it('a 2xx with nothing in it is not mistaken for an unreachable station', async () => {
+    const fetchImpl = vi.fn(async () => sse([JSON.stringify({ choices: [{ delta: {} }] })]));
+
+    const result = await streamInvokeModel(
+      { modelNormalizedName: 'gpt-4o', messages: [{ role: 'user', content: 'hi' }] },
+      deps([pick('s1', 'A')], fetchImpl)
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.stationFailures![0].status).toBe(200);
+    expect(classifyUpstreamFailures(result.stationFailures!)).not.toBe('upstream-unreachable');
+  });
+
+  it('stays empty when the pool itself was empty — that is a diagnosis, not a classification', async () => {
+    // routes/rooms.ts leans on exactly this: no failures recorded can only mean
+    // no station was ever tried, so it calls diagnoseNoStation instead.
+    const result = await streamInvokeModel(
+      { modelNormalizedName: 'gpt-4o', messages: [{ role: 'user', content: 'hi' }] },
+      deps([], async () => jsonResponse({}))
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.stationFailures ?? []).toEqual([]);
+  });
+});
