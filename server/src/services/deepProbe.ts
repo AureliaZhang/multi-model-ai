@@ -18,6 +18,7 @@
 
 import type Database from 'better-sqlite3';
 import { getDb } from '../database';
+import { isProbeJobEnabled } from './healthCheck';
 import { decryptSecret } from '../utils/crypto';
 import { logApiUsage } from './usageLog';
 import { normalizeModelName } from './normalizeModelName';
@@ -219,6 +220,15 @@ export async function deepProbeTick(
 
 export function startDeepProbeJob(): void {
   if (timer) return;
+  // Default OFF since v0.7.97 — see isProbeJobEnabled. This one is the more
+  // conspicuous of the two: it sends a REAL chat completion nobody asked for,
+  // which is exactly the pattern a relay flags when it decides an account is
+  // being probed. A station that cannot actually answer is discovered by the
+  // next real message either way.
+  if (!isProbeJobEnabled(process.env.DEEP_PROBE_ENABLED)) {
+    console.log('🔎 Daily deep probe disabled (set DEEP_PROBE_ENABLED=1 to enable)');
+    return;
+  }
   timer = setInterval(() => {
     deepProbeTick().catch((err) => console.error('Deep probe tick failed:', err));
   }, CHECK_EVERY_MS);

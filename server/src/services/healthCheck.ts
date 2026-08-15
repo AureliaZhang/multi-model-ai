@@ -101,12 +101,41 @@ export async function runHealthCheckSweep(db: Database.Database = getDb()): Prom
 let timer: ReturnType<typeof setInterval> | null = null;
 
 /**
- * Start the periodic health-check sweep. Idempotent — a second call is a no-op
- * while a job is already running. The timer is `unref()`'d so it never keeps the
- * process alive on its own.
+ * Is a background probe job switched on? **Default OFF since v0.7.97.**
+ *
+ * The sweep below used to run every 60s against every enabled station — 1,440
+ * unsolicited requests per station per day, from an account whose real chat
+ * traffic might be a few dozen. At least one relay read that as abuse and
+ * banned the owner's account. Synthetic liveness traffic is not worth an
+ * account, especially when it buys little: **real requests already mark health**
+ * (`markStationHealth` in invokeModel / streamInvokeModel / routes/chat), so a
+ * station that is actually broken is discovered the moment someone uses it, and
+ * `filterStationsForModel` treats `unknown` as routable anyway.
+ *
+ * The manual `POST /api/stations/:id/health-check` is untouched — one request
+ * that a human asked for is a different thing from a timer nobody sees.
+ *
+ * Same parse shape as parseBackupOptions, inverted default. Shared with the
+ * deep probe. Pure, so it can be unit-tested without a timer.
+ */
+export function isProbeJobEnabled(raw: string | undefined): boolean {
+  const v = raw?.trim().toLowerCase();
+  if (v === undefined || v === '') return false;
+  return !(v === '0' || v === 'false' || v === 'no' || v === 'off');
+}
+
+/**
+ * Start the periodic health-check sweep — only when explicitly enabled.
+ * Idempotent — a second call is a no-op while a job is already running. The
+ * timer is `unref()`'d so it never keeps the process alive on its own.
  */
 export function startHealthCheckJob(): void {
   if (timer) return;
+
+  if (!isProbeJobEnabled(process.env.HEALTH_CHECK_ENABLED)) {
+    console.log('🩺 Health check sweep disabled (set HEALTH_CHECK_ENABLED=1 to enable) — health now comes from real traffic');
+    return;
+  }
 
   const interval = Number(process.env.HEALTH_CHECK_INTERVAL_MS) || DEFAULT_INTERVAL_MS;
 

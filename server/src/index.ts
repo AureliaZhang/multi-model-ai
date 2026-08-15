@@ -120,10 +120,12 @@ attachRoomHub(server);
 server.listen(PORT, () => {
   console.log(`🚀 Multi-Model AI Server running on http://localhost:${PORT} (env: ${isProduction ? 'production' : 'development'})`);
   console.log(`🔌 Room WebSocket hub listening on ws://localhost:${PORT}/ws/rooms`);
-  // Begin periodic station health checks so unhealthy stations are auto-detected
-  // and auto-recovered without a manual check (§8.3).
+  // Station probing is OFF by default since v0.7.97: the 60s sweep and the daily
+  // real-question probe together sent thousands of unsolicited requests a day per
+  // station, and a relay banned the owner's account for it. Both remain available
+  // behind HEALTH_CHECK_ENABLED / DEEP_PROBE_ENABLED, and the manual per-station
+  // check in Settings still works; health otherwise comes from real traffic.
   startHealthCheckJob();
-  // Once a day at a random time, ask each station a REAL question (v0.7.79).
   startDeepProbeJob();
   // Periodic DB snapshots so a shared team DB is never a single point of loss
   // (§10.8 Phase 2). Env-tunable; skipped for in-memory DBs.
