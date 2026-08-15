@@ -320,8 +320,22 @@ export function Sidebar({ isGuest = false, onOpenSettings, onOpenArena, onOpenRo
                       hover-capable pointer exists — touch has no hover, so on a phone
                       these would otherwise be permanently invisible. On touch the whole
                       strip is replaced by the ⋯ menu below: five 44px tap targets
-                      (v0.7.86) left the title 12px wide on a 263px row. */}
-                  <div className="hidden pointer-fine:flex pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 items-center gap-0.5 transition-all duration-150 ml-1">
+                      (v0.7.86) left the title 12px wide on a 263px row.
+
+                      OVERLAID, not in flow (v0.7.96). `opacity-0` hides these but still
+                      reserves their width, which cost the title ~100px of a row that
+                      v0.7.94 had just narrowed to 190px — titles rendered as a single
+                      character (owner, desktop). Taking them out of the flow gives the
+                      title the whole row at rest; on hover they sit on top of its tail,
+                      which is what the background is for. Toggling `display` instead
+                      would work too, but the title would re-truncate and jump every time
+                      the pointer crossed a row. The background follows the row's own two
+                      states so the panel never shows a seam against it. */}
+                  <div className={`hidden pointer-fine:flex pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 items-center gap-0.5 transition-opacity duration-150 absolute right-2 top-1/2 -translate-y-1/2 pl-2 rounded-md ${
+                    currentConversationId === conv.id
+                      ? 'bg-[var(--color-sidebar-surface-active)]'
+                      : 'bg-[var(--color-sidebar-surface-hover)]'
+                  }`}>
                     <button
                       onClick={(e) => handleTogglePin(e, conv.id, conv.pinned)}
                       className="touch-target p-1 rounded-md hover:bg-[var(--overlay-8)] text-[var(--color-text-tertiary)] transition-all duration-150"
