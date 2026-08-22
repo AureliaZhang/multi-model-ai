@@ -16,6 +16,7 @@ APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 ENV_FILE="$HOME/.multi-model-ai.env"
 DEFAULT_PORT=8500                       # 在 Oracle 放行的 8000-9000 范围内
 DEFAULT_DOMAIN="https://official.aureliazhsy.com"
+DEFAULT_BACKUP_DIR="$HOME/multi-model-ai-backups"   # 刻意放在代码仓库外面（见下）
 
 echo "📦 multi-model-ai 部署/更新 · $(date '+%F %T')"
 
@@ -40,6 +41,9 @@ ADMIN_PASSWORD=$FIRST_ADMIN_PW
 PORT=$DEFAULT_PORT
 CORS_ORIGIN=$DEFAULT_DOMAIN
 NODE_ENV=production
+# 备份目录放在**代码仓库外面**：默认位置 server/data/backups 在 git 检出目录里，
+# 一次 git clean -fdx 会把数据库和全部快照一起清掉。
+BACKUP_DIR=$DEFAULT_BACKUP_DIR
 # REQUIRE_INVITE=1   # 开启邀请制注册：去掉行首的 # 再重跑本脚本
 ENVEOF
   chmod 600 "$ENV_FILE"
@@ -51,6 +55,20 @@ fi
 set -a
 . "$ENV_FILE"
 set +a
+
+# ---- 老安装的提醒：BACKUP_DIR 没设时快照落在代码目录里 ----
+# 密钥文件永不覆盖（那是刻意的），所以先于本版部署的机器不会自动拿到上面的默认值。
+# 这里只提醒、不改你的配置文件 —— 改动备份位置该由你决定，不该在自动部署里悄悄发生。
+if [ -z "${BACKUP_DIR:-}" ]; then
+  echo ""
+  echo "⚠️  BACKUP_DIR 没设置：数据库快照正落在 server/data/backups（就在代码目录里）。"
+  echo "   一次 git clean -fdx 会把数据库和全部快照一起清掉。想挪到仓库外面，跑这一行："
+  echo ""
+  echo "   echo 'BACKUP_DIR=$DEFAULT_BACKUP_DIR' >> $ENV_FILE && bash $APP_DIR/deploy.sh"
+  echo ""
+  echo "   （已有的旧快照不会自动搬走，挪完可以手动拷过去。）"
+  echo ""
+fi
 
 cd "$APP_DIR"
 echo "⬇️  拉取最新代码..."
