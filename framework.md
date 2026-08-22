@@ -169,7 +169,7 @@
 <!-- > **Last Updated**: 2026-08-14 (v0.7.91 — **顶部模型选择器一直是个摆设：真正发出去的是「每日模型」里存的那个（owner 报「选生图模型报找不到，换 grok4.6 一样」）** — `ChatInput` 里 `const model = prefsChat || selectedModel || models[0]` 一行里叠了三个坑：① **`prefs.chatModel`（每日模型弹窗存的）优先级高于选择器**，所以在头部换模型对发送毫无影响；② `selectedModel` 是 `useState(() => localStorage.getItem(...))` **只在挂载时读一次**（`_setSelectedModel` 从未被调用），后来改的选择器根本传不进来；③ 两个候选都**不校验是否还存在**。→ owner 的每日模型里存着一个早已不存在的名字，于是**选什么都报「找不到这个模型」**。修法＝**发送时**解析、按「显式选择 > 每日默认 > 列表第一个」取**第一个真实存在于 `models` 里的**（列表还没加载完则不阻塞发送，退回原行为）；删掉那个永远过期的 state；`DailyModelModal` 存盘时同步写 `localStorage['selected_model']`，让两个视图不再各说各话。**另外报错现在会点名模型**（服务端本来就在英文串里引了模型名，本地化文案把它丢了）——就是这个缺失让今天这个问题查了很久。**本地复现+验证**：把 `user_model_prefs.chat_model` 设成 `ghost-model-v9`、选择器选有效的 gpt-4o——修复前报「找不到这个模型」，修复后正常带 gpt-4o 打到中转站、报的是真实的上游 401。**还发现但没做**：`showDailyModal` 只由服务端 `needsDailyModal` 驱动，**全站没有手动打开每日模型弹窗的入口**，也就是说这个决定了发送模型的设置一旦关掉当天就改不了——已告知 owner，待她定。)<!-- > **Last Updated**: 2026-07-26 (v0.7.81 — **test-server auto-deploy (owner's Oracle VM + Cloudflare + NPM)** — `deploy.sh` (idempotent: first run generates JWT/encryption secrets into `~/.multi-model-ai.env` outside git, installs pm2, boots; every run = pull → npm ci → tsc + vite build → pm2 restart; port 8500 inside the VM's open 8000-9000 range), `.github/workflows/deploy.yml` (push to main → SSH → deploy.sh, plain ssh with 3 repo secrets, manual dispatch supported), and `DEPLOY.md` — a zh handbook of the one-time setup (CF DNS `official` subdomain, VM init, Deploy Key + Actions secrets, NPM proxy host with the Websockets checkbox called out) + daily ops/排障 table. No app code touched.) --> -->
 <!-- > **Last Updated**: 2026-08-15 (v0.7.97 — **测活两个定时任务默认关闭（owner 被中转站封号：「有个站把我封了说我测活」）+ 流式输出时终于能往上滚** —— ① **流量画像才是重点**：`healthCheck` 每 **60 秒**扫一遍所有启用的站（打 `/models`）＝**每站每天 1440 次**主动请求，而真实聊天可能一天几十条；`deepProbe` 每天还额外发一条**真实 chat completion**。对中转站来说这就是探测特征，被判滥用不奇怪。**关掉它们不会让系统变瞎**——真实请求本来就会 `markStationHealth`（`invokeModel`/`streamInvokeModel`/`routes/chat` 三处失败分支都会标记），而 `filterStationsForModel` 把 `unknown` 当可路由、把 `unhealthy` 当兜底，所以最坏情况也只是「坏站等到有人用时才被发现」。实现＝新增纯函数 `isProbeJobEnabled`（沿用 `parseBackupOptions` 的解析形状，**默认反过来**），两个 `start*Job` 未显式开启就直接返回并打印一行说明；`HEALTH_CHECK_ENABLED` / `DEEP_PROBE_ENABLED` 可以随时开回来。**手动的 `POST /api/stations/:id/health-check` 原样保留**——人主动点的一次请求，和没人看见的定时器是两回事。顺手核了其余三个定时器都不出网（`retention` 清库、`roomHub` 给浏览器发心跳、`backup` 快照）。启动日志实测两条都是 disabled。② **流式输出时无法滚动**（owner 电脑端）：`ChatArea` 那个 effect 依赖 `[messages, streamingContent]`，而 `streamingContent` **每个 token 都变**，于是每个 token 都无条件 `scrollIntoView`——往上滑立刻被拽回去；更糟的是 `behavior: smooth`，每秒几十次平滑动画叠在一起，视图是在跟滚轮**较劲**而不是忽略它。改成经典的 stick-to-bottom：容器加 `onScroll` 记录「是否贴底」（**留 40px 余量**，贴底时常差零点几像素、手机回弹也落不准），不贴底就不跟随；自己发消息会重新进入跟随（新增的最后一条是 user 角色）；切换会话重置为跟随。另外 **token 更新用 `auto` 瞬时、整条新消息才用 `smooth`**，避免动画排队。server 277（+3，`isProbeJobEnabled` 的默认关闭契约）、client 13、tsc/build 净、eslint 0 错 11 警。**owner 报的「手机端选择文件点了没反应」本次未复现**：390×844 实测面板 `x=16..336` 完整在屏幕内、`documentElement` 无溢出，原先怀疑的「w-80 被 `overflow:hidden` 裁掉」不成立，待更多线索。) -->
 <!-- > **Last Updated**: 2026-08-21 (v0.7.98 — **全量代码审计（§10.11）+ 审计中挖出并修掉一个真实安全漏洞**。① 审计结论：**不是屎山** —— 34,268 行自有代码里只有 16 个 `any`、1 个 `@ts-ignore`、0 个 TODO、1 行注释掉的死代码，19 处空 catch **全部写了原因**；问题不在「乱」而在「长」和「重复」（97 个函数 >60 行，30 个 >150 行；`chat.ts` 单个处理函数 697 行 / 64 个 if 分支）。② 🔴🔴 **安全漏洞（已修 + 实测验证）**：管理员删掉一个成员 → 外键 `ON DELETE SET NULL` 把他全部会话的 `user_id` 置空 → 旧规则把「无主」当作「所有人可读可改」→ **未登录即可读到该成员的私密对话，并可调 truncate 把消息删光**（本地演示实例实测：删用户前 404，删完 200 且内容完整可读，truncate 返回 200 消息清零）。根因是同一条归属权判断散在三处、语义还不一致。修法＝新增 `services/conversationAccess.ts` 作为**唯一一份**规则，无主会话统一收紧为「仅管理员」（读写皆是，且不因 `visibility=public` 而放行——那个值是被孤儿化之前留下的），列表 SQL 里的 `OR user_id IS NULL` 只留给管理员。**刻意不销毁数据**，孤儿会话收归管理员处置。修后实测：未登录读 404、未登录 truncate 403、其他成员读 404、管理员读 200。13 个用例锁不变量（含穷举 user × visibility 全组合）。③ 客户端测试 13 → 47（2 → 5 个文件），过程中修掉两个真 bug：**英文界面字面显示 `3 script{s}`**（`{s}` 复数占位符六个调用点里四个没传，另一处传成 `count > 1` 导致 `0 station available`）改为在 `t()` 里从 `count` 统一推导；**群聊也有「AI 输出时无法滚动」**（`GroupChatLayout` 两个 effect 无条件 `scrollIntoView`，与 ChatArea v0.7.97 同类），判定抽成 `utils/scrollFollow.ts` 纯函数供两处共用。server 290（+13）、client 47（+34）、tsc/build 净、eslint 0 错 12 警。④ **同日续做 ②③④⑤**：② 抽出 `services/chatContent.ts`（消息正文+附件→上游 content，原先本轮消息与历史消息各写一份完全相同的推演）与 `services/toolCallStream.ts`（流式 tool_calls 按 index 累加/排序），处理函数 697 → 668 行、新增 22 个用例覆盖原先零测试的逻辑；**剩余 668 行是节点故障转移+SSE+工具往返的深度 I/O 耦合，拆它需要引入依赖注入，属独立的重新设计，本轮明确未做**。③ 补齐 6 处「服务端实际返回却没写进自己类型」的字段（`ModelCapability` 补 `tts`/`embedding`、`UserPublic.isVirtual`、`StationModel.adminEnabled`/`publicEnabled`、`McpServer.toolCount`、`RegexScript`/`RegexPreset.ownerUsername`），客户端 `capabilities` 由 `ModelCapability[] | string[]` 收紧、两处 `ownerUsername` 补 null；**不抽 shared 包**（要动两边 tsconfig/Vite 解析/部署脚本，风险大于收益），改为新增 `typeParity.test.ts` 立闸：同名类型必须逐字段一致，故意的差异写进白名单并说明理由，另有一条断言防白名单膨胀 —— 闸门**已验证真的会失败**（故意给 `Station` 加字段后立刻报出该字段，随后还原）。④ 三份 `UserPublic` 行映射合成 `services/userPublic.ts`，连 `GET /:id` 少 SELECT 一列一起修，7 个用例（含真库查询验证列清单完整）。⑤ 删掉 `LanguageToggle`/`ThemeToggle`（60 行，v0.7.78 已被 `TopRightToggles` 取代且无人 import）、`requireAdmin`、三个从未使用的类型。**⑤ 内含一处审计修正：`try { ALTER TABLE } catch {}` 不是债** —— 数量是 11 处不是 3 处（原 grep 漏了多行写法），且它们**必须存在**：`SCHEMA_MIGRATIONS` 的 v1 就是 `initTables` 本身，职责是重演账本诞生前的建表历史（`CREATE TABLE conversations` 故意不含 `user_id`，靠后面的 ALTER 补），删掉会让新建库直接缺列起不来；try/catch 是这次重演对任意中间 schema 状态的幂等性来源。测试合计 290 → **370**（server 323 / client 47），tsc 两端净、构建净、eslint 0 错 12 警。) -->
-> **Last Updated**: 2026-08-22 (v0.7.99 — **手机输入法卡顿 + ② 上下文注入段**。① owner 真机反馈「输入法弹出时输入框向上会卡一下，不影响使用只是不流畅」（8-15 报的另两个手机 bug——选择文件无反应、iOS 粘贴——owner 已确认修好）。怀疑是 `utils/viewportHeight.ts` 在 `visualViewport` 每次 resize 都直接写 `--app-height`，而输入法弹出是一段动画、这期间 resize 连续触发，同一帧内多次改样式＝重排抖动。改用 `requestAnimationFrame` 合并，一帧最多写一次；无 rAF 的环境退回同步。测试 6 → 11，新增一组专测合并（同帧连来 5 次只写 1 次、写的是最后一次的值、跨帧不合并、清理时取消未执行的帧、无 rAF 时同步）。⚠️ **体感是否改善本地验证不了**（iOS 输入法引起的 visualViewport 变化是 iOS 独有行为，无头浏览器模拟不出来），待 owner 真机确认，无效则改防抖。② 上下文注入段：**先纠正一处判断**——五段注入里已经有两段（世界书 `buildLorebookContext`、联网 `buildWebSearchContext`）是按「抽纯函数」样板做的，所以不是五段全要重写，只需让文件库 RAG 与记忆库跟上。**真正脆的是顺序**：五段各自 `apiMessages.unshift()`，最后 unshift 的排到最前，最终顺序（人设→联网→世界书→记忆→文件库）完全由调用次序倒推，而这个约定**只写在一句注释里、零测试**——谁挪动先后，提示词层次就悄悄变了且不会报错。新增 `services/chatContext.ts`：`SYSTEM_CONTEXT_ORDER` 常量 + `orderSystemContext()` + 两个格式化函数，15 个用例（含一条把旧的五次 unshift 手动跑一遍、与新实现逐项比对的等价性断言）。五次 unshift 换成一次 `unshift(...orderSystemContext(ctx).map(...))`，返回顺序即模型看到的顺序，不用再在脑子里倒推。**端到端实证**：本地验证实例 + 会记录请求体的模拟上游，造一轮人设与记忆都命中的对话，上游实际收到 `[system 人设][system 记忆][user][assistant][user]` —— 与重构前一致。处理函数 668 → **656 行**；② 累计 697 → 656，抽出 3 个纯模块共 37 个用例。测试总量 370 → **390**（server 338 / client 52），tsc 两端净、构建净、eslint 0 错 12 警。)
+> **Last Updated**: 2026-08-22 (v0.7.99 — **手机输入法卡顿 + ② 上下文注入段**。① owner 真机反馈「输入法弹出时输入框向上会卡一下，不影响使用只是不流畅」（8-15 报的另两个手机 bug——选择文件无反应、iOS 粘贴——owner 已确认修好）。怀疑是 `utils/viewportHeight.ts` 在 `visualViewport` 每次 resize 都直接写 `--app-height`，而输入法弹出是一段动画、这期间 resize 连续触发，同一帧内多次改样式＝重排抖动。改用 `requestAnimationFrame` 合并，一帧最多写一次；无 rAF 的环境退回同步。测试 6 → 11，新增一组专测合并（同帧连来 5 次只写 1 次、写的是最后一次的值、跨帧不合并、清理时取消未执行的帧、无 rAF 时同步）。⚠️ **体感是否改善本地验证不了**（iOS 输入法引起的 visualViewport 变化是 iOS 独有行为，无头浏览器模拟不出来），待 owner 真机确认，无效则改防抖。② 上下文注入段：**先纠正一处判断**——五段注入里已经有两段（世界书 `buildLorebookContext`、联网 `buildWebSearchContext`）是按「抽纯函数」样板做的，所以不是五段全要重写，只需让文件库 RAG 与记忆库跟上。**真正脆的是顺序**：五段各自 `apiMessages.unshift()`，最后 unshift 的排到最前，最终顺序（人设→联网→世界书→记忆→文件库）完全由调用次序倒推，而这个约定**只写在一句注释里、零测试**——谁挪动先后，提示词层次就悄悄变了且不会报错。新增 `services/chatContext.ts`：`SYSTEM_CONTEXT_ORDER` 常量 + `orderSystemContext()` + 两个格式化函数，15 个用例（含一条把旧的五次 unshift 手动跑一遍、与新实现逐项比对的等价性断言）。五次 unshift 换成一次 `unshift(...orderSystemContext(ctx).map(...))`，返回顺序即模型看到的顺序，不用再在脑子里倒推。**端到端实证**：本地验证实例 + 会记录请求体的模拟上游，造一轮人设与记忆都命中的对话，上游实际收到 `[system 人设][system 记忆][user][assistant][user]` —— 与重构前一致。处理函数 668 → **656 行**。③ **C 段：自审一遍**。这段的返回值会**整条替换**用户已经看到的回答，判松了会把答案抹成空白，而它原先零测试。抽出 `services/selfReview.ts`（拼提示词 + 解析响应，中间那次网络请求留在路由里），10 个用例，含专锁「只有空白算失败」与「返回未 trim 的原文」。顺手修掉一处字符串往返：自审原先靠把 `"模型 @ 节点名"` 这个给人看的字符串 `split(' @ ')[0]` 拆开再回头找节点（节点名里含 ` @ ` 就会找错），改为选中时一并记下 `winningStation` 对象直接用。**端到端实证**：开自审的会话上游收到 2 次请求（流式正文 + 带 `---BEGIN AI RESPONSE---` 的非流式自审），SSE 与落库都是修订版；关自审只 1 次，8 条断言全过。处理函数 656 → **653 行**；② 累计 697 → 653，抽出 4 个纯模块共 47 个用例。④ ⚠️ **抽自审时挖出：用量统计系统性少算（未修，待定夺）** —— `chat.ts` 只按用户那一句话估 token，人设/世界书/联网/记忆/文件库/全部历史都没算，且它压根不取上游的 `usage`（群聊的 `rooms.ts` 反而取了真实值），自审那次调用完全没记账；净效果是配额和成本看板都少算、用户上下文越多少算越多。修它会让配额真的开始生效、看板数字跳升，属产品可见变化，故先报不改。测试总量 370 → **400**（server 348 / client 52），tsc 两端净、构建净。)
 <!-- > **Last Updated**: 2026-08-15 (v0.7.96 — **电脑端侧边栏会话标题被压成一个字**（owner 截图，v0.7.94 把侧边栏 260→190px 之后出现）—— **不是标题内容的问题**（`chatStore.sendMessage` 用 `message.substring(0, 50)` 起标题，本该有 50 字），也不是普通的截断：罪魁是 v0.7.85 那条 `pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100` 的悬停操作条——**`opacity:0` 只是看不见，`display:flex` 让它一直占着约 110px 的宽**。260px 时勉强够，190px 的行里标题就只剩一个字。截图里「帮」后面那片空白其实就是这几个透明按钮。修法＝把操作条**移出文档流**（`absolute right-2 top-1/2 -translate-y-1/2` + 跟随行两种状态的背景色，避免与行底色出现接缝）。**没有选「悬停时才 `display:flex`」**：那样标题会在鼠标划过每一行时重新截断、来回跳。**实测（headless 里 `pointer:fine` 永远不匹配，所以改成手动把操作条 `display` 强制打开来量，`absolute` 本身是无条件工具类）**：操作条隐藏/显示两种情况下标题框都是 103px（证明确实不再占位）；再把只给触屏的 ⋯ 按钮（`pointer-fine:hidden`，headless 下反而是显示的）也隐藏掉，还原真实桌面 → **标题框 131px，约 10 个汉字**。**顺带一提这比修复前的 260px 还宽**：老代码里那条一直占位的按钮条会吃掉约 110px，260px 的行里标题实际只有 80–100px。client 13、tsc/build 净、eslint 0 错 11 警。**owner 的粘贴问题补充了两条线索**：长按时 iOS 的 Paste 按钮**根本不出现**，且复制的是上一条发给 AI 的消息（用的是站内复制按钮）。`MessageBubble.handleCopy` 里 `navigator.clipboard.writeText` 就在点击回调第一行、没有丢失用户手势，理应可用；但它的 `catch` 是**静默吞掉**的，所以复制失败时用户毫无感知——而剪贴板为空时 iOS 本来就不会给 Paste 按钮。仍怀疑 v0.7.95 的放大是主因，待 owner 用修复版复测。) -->
 <!-- > **Last Updated**: 2026-08-15 (v0.7.95 — **iPhone 真机：整页比屏幕大、缩放后一点按钮又变回去；键盘收起后输入框卡在屏幕三分之二处、下面一片空白**（owner iPhone 13 Pro 实测报的两个问题，**其实是同一个根因**）—— ① **不是布局宽**：390×844 下实测 `documentElement.scrollWidth` 正好 390、**零个元素溢出**，viewport meta 也是标准的 `width=device-width, initial-scale=1.0`。真凶是 **iOS Safari 在聚焦字号 <16px 的 input/textarea/select 时会放大整个页面，而且永不自动缩回**——本站控件为了桌面密度普遍是 13–15px（输入框 15px），所以**第一次点输入框就触发**，之后每点一个控件又触发一次，正好对上「缩放一下正常、点别的又回去」。**`maximum-scale=1` / `user-scalable=no` 不是解法**：iOS 从 10 起就故意忽略这两个（会剥夺需要放大的人的能力）。唯一有效的杠杆是把字号提到 16px → `index.css` 加 `@media (pointer:coarse){input,textarea,select{font-size:16px}}`。**能盖过 Tailwind 的 `text-[15px]` 靠的是层叠而不是特异性**：`index.css` 里的自定义规则是**未分层**的，而 `@import "tailwindcss"` 把工具类放进 `@layer utilities`，未分层样式整体优先于分层样式（元素选择器 0,0,1 本来是打不过类 0,1,0 的）。全站没有任何控件要求 >16px，所以这条只会往上抬、不会压小。② **第二个问题是第一个的连带伤**：`utils/viewportHeight` 里 `if (vv.scale !== 1) return;` 想的是「别在用户捏合时跟他抢」，但**跳过写入＝把上一次的值永久冻住**；iOS 上的放大既非用户本意、又不会自己解除，于是键盘弹起时写进去的那个小高度在键盘收起后再也没被刷新 → 外壳一直是键盘高度，输入框停在三分之二处、下方空白，**刷新才恢复**（owner 原话）。改成 `scale !== 1` 时**删掉 `--app-height`**、交回 `100dvh` 兜底——永远不会是陈旧值。**Chromium 实测（关键：`Emulation.*` 覆盖是按 CDP 会话生效的，换个连接去量会读到 `pointer:none`，必须同一会话里模拟+测量）**：`pointer:coarse=true`、聊天页与设置页所有控件 16px、横竖溢出都是 0。client 13 测试、tsc/build 净、eslint 0 错 11 警。**owner 报的第三个问题（输入框无法粘贴文字）暂未定位**：`handlePaste` 只在剪贴板含图片时 `preventDefault`，纯文本会正常放行；全站也没有 `user-select:none` / 全局按键拦截。怀疑是①的放大把长按选择菜单顶歪了，待 owner 用修复版复测后再判断。) -->
 <!-- > **Last Updated**: 2026-08-15 (v0.7.94 — **侧边栏底部六个入口搬进设置页，侧边栏 260px→190px**（owner 测试时提的：「记忆库、文件库这些放进设置里，侧边栏再缩小一半」）—— 搬哪些是问过 owner 拍板的：**只搬管理/工具类 6 项**（记忆库、文件库、导出对话、导入对话、用户管理、用量日志），**我的群聊和模型竞技场留在侧边栏**——它俩是天天点的主功能，埋进设置页等于每次多两下。新增 `settings/ToolsSection`（放在「默认模型」下面，同属「人人可见」那一档，在管理员专属区块之上），一个 `grid-cols-1 sm:grid-cols-2` 的入口卡，可见性规则原样搬过来（非访客看 4 项、管理员多看 2 项、访客整张卡消失）。**导出/导入是连逻辑一起搬的**——它们是文件选择流程不是导航，侧边栏里也没别处用。**宽度只砍到 190px 不是字面的一半（130px）**：给 owner 算过账，130px 下会话标题只剩约 8 个汉字，而 v0.7.88 才刚修过「标题被按钮挤到只剩 12px」，不想再往那个方向走；190px 下标题约 12 字，owner 选了这个。**手机抽屉仍是 280px**（它是盖在聊天上的浮层，不跟正文抢宽度）。**导航连带改了一处**：这四个页面现在**只能从设置页进**，所以 `Layout` 把它们的返回从 `'chat'` 改成 `'settings'`——退回一个你根本没来过的地方，比省下的那一下点击更糟。**踩到两个坑**：① 注释写进了 `{sidebarOpen && (` 和 `<div>` 之间，那是 JSX 表达式位置、`{/* */}` 不合法，编译直接炸；② `ToolsSection` 里入口表是 render 期构建的，行里挂一个会读 `ref.current` 的函数会被 react-hooks 判 **"Cannot access refs during render"**（哪怕只在点击时读）——改成**点击时临时 `document.createElement('input')`**，连隐藏 input 和 ref 一起去掉，顺带省了「重选同一文件不触发 change」要手动清 value 的老问题。**Chromium 实测**：侧边栏量到 190px；侧边栏只剩 我的群聊/竞技场/设置；设置页「工具与数据」6 个入口齐；点记忆库进去再返回，落回**设置页**。client 13 测试、tsc/build 净、eslint 0 错 11 警（持平），i18n 673=673。) -->
@@ -1388,7 +1388,7 @@ PUT  /api/users/:id   ✅ 含
 |---|---|---|
 | 🔴🔴 安全漏洞 | ✅ 已修 + 实测验证 | 见上 |
 | ① 客户端测试 | ✅ 本轮目标达成 | 13 → **47** 个用例（2 → 5 个文件）；顺带修出两个真 bug |
-| ② 巨型函数 | 🟡 抽出两块并测住 | 697 → **668** 行；新增 22 个用例覆盖原先零测试的逻辑。**完整拆解是一次重新设计，未做** |
+| ② 巨型函数 | 🟡 抽出四块并测住 | 697 → **653** 行；新增 47 个用例覆盖原先零测试的逻辑。**剩下的故障转移/SSE/工具往返 240 行是一次重新设计，未做** |
 | ③ 类型合并 | ✅ 完成 | 8 处漂移 → 2 处（有文档的故意差异）；立了一道**已验证会失败**的闸 |
 | ④ users.ts 重复映射 | ✅ 完成 | 三份映射合一，连 SQL 漏字段一起修；7 个用例 |
 | ⑤ 死代码 | ✅ 完成（含一处审计修正） | 见下 |
@@ -1409,7 +1409,8 @@ tsc 两端净、构建净、eslint 0 错 12 警（警告都是原有的）。
 并行调用时不保证等于 index 序。上游是按 `tool_call_id` 配结果的，所以**不是活着的 bug**，
 但换成显式排序不花成本。
 
-**剩下的 668 行为什么没继续拆**：主体是节点故障转移 + SSE 流式 + 工具调用往返（约 240 行）、
+**剩下的 668 行为什么没当场继续拆**（后续 B/C 又拆掉两块，见下文，现为 653 行）：
+主体是节点故障转移 + SSE 流式 + 工具调用往返（约 240 行）、
 五段上下文注入（约 100 行）、自审一遍（约 70 行）。这些都深度耦合网络与数据库，
 要拆得安全需要引入依赖注入（项目里 `InvokeModelDeps`/`DeepProbeDeps` 已有这个形状），
 属于一次独立的重新设计 —— 半拆只会增加间接层而不增加安全性。
@@ -1559,15 +1560,51 @@ iOS 独有行为，无头浏览器模拟不出来。代码层面「一帧只写�
 
 人设第一、记忆第二、system 全部先于用户消息 —— 与重构前一致。
 
-#### C. 之后的顺序（本轮不做）
+#### C. 自审段（v0.7.99，已完成）
 
-自审段（约 70 行，较独立）→ 节点故障转移 + SSE + 工具调用往返（约 240 行，最危险，
-需要引入依赖注入，`InvokeModelDeps` / `DeepProbeDeps` 是现成形状）。
+**为什么这段值得先测住**：自审的返回值会**整条替换**用户已经看到的回答。
+也就是说「什么算拿到了有效结果」这个判断一旦判松，用户的答案会被抹成空白 ——
+而这段原先整个内联在处理函数里，零测试。
+
+**结果**：新增 `services/selfReview.ts`，收下纯粹的两头 ——
+`buildSelfReviewPrompt()`（提示词原文一字未改）与 `extractReviewedContent()`
+（解析上游响应；空白 / 非字符串 / 结构残缺一律返回 `null`，调用方保留原回答），
+中间那次网络请求留在路由里。**10 个用例**，其中一条专门锁「只有空白算失败」。
+`extractReviewedContent` 返回的是**未 trim 的原文** —— 只用 trim 判空，不改内容
+（模型的换行和缩进是有意义的）。
+
+**顺手修掉一处字符串往返**：原先自审要用哪个节点，是把 `usedStation` 这个
+给人看的字符串（`"模型 @ 节点名"`）`split(' @ ')[0]` 拆开、再回 `stations` 里
+按同样的拼接结果找回来 —— 节点名里只要有 ` @ ` 就会找错。改为在选中节点时
+一并记下 `winningStation` 对象，自审直接用它的 `modelId` / `baseUrl` / `apiKey`。
+
+**端到端实证**（验证实例 + 记录请求流水的模拟上游，真实 HTTP）：
+开着自审的会话，上游收到 **2 次**请求（流式正文 + 非流式自审，后者带
+`---BEGIN AI RESPONSE---` 标记），SSE 推回修订版且落库的也是修订版；
+关掉自审的会话只有 **1 次**请求。8 条断言全过。
+
+处理函数 656 → **653 行**（这段本来就短，收益在「测住」而非「变短」）。
+
+#### D. 之后（未做）
+
+节点故障转移 + SSE + 工具调用往返（约 240 行，最危险，需要引入依赖注入，
+`InvokeModelDeps` / `DeepProbeDeps` 是现成形状）。
 每抽一块跑一遍全套测试，任何一步都能停下而不留半成品。
 
-**②的累计进度：697 → 656 行；抽出 3 个纯模块（`chatContent` / `toolCallStream` /
-`chatContext`），共 37 个用例覆盖原先零测试的逻辑。**
-测试总量：审计起点 290 → **390**（server 338 / client 52）。
+**②的累计进度：697 → 653 行；抽出 4 个纯模块（`chatContent` / `toolCallStream` /
+`chatContext` / `selfReview`），共 47 个用例覆盖原先零测试的逻辑。**
+测试总量：审计起点 290 → **400**（server 348 / client 52）。
+
+#### ⚠️ 抽自审时挖出的另一个问题：用量统计系统性少算（未修，待 owner 定夺）
+
+`chat.ts` 记账用的是 `approxPrompt = Math.ceil(String(message).length / 4)` ——
+**只数了用户这一句话**，人设、世界书、联网、记忆、文件库、以及全部历史对话
+统统没算。而且 `chat.ts` 压根没从上游响应里取 `usage`（它为了支持工具调用
+自己做流式解析，绕开了 `streamInvokeModel`），群聊那边的 `rooms.ts` 反而是
+用真实的 `result.usage.promptTokens` 记的。另外自审那次上游调用**完全没记账**。
+
+净效果：**每用户配额和成本看板都系统性少算，且用户带的上下文越多、少算越多**。
+修它会让配额真的开始生效、看板数字跳升 —— 这是产品可见的变化，所以先报不改。
 
 ---
 
@@ -1706,6 +1743,7 @@ settings:
 
 ---
 | 2026-08-21 | 0.7.98 | 全量代码审计（§10.11）：结论「不是屎山」但有 5 处结构性债务；审计中发现并修复真实安全漏洞——删用户经外键 ON DELETE SET NULL 孤儿化其全部会话，旧规则把无主会话当作「所有人可读可改」，未登录即可读私密对话并 truncate 清空（已实测复现 + 修复后实测验证）；新增 services/conversationAccess.ts 统一三处重复且语义不一致的归属权规则；客户端测试 13→47，顺带修掉英文 `{s}` 复数占位符字面外露、群聊「AI 输出时无法滚动」两个真 bug；同日续做 ②③④⑤ —— 抽出 chatContent / toolCallStream / userPublic 三个纯模块并测住，补齐 6 处前后端类型漂移并新增 typeParity 闸门测试（已验证会失败），清掉两个被取代的 Toggle 组件与三个未使用类型；审计修正：11 处 try/catch ALTER 是 v1 基线重演的必要组成，不是债。测试 290 → 370 | Claude |
+| 2026-08-22 | 0.7.99 | ②C 自审段：抽出 services/selfReview.ts（10 用例，锁住「空白结果算失败」这条会抹掉用户答案的判断），并修掉自审按 `"模型 @ 节点名"` 字符串拆解找回节点的隐患（改记 winningStation 对象）；端到端实证开/关自审分别是 2 次/1 次上游调用。处理函数 656→653，测试 390→400。**另报一个未修问题：用量统计只数用户那一句话、不取上游 usage、自审调用不记账 → 配额与成本看板系统性少算** | Claude |
 | 2026-08-22 | 0.7.99 | 手机输入法弹出时输入框卡顿：`--app-height` 改为按帧合并写入（rAF），测试 6→11，体感待 owner 真机确认；② 上下文注入段：新增 services/chatContext.ts 把五段 system 注入的**顺序**从「靠调用次序倒推 + 一句注释」变成写明的常量 + 15 个用例（含与旧实现的等价性断言），并抽出文件库/记忆库两个格式化纯函数对齐已有样板；端到端用记录请求体的模拟上游实证顺序未变。处理函数 668→656，测试 370→390 | Claude |
 
 ## 13. Notes & Open Questions

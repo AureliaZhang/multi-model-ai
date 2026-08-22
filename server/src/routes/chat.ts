@@ -39,6 +39,7 @@ import {
   formatMemoryContext,
   type SystemContextParts,
 } from '../services/chatContext';
+import { buildSelfReviewPrompt, extractReviewedContent } from '../services/selfReview';
 
 type ChatApiMessage =
   | { role: string; content: string | ChatContentPart[] | null; tool_calls?: unknown }
@@ -458,7 +459,18 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
 
     // Try stations with failover (pool computed once above — no re-scan).
     let assistantContent = '';
+    /** 展示用的 `模型 @ 节点` 串（写进 messages.model_used 和用量日志）。 */
     let usedStation = '';
+    /**
+     * 胜出的那个节点本身。
+     *
+     * v0.7.99：自审段原先是把 `usedStation` 这个展示串**拆开再反查**
+     * （`split(' @ ')[0]` 取模型名，再用同样的拼法 `find()` 回节点）。
+     * 直接留一个引用就不用来回编解码了 —— 顺带去掉一个隐患：
+     * 万一两个条目拼出同样的展示串（同名节点、或同一节点被列了两次），
+     * `find()` 可能反查到另一个。
+     */
+    let winningStation: (typeof stations)[number] | null = null;
 
     // Load enabled MCP tools
     const mcpTools = loadEnabledMcpTools(db);
@@ -502,6 +514,7 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
         }
 
         usedStation = `${s.modelId} @ ${s.station.name}`;
+        winningStation = s;
 
         // Stream the response with tool_call support
         const maxToolRounds = 5;
@@ -691,51 +704,36 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    // Self-review pass: if enabled, send the response through a review prompt
-    if (conv.self_review) {
+    // Self-review pass: if enabled, send the response through a review prompt.
+    // 提示词与响应解析在 services/selfReview.ts（v0.7.99 抽出 + 单测）。
+    if (conv.self_review && winningStation) {
       console.log(`[chat] Self-review enabled for conversation ${conversationId}, starting review pass...`);
       try {
-        const reviewPrompt = `You are a professional editor and proofreader. Review the following AI response for:
-1. Grammar errors and typos
-2. Table formatting issues (broken markdown tables, misaligned columns)
-3. Formatting inconsistencies
-
-If you find any issues, correct them and return ONLY the corrected version. If there are no issues, return the original text unchanged. Do NOT add any commentary, explanation, or meta-text. Just return the corrected content directly.
-
----BEGIN AI RESPONSE---
-${assistantContent}
----END AI RESPONSE---`;
-
         const reviewRequestBody: ChatRequestBody = {
-          model: usedStation.split(' @ ')[0], // Use the same model
-          messages: [{ role: 'user', content: reviewPrompt }],
+          model: winningStation.modelId, // 与正文用的是同一个模型
+          messages: [{ role: 'user', content: buildSelfReviewPrompt(assistantContent) }],
           stream: false,
         };
 
-        // Find the station info for the review call
-        const reviewStation = stations.find((s) => `${s.modelId} @ ${s.station.name}` === usedStation);
-        if (reviewStation) {
-          const reviewResponse = await fetch(`${reviewStation.station.baseUrl}/chat/completions`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${reviewStation.station.apiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(reviewRequestBody),
-          });
+        const reviewResponse = await fetch(`${winningStation.station.baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${winningStation.station.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(reviewRequestBody),
+        });
 
-          if (reviewResponse.ok) {
-            const reviewData = await reviewResponse.json() as { choices?: Array<{ message?: { content?: string } }> };
-            const reviewedContent = reviewData.choices?.[0]?.message?.content;
-            if (reviewedContent && reviewedContent.trim()) {
-              console.log(`[chat] Self-review complete. Original: ${assistantContent.length} chars, Reviewed: ${reviewedContent.length} chars`);
-              assistantContent = reviewedContent;
-              // Send the reviewed content as a replacement event
-              res.write(`data: ${JSON.stringify({ reviewedContent: assistantContent })}\n\n`);
-            }
-          } else {
-            console.error(`[chat] Self-review API call failed with status ${reviewResponse.status}`);
+        if (reviewResponse.ok) {
+          const reviewedContent = extractReviewedContent(await reviewResponse.json());
+          if (reviewedContent) {
+            console.log(`[chat] Self-review complete. Original: ${assistantContent.length} chars, Reviewed: ${reviewedContent.length} chars`);
+            assistantContent = reviewedContent;
+            // Send the reviewed content as a replacement event
+            res.write(`data: ${JSON.stringify({ reviewedContent: assistantContent })}\n\n`);
           }
+        } else {
+          console.error(`[chat] Self-review API call failed with status ${reviewResponse.status}`);
         }
       } catch (reviewErr: unknown) {
         console.error('[chat] Self-review error:', getErrorMessage(reviewErr));
