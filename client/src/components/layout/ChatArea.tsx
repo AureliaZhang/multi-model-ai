@@ -8,6 +8,7 @@ import { ErrorBoundary } from '../ErrorBoundary';
 import { Sparkles, ChevronUp, PanelLeft, Wand2 } from 'lucide-react';
 import { useTranslation } from '../../i18n';
 import { friendlyErrorKey } from '../../utils/errors';
+import { isAtBottom, shouldResumeFollow, followBehavior } from '../../utils/scrollFollow';
 import { TopRightToggles } from './TopRightToggles';
 
 interface ChatAreaProps {
@@ -75,31 +76,23 @@ export function ChatArea({ isGuest = false, onSignIn, sidebarCollapsed = false, 
     const grew = messages.length !== prevMessageCountRef.current;
     prevMessageCountRef.current = messages.length;
 
-    // Sending puts you back in follow mode — you just added the thing at the bottom.
-    if (grew && messages[messages.length - 1]?.role === 'user') {
-      followBottomRef.current = true;
-    }
+    // 规则本体在 utils/scrollFollow.ts（v0.7.98 抽出，带单元测试）。
+    // 这个 effect 每个流式 token 都会跑，v0.7.97 之前是无条件 scrollIntoView：
+    // 往上滑立刻被下一个 token 拽回去，而且 smooth 动画每秒叠几十层，
+    // 视图是在跟滚轮较劲而不是忽略它。
+    followBottomRef.current = shouldResumeFollow(
+      grew,
+      messages[messages.length - 1]?.role === 'user',
+      followBottomRef.current,
+    );
 
-    // Only follow if the reader is already at the bottom (v0.7.97). This effect
-    // also runs on every streamed token, and it used to scroll unconditionally:
-    // scrolling up mid-answer was impossible, because the next token yanked you
-    // back — and `behavior: 'smooth'` layered a fresh animation over the last one
-    // dozens of times a second, so the view fought the wheel rather than ignoring
-    // it. Token updates now jump instantly (no animation to queue) while a whole
-    // new message still glides.
     if (!followBottomRef.current) return;
-    messagesEndRef.current?.scrollIntoView({ behavior: grew ? 'smooth' : 'auto' });
+    messagesEndRef.current?.scrollIntoView({ behavior: followBehavior(grew) });
   }, [messages, streamingContent]);
 
-  /**
-   * Follow the bottom only while the reader is there. 40px of slack: a container
-   * resting at the bottom is often a fraction of a pixel short, and a phone's
-   * elastic overscroll lands nearby rather than exactly.
-   */
   const handleMessagesScroll = () => {
     const el = messagesScrollRef.current;
-    if (!el) return;
-    followBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    if (el) followBottomRef.current = isAtBottom(el);
   };
 
   const hasPersona = !!conversations.find(c => c.id === currentConversationId)?.systemPrompt?.trim();

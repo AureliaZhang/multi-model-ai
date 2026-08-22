@@ -8,6 +8,8 @@ import type { UserPublicRow } from '../dbRows';
 import { getErrorMessage } from '../utils/errors';
 import { isVirtualPlaceholderUser, VIRTUAL_PLACEHOLDER_USERNAME, VIRTUAL_PLACEHOLDER_USER_ID } from '../virtualUser';
 import { generateInviteCode } from '../services/invites';
+// 行 → UserPublic 的唯一一份映射 + 共用列清单（v0.7.98，原先三处各写一份且已抄漏）
+import { USER_PUBLIC_COLUMNS, rowToUserPublic } from '../services/userPublic';
 import type { Invite } from '../types';
 import type { InviteRow } from '../dbRows';
 
@@ -107,25 +109,11 @@ router.get('/', (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
     const rows = db.prepare(`
-      SELECT id, username, email, phone, display_name as displayName, role,
-             is_active as isActive, last_login as lastLogin,
-             created_at as createdAt, updated_at as updatedAt,
-             monthly_token_limit as monthlyTokenLimit
+      SELECT ${USER_PUBLIC_COLUMNS}
       FROM users ORDER BY created_at DESC
     `).all() as UserPublicRow[];
 
-    const users: UserPublic[] = rows.map(row => ({
-      id: row.id,
-      username: row.username,
-      email: row.email,
-      phone: row.phone,
-      displayName: row.displayName,
-      role: row.role as UserPublic['role'],
-      isActive: Boolean(row.isActive),
-      lastLogin: row.lastLogin,
-      createdAt: row.createdAt,
-      monthlyTokenLimit: row.monthlyTokenLimit ?? 0,
-    }));
+    const users: UserPublic[] = rows.map(rowToUserPublic) as UserPublic[];
 
     res.json({ success: true, data: users });
   } catch (err: unknown) {
@@ -224,9 +212,7 @@ router.get('/:id', (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
     const row = db.prepare(`
-      SELECT id, username, email, phone, display_name as displayName, role,
-             is_active as isActive, last_login as lastLogin,
-             created_at as createdAt
+      SELECT ${USER_PUBLIC_COLUMNS}
       FROM users WHERE id = ?
     `).get(req.params.id) as UserPublicRow | undefined;
 
@@ -235,20 +221,9 @@ router.get('/:id', (req: AuthRequest, res: Response) => {
       return;
     }
 
-    res.json({
-      success: true,
-      data: {
-        id: row.id,
-        username: row.username,
-        email: row.email,
-        phone: row.phone,
-        displayName: row.displayName,
-        role: row.role as UserPublic['role'],
-        isActive: Boolean(row.isActive),
-        lastLogin: row.lastLogin,
-        createdAt: row.createdAt,
-      },
-    });
+    // v0.7.98：这里原先手写了一份映射，且漏了 monthlyTokenLimit
+    // （SQL 里也没 SELECT 它）。现在与 list / update 共用同一份。
+    res.json({ success: true, data: rowToUserPublic(row) });
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
@@ -314,27 +289,11 @@ router.put('/:id', (req: AuthRequest, res: Response) => {
     db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...values);
 
     const row = db.prepare(`
-      SELECT id, username, email, phone, display_name as displayName, role,
-             is_active as isActive, last_login as lastLogin,
-             created_at as createdAt, monthly_token_limit as monthlyTokenLimit
+      SELECT ${USER_PUBLIC_COLUMNS}
       FROM users WHERE id = ?
     `).get(userId) as UserPublicRow;
 
-    res.json({
-      success: true,
-      data: {
-        id: row.id,
-        username: row.username,
-        email: row.email,
-        phone: row.phone,
-        displayName: row.displayName,
-        role: row.role as UserPublic['role'],
-        isActive: Boolean(row.isActive),
-        lastLogin: row.lastLogin,
-        createdAt: row.createdAt,
-        monthlyTokenLimit: row.monthlyTokenLimit ?? 0,
-      },
-    });
+    res.json({ success: true, data: rowToUserPublic(row) });
   } catch (err: unknown) {
     res.status(500).json({ success: false, error: getErrorMessage(err) });
   }

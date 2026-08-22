@@ -11,6 +11,7 @@ import type {
   AttachmentImportItem,
 } from '../dbRows';
 import { optionalAuth } from '../middleware/auth';
+import { canReadConversation, canModifyConversation } from '../services/conversationAccess';
 import { getErrorMessage } from '../utils/errors';
 
 const router = Router();
@@ -78,18 +79,20 @@ export function computeConversationUpdate(
   };
 }
 
-/** Read access: admin, owner, public conversations, or legacy ownerless rows. */
+/**
+ * 读 / 写权限判定 —— 规则本体在 services/conversationAccess.ts（唯一一份，带单测）。
+ * 这里只是把 AuthRequest 拆成规则需要的最小形状。
+ *
+ * v0.7.98：无主会话（`user_id IS NULL`）从「所有人可读可改」收紧为「仅管理员」。
+ * 详见规则模块里的说明——删用户会通过外键把会话孤儿化，旧规则等于把
+ * 离职成员的全部私密会话对整个互联网开放。
+ */
 function canReadConv(req: AuthRequest, conv: ConversationRow): boolean {
-  const u = req.user;
-  if (u && (u.role === 'admin' || conv.user_id === u.id)) return true;
-  return conv.visibility === 'public' || conv.user_id == null;
+  return canReadConversation(req.user, conv);
 }
 
-/** Mutate access: admin or the real owner only (legacy ownerless rows → admin only). */
 function canModifyConv(req: AuthRequest, conv: ConversationRow): boolean {
-  const u = req.user;
-  if (!u) return false;
-  return u.role === 'admin' || (conv.user_id != null && conv.user_id === u.id);
+  return canModifyConversation(req.user, conv);
 }
 
 function rowToAttachment(r: AttachmentRow): Attachment {
@@ -144,19 +147,21 @@ function loadAttachmentsForMessages(messageIds: string[]): Map<string, Attachmen
 router.get('/', optionalAuth, (req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
-    const userId = req.user?.id;
+    const u = req.user;
     let rows: ConversationRow[];
 
-    if (userId) {
-      // Authenticated: own conversations (all visibility) + public from others.
-      // Pinned first, then most-recent (the sidebar renders in this order).
+    if (u) {
+      // 本人的（各种可见性）+ 别人的公开会话。
+      // v0.7.98：无主会话只对管理员可见 —— 它们多半是删用户之后被外键孤儿化的
+      // 私密会话，不该出现在其他成员的侧边栏里。
+      const orphanClause = u.role === 'admin' ? ' OR user_id IS NULL' : '';
       rows = db.prepare(
-        'SELECT * FROM conversations WHERE user_id = ? OR visibility = ? OR user_id IS NULL ORDER BY pinned DESC, updated_at DESC'
-      ).all(userId, 'public') as ConversationRow[];
+        `SELECT * FROM conversations WHERE user_id = ? OR (visibility = ? AND user_id IS NOT NULL)${orphanClause} ORDER BY pinned DESC, updated_at DESC`
+      ).all(u.id, 'public') as ConversationRow[];
     } else {
-      // Guest: only public conversations
+      // 访客：只看公开且有主的
       rows = db.prepare(
-        'SELECT * FROM conversations WHERE visibility = ? ORDER BY pinned DESC, updated_at DESC'
+        'SELECT * FROM conversations WHERE visibility = ? AND user_id IS NOT NULL ORDER BY pinned DESC, updated_at DESC'
       ).all('public') as ConversationRow[];
     }
 
@@ -282,7 +287,7 @@ router.post('/:id/truncate', optionalAuth, (req: AuthRequest, res: Response) => 
       return res.status(404).json({ success: false, error: 'Conversation not found' });
     }
     const u = req.user;
-    if (conv.user_id != null && !(u && (u.role === 'admin' || u.id === conv.user_id))) {
+    if (!canModifyConv(req, conv)) {
       return res.status(403).json({ success: false, error: 'You do not have permission to modify this conversation' });
     }
 

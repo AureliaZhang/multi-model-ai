@@ -24,7 +24,10 @@ export interface StationModel {
   stationId: string;
   modelId: string;
   displayName: string;
-  capabilities: ModelCapability[] | string[];
+  // v0.7.98（§10.11 ③）：收紧为 ModelCapability[]。原先的 `| string[]` 是为了
+  // 兜住服务端可能返回 tts / embedding —— 而那两个值现在已经补进 ModelCapability 了，
+  // 所以放宽已经没有理由，留着只会让两端类型永久不一致。
+  capabilities: ModelCapability[];
   /** Selected into admin pool (admin can use) */
   adminEnabled?: boolean;
   /** When true, model is exposed to end-user home selector */
@@ -408,7 +411,7 @@ export interface RegexScript {
   enabled: boolean;
   order: number;
   userId: string;
-  ownerUsername?: string;
+  ownerUsername?: string | null;   // v0.7.98：服务端返回 `owner_username || null`，可以是 null
   createdAt: string;
   updatedAt: string;
 }
@@ -418,7 +421,7 @@ export interface RegexPreset {
   name: string;
   description: string | null;
   userId: string;
-  ownerUsername?: string;
+  ownerUsername?: string | null;   // v0.7.98：服务端返回 `owner_username || null`，可以是 null
   isDefault: boolean;
   scripts?: RegexScript[];
   createdAt: string;

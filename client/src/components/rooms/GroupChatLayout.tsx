@@ -6,6 +6,7 @@ import { usersApi } from '../../services/api';
 import { useTranslation } from '../../i18n';
 import { TopRightToggles } from '../layout/TopRightToggles';
 import { MarkdownMessage } from '../common/MarkdownMessage';
+import { isAtBottom, shouldResumeFollow, followBehavior } from '../../utils/scrollFollow';
 import {
   exportRepliesAsPdf,
   downloadBlob,
@@ -97,6 +98,15 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
   const [remaining, setRemaining] = useState(0);
   const endRef = useRef<HTMLDivElement>(null);
   const aiEndRef = useRef<HTMLDivElement>(null);
+  // 两栏各自的滚动容器 + 是否处于「跟随底部」状态（v0.7.98）。
+  // 原先两个 effect 都是无条件 scrollIntoView，和 ChatArea 在 v0.7.97 修掉的
+  // 是同一类问题：翻上去看之前的回答，队友一发言就被拽回底部。
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const aiScrollRef = useRef<HTMLDivElement>(null);
+  const followChatRef = useRef(true);
+  const followAiRef = useRef(true);
+  const prevHumanCountRef = useRef(0);
+  const prevAiCountRef = useRef(0);
 
   useEffect(() => {
     openRoom(roomId);
@@ -128,12 +138,29 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
   );
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [humanItems.length, aiGenerating]);
+    const grew = humanItems.length !== prevHumanCountRef.current;
+    prevHumanCountRef.current = humanItems.length;
+    const mine = humanItems[humanItems.length - 1]?.userId === me?.id;
+    followChatRef.current = shouldResumeFollow(grew, mine, followChatRef.current);
+    if (followChatRef.current) endRef.current?.scrollIntoView({ behavior: followBehavior(grew) });
+  }, [humanItems.length, aiGenerating, me?.id]);
 
   useEffect(() => {
-    aiEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const grew = aiMessages.length !== prevAiCountRef.current;
+    prevAiCountRef.current = aiMessages.length;
+    // 右栏没有「我发的消息」，但我自己发起提问时应该跟着看回答。
+    followAiRef.current = shouldResumeFollow(grew, asking, followAiRef.current);
+    if (followAiRef.current) aiEndRef.current?.scrollIntoView({ behavior: followBehavior(grew) });
   }, [aiMessages.length, asking]);
+
+  const handleChatScroll = () => {
+    const el = chatScrollRef.current;
+    if (el) followChatRef.current = isAtBottom(el);
+  };
+  const handleAiScroll = () => {
+    const el = aiScrollRef.current;
+    if (el) followAiRef.current = isAtBottom(el);
+  };
 
   const iHoldLock = currentRoom?.aiState === 'occupying_input' && currentRoom?.occupantUserId === me?.id;
   const someoneElseHolds = currentRoom?.aiState === 'occupying_input' && currentRoom?.occupantUserId !== me?.id;
@@ -354,7 +381,7 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
           <NotepadBar />
 
           {/* messages */}
-          <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3">
+          <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3" ref={chatScrollRef} onScroll={handleChatScroll}>
             {humanItems.length === 0 && !aiGenerating && (
               <div className="flex flex-col items-center justify-center h-full text-center text-[var(--color-text-tertiary)]">
                 <MessageSquare size={20} className="mb-2 opacity-40" />
@@ -572,7 +599,7 @@ export function GroupChatLayout({ roomId, onBack }: GroupChatLayoutProps) {
               )}
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-4" ref={aiScrollRef} onScroll={handleAiScroll}>
             {aiMessages.filter((m) => m.role === 'assistant').length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center text-[var(--color-text-tertiary)]">
                 <Sparkles size={22} className="mb-2 text-[var(--color-accent-main)]" />

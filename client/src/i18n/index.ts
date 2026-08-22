@@ -44,6 +44,18 @@ export const useI18nStore = create<I18nState>((set, get) => ({
       });
     }
 
+    // `{s}` is the English plural marker ("{count} file{s} selected"). It used to
+    // be the caller's job to pass it, and four of the six call sites forgot — so
+    // the English UI literally rendered "3 script{s}" / "2 file{s} selected".
+    // The station-count site got it wrong the other way (`count > 1 ? 's' : ''`
+    // renders "0 station available"). Deriving it here from `count` kills the whole
+    // bug class: there is nothing left for a call site to forget or get wrong.
+    // An explicitly passed `s` still wins, because the loop above already ran.
+    if (typeof value === 'string' && value.includes('{s}')) {
+      const n = params?.count;
+      value = value.replace(/\{s\}/g, Number(n) === 1 ? '' : 's');
+    }
+
     return value as string;
   },
 }));

@@ -20,6 +20,7 @@ import {
   type StationFailure,
 } from '../services/modelInvocation';
 import { checkUserQuota } from '../services/quota';
+import { canModifyConversation } from '../services/conversationAccess';
 import { getActiveScripts, applyRegexScripts } from '../services/regexEngine';
 import { getErrorMessage } from '../utils/errors';
 import { searchFileChunks } from '../services/fileProcessor';
@@ -27,11 +28,10 @@ import { filterVisibleFileIds } from './files';
 import { matchLorebookEntries, buildLorebookContext } from '../services/lorebook';
 import { maybeDistillConversation } from '../services/memoryDistiller';
 import { searchWeb, buildWebSearchContext } from '../services/webSearch';
-
-/** OpenAI-style multimodal content part for chat completions. */
-type ChatContentPart =
-  | { type: 'text'; text: string }
-  | { type: 'image_url'; image_url: { url: string } };
+// content 拼装规则（含 ChatContentPart 定义）在这里，两套附件来源共用同一份纯函数。
+import { buildMessageContent, type ChatContentPart, type AttachmentPiece } from '../services/chatContent';
+// 流式 tool_calls 的累加与排序（同样是从这个处理函数里抽出来的纯逻辑）。
+import { accumulateToolCalls, orderedToolCalls, type AccumulatedToolCall } from '../services/toolCallStream';
 
 type ChatApiMessage =
   | { role: string; content: string | ChatContentPart[] | null; tool_calls?: unknown }
@@ -167,10 +167,12 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
     if (!conv) {
       return res.status(404).json({ success: false, error: 'Conversation not found' });
     }
-    // Only the owner (or admin) may send into an owned conversation.
-    // Ownerless rows (legacy / guest-created) stay open so those flows keep working.
+    // 只有本人（或管理员）能往会话里发消息。规则本体在
+    // services/conversationAccess.ts，与 conversations.ts 共用同一份。
+    // v0.7.98：无主会话不再「保持开放」—— 那条豁免的实际效果是，
+    // 删掉一个用户之后，任何人都能往他被孤儿化的会话里继续发消息。
     const sender = req.user;
-    if (conv.user_id != null && !(sender && (sender.role === 'admin' || sender.id === conv.user_id))) {
+    if (!canModifyConversation(sender, conv)) {
       return res.status(403).json({ success: false, error: 'You do not have permission to send messages in this conversation' });
     }
 
@@ -301,81 +303,54 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
 
-    // Build messages array for the API, with multimodal support
+    // Build messages array for the API, with multimodal support.
+    // 这里只把附件变成「可拼装的片段」（需要 I/O：解析 PDF、读提取缓存），
+    // 真正的拼装规则在 services/chatContent.ts。v0.7.98 之前，本轮消息和历史消息
+    // 各自维护了一份一模一样的 contentParts / textContent / hasImages 推演。
     const apiMessages: ChatApiMessage[] = [];
     for (const m of history) {
       // Apply input regex to current user message content for API
       const msgContent = (m.role === 'user' && m.id === userMsgId) ? transformedInput : m.content;
-      if (m.role === 'user' && m.id === userMsgId && attachments && attachments.length > 0) {
-        // Build multimodal content for the current user message with attachments
-        const contentParts: ChatContentPart[] = [];
-        let textContent = msgContent;
+      const isCurrentTurn = m.role === 'user' && m.id === userMsgId && !!attachments && attachments.length > 0;
+      const pieces: AttachmentPiece[] = [];
+
+      if (isCurrentTurn) {
+        // 本轮刚发出的消息：附件还是内存里的 base64，需要现场解析
         for (let ai = 0; ai < attachments.length; ai++) {
           const att = attachments[ai];
           if (att.mimeType.startsWith('image/')) {
-            contentParts.push({
-              type: 'image_url',
-              image_url: { url: `data:${att.mimeType};base64,${att.base64}` },
-            });
-          } else {
-            // Extract text from non-image files (PDF, text, code, etc.)
-            const extracted = await extractFileText(att.mimeType, att.base64, att.filename);
-            console.log(`[chat] File "${att.filename}" extraction result: ${extracted ? extracted.length + ' chars' : 'null'}`);
-            // Persist to the extraction cache so NEXT turn (when this becomes a
-            // historical message) never re-parses it. attachmentMeta is in the
-            // same order as `attachments` (both built from the same input array).
-            const attId = attachmentMeta[ai]?.id;
-            if (attId) {
-              try { cacheExtractStmt.run(extracted ?? '', attId); } catch { /* non-fatal */ }
-            }
-            if (extracted) {
-              textContent += `\n\n--- [Attached File: ${att.filename}] ---\n${extracted}\n--- [End of ${att.filename}] ---`;
-            } else {
-              console.warn(`[chat] Failed to extract text from "${att.filename}" (${att.mimeType}). AI will not see file content.`);
-            }
+            pieces.push({ kind: 'image', url: `data:${att.mimeType};base64,${att.base64}` });
+            continue;
           }
-        }
-        if (contentParts.length > 0) {
-          // Has images — use multimodal content array with text as first part
-          contentParts.unshift({ type: 'text', text: textContent });
-          apiMessages.push({ role: m.role, content: contentParts });
-        } else {
-          // No images — send as plain text (possibly with extracted file content)
-          apiMessages.push({ role: m.role, content: textContent });
+          // Extract text from non-image files (PDF, text, code, etc.)
+          const extracted = await extractFileText(att.mimeType, att.base64, att.filename);
+          console.log(`[chat] File "${att.filename}" extraction result: ${extracted ? extracted.length + ' chars' : 'null'}`);
+          // Persist to the extraction cache so NEXT turn (when this becomes a
+          // historical message) never re-parses it. attachmentMeta is in the
+          // same order as `attachments` (both built from the same input array).
+          const attId = attachmentMeta[ai]?.id;
+          if (attId) {
+            try { cacheExtractStmt.run(extracted ?? '', attId); } catch { /* non-fatal */ }
+          }
+          if (!extracted) {
+            console.warn(`[chat] Failed to extract text from "${att.filename}" (${att.mimeType}). AI will not see file content.`);
+          }
+          pieces.push({ kind: 'file', filename: att.filename, extracted });
         }
       } else {
-        // Historical message: read its attachments from the prefetched map (no
-        // per-message query) and resolve file text through the extraction cache
+        // Historical message: attachments come from the prefetched map (no
+        // per-message query) and file text resolves through the extraction cache
         // (no re-parsing of historical PDFs/text files turn after turn).
-        const msgAttachments = attachmentsByMessage.get(m.id) || [];
-        if (msgAttachments.length > 0) {
-          const contentParts: ChatContentPart[] = [];
-          let textContent = msgContent;
-          let hasImages = false;
-          for (const att of msgAttachments) {
-            if (att.type === 'image') {
-              hasImages = true;
-              contentParts.push({
-                type: 'image_url',
-                image_url: { url: att.url },
-              });
-            } else {
-              const extracted = await extractCached(att);
-              if (extracted) {
-                textContent += `\n\n--- [Attached File: ${att.filename || 'file'}] ---\n${extracted}\n--- [End of ${att.filename || 'file'}] ---`;
-              }
-            }
-          }
-          if (hasImages) {
-            contentParts.unshift({ type: 'text', text: textContent });
-            apiMessages.push({ role: m.role, content: contentParts });
+        for (const att of attachmentsByMessage.get(m.id) || []) {
+          if (att.type === 'image') {
+            pieces.push({ kind: 'image', url: att.url });
           } else {
-            apiMessages.push({ role: m.role, content: textContent });
+            pieces.push({ kind: 'file', filename: att.filename, extracted: await extractCached(att) });
           }
-        } else {
-          apiMessages.push({ role: m.role, content: msgContent });
         }
       }
+
+      apiMessages.push({ role: m.role, content: buildMessageContent(msgContent, pieces) });
     }
 
     // Send attachment info to client
@@ -560,7 +535,7 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
           let buffer = '';
           let roundContent = '';
           // Collect tool_calls: indexed by position
-          const toolCallsMap: Map<number, { id: string; name: string; arguments: string }> = new Map();
+          const toolCallsMap: Map<number, AccumulatedToolCall> = new Map();
           let hasToolCalls = false;
 
           while (true) {
@@ -587,19 +562,12 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
                     res.write(`data: ${JSON.stringify({ content: delta.content })}\n\n`);
                   }
 
-                  // Handle tool_calls streaming deltas
+                  // Handle tool_calls streaming deltas.
+                  // 累加规则在 services/toolCallStream.ts（v0.7.98 抽出 + 单测）：
+                  // 按 index 认领、跨 chunk 拼接、容忍字段缺失。
                   if (delta?.tool_calls) {
                     hasToolCalls = true;
-                    for (const tc of delta.tool_calls) {
-                      const idx = tc.index ?? 0;
-                      if (!toolCallsMap.has(idx)) {
-                        toolCallsMap.set(idx, { id: '', name: '', arguments: '' });
-                      }
-                      const existing = toolCallsMap.get(idx)!;
-                      if (tc.id) existing.id = tc.id;
-                      if (tc.function?.name) existing.name += tc.function.name;
-                      if (tc.function?.arguments) existing.arguments += tc.function.arguments;
-                    }
+                    accumulateToolCalls(toolCallsMap, delta.tool_calls);
                   }
                 } catch {
                   // Skip invalid JSON chunks
@@ -613,8 +581,11 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
             break;
           }
 
-          // Execute tool calls
-          const toolCalls = Array.from(toolCallsMap.values());
+          // Execute tool calls.
+          // 显式按 index 排序而不是用 Map 的插入序：插入序取决于增量到达顺序，
+          // 并行调用时不保证等于 index 序。上游是按 tool_call_id 配结果的，
+          // 所以这不是一个活着的 bug，但顺序稳定不花成本。
+          const toolCalls = orderedToolCalls(toolCallsMap);
 
           // Send tool call info to client for rendering
           for (const tc of toolCalls) {

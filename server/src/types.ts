@@ -35,6 +35,8 @@ export interface UserPublic {
   monthlyTokenLimit?: number;
   /** v0.7.59: client must force a password change before normal use. */
   mustChangePassword?: boolean;
+  /** 邀请占位用的虚拟成员（rooms.ts 的成员列表会带上这个标记）。 */
+  isVirtual?: boolean;
 }
 
 export interface RegisterRequest {
@@ -116,10 +118,16 @@ export interface StationModel {
   displayName: string;
   capabilities: ModelCapability[];
   enabled: boolean;
+  /** 管理员池可用（stations.ts / models.ts 实际会返回）。 */
+  adminEnabled?: boolean;
+  /** 全员池可用（同上；与 enabled 同源，为客户端命名清晰而并存）。 */
+  publicEnabled?: boolean;
   createdAt: string;
 }
 
-export type ModelCapability = 'text' | 'vision' | 'image-gen' | 'code';
+// v0.7.98（§10.11 ③）：补上 tts / embedding —— routes/prefs.ts 一直在用 'tts'
+// 和 'embedding' 做能力筛选，服务端这个类型却没有它们，等于对自己的领域撒谎。
+export type ModelCapability = 'text' | 'vision' | 'image-gen' | 'code' | 'tts' | 'embedding';
 
 export interface AggregatedModel {
   displayName: string;
@@ -187,14 +195,6 @@ export interface MemoryEntry {
   updatedAt: string;
 }
 
-export interface MemoryTag {
-  id: string;
-  name: string;
-  color?: string;
-  entryCount: number;
-  createdAt: string;
-}
-
 export interface MemoryConfig {
   autoSave: boolean;
   contextInjection: boolean;
@@ -242,6 +242,8 @@ export interface McpServer {
   description: string | null;
   enabled: boolean;
   status: 'connected' | 'disconnected' | 'error' | 'unknown';
+  /** 该服务已发现的工具数（routes/mcp.ts 实际返回）。 */
+  toolCount?: number;
   lastConnected: string | null;
   createdAt: string;
   updatedAt: string;
@@ -310,16 +312,6 @@ export interface FileLibraryEntry {
   updatedAt: string;
 }
 
-export interface FileChunk {
-  id: string;
-  fileId: string;
-  chunkIndex: number;
-  content: string;
-  embedding: string | null;
-  tokenCount: number;
-  createdAt: string;
-}
-
 // --- Regex Scripts & Presets ---
 
 export interface RegexScript {
@@ -332,6 +324,8 @@ export interface RegexScript {
   enabled: boolean;
   order: number;
   userId: string;
+  /** 归属者用户名（routes/regex.ts 实际返回，供管理员区分谁的脚本）。 */
+  ownerUsername?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -341,14 +335,11 @@ export interface RegexPreset {
   name: string;
   description: string | null;
   userId: string;
+  /** 归属者用户名（routes/regex.ts 实际返回）。 */
+  ownerUsername?: string | null;
   isDefault: boolean;
   scripts?: RegexScript[];
   createdAt: string;
   updatedAt: string;
 }
 
-export interface PresetScript {
-  presetId: string;
-  scriptId: string;
-  order: number;
-}

@@ -94,7 +94,7 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
                     {model.displayName}
                   </span>
                   <span className="text-xs text-[var(--color-text-tertiary)] mt-0.5">
-                    {t('model.stations', { count: model.stations.length, s: model.stations.length > 1 ? 's' : '' })}
+                    {t('model.stations', { count: model.stations.length })}
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5">

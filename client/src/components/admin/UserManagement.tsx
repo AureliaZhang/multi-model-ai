@@ -404,7 +404,7 @@ export function UserManagement({ onBack }: UserManagementProps) {
           <h1 className="text-lg font-semibold truncate">{t('users.title')}</h1>
         </div>
         <span className="text-[var(--color-text-tertiary)] text-sm">
-          {t('users.count', { count: users.length, s: users.length !== 1 ? 's' : '' })}
+          {t('users.count', { count: users.length })}
         </span>
         <button
           onClick={() => { setShowCreateForm(!showCreateForm); setCreateError(''); }}

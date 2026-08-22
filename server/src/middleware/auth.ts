@@ -131,6 +131,3 @@ export function requireRole(...roles: UserRole[]) {
     next();
   };
 }
-
-/** requireAuth then admin role — use as router.use(...requireAdmin) or route middleware array */
-export const requireAdmin = [requireAuth, requireRole('admin')];
