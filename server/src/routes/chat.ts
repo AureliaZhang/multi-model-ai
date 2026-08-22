@@ -40,6 +40,14 @@ import {
   type SystemContextParts,
 } from '../services/chatContext';
 import { buildSelfReviewPrompt, extractReviewedContent } from '../services/selfReview';
+import {
+  estimateTokens,
+  estimateMessagesTokens,
+  extractUsageReceipt,
+  addReceipts,
+  resolveUsage,
+  type UsageReceipt,
+} from '../services/usageAccounting';
 
 type ChatApiMessage =
   | { role: string; content: string | ChatContentPart[] | null; tool_calls?: unknown }
@@ -472,6 +480,17 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
      */
     let winningStation: (typeof stations)[number] | null = null;
 
+    /**
+     * 用量记账（v0.8.0，§10.12）。口径在 services/usageAccounting.ts。
+     *
+     * 一次聊天可能是**多次**上游调用（正文一次 + 每轮工具调用各一次），所以两个
+     * 累加器都放在站点循环外面：`usageReceipt` 收上游真回执（带了就收，我们不主动
+     * 索要——见 §10.12「刻意不做」），`estimatedPrompt` 按每轮**实际发出的 messages**
+     * 估，兜底用。原先只估了用户那一句话。
+     */
+    let usageReceipt: UsageReceipt | null = null;
+    let estimatedPrompt = 0;
+
     // Load enabled MCP tools
     const mcpTools = loadEnabledMcpTools(db);
 
@@ -481,6 +500,17 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
 
     for (const s of stations) {
       try {
+        /**
+         * 每换一个节点重置这两个累加器（v0.8.0，§10.12）。
+         *
+         * 故障转移可能发生在**流已经开始之后**（读到一半连接断了），那一次尝试
+         * 已经累加过 prompt 估算、也可能已经收到过回执。不重置的话，成功的那次
+         * 会连着失败尝试的数字一起记 —— 变成反方向的多算。
+         * 账上只记最终成功的那个节点。
+         */
+        usageReceipt = null;
+        estimatedPrompt = 0;
+
         const requestBody: ChatRequestBody = {
           model: s.modelId,
           messages: apiMessages,
@@ -536,6 +566,9 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
             break;
           }
 
+          // 这一轮实际发出去的 messages（含人设/世界书/联网/记忆/文件库/全部历史）。
+          estimatedPrompt += estimateMessagesTokens(currentRequestBody.messages);
+
           const reader = roundResponse.body?.getReader();
           if (!reader) throw new Error('No response body');
 
@@ -563,6 +596,11 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
                 try {
                   const parsed = JSON.parse(data);
                   const delta = parsed.choices?.[0]?.delta;
+
+                  // 上游若在某个 chunk 里带了真实用量就收下（通常是最后一个）。
+                  // 多轮工具调用时逐轮累加。
+                  const receipt = extractUsageReceipt(parsed);
+                  if (receipt) usageReceipt = addReceipts(usageReceipt, receipt);
 
                   if (delta?.content) {
                     roundContent += delta.content;
@@ -708,6 +746,7 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
     // 提示词与响应解析在 services/selfReview.ts（v0.7.99 抽出 + 单测）。
     if (conv.self_review && winningStation) {
       console.log(`[chat] Self-review enabled for conversation ${conversationId}, starting review pass...`);
+      const reviewStarted = Date.now();
       try {
         const reviewRequestBody: ChatRequestBody = {
           model: winningStation.modelId, // 与正文用的是同一个模型
@@ -725,7 +764,38 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
         });
 
         if (reviewResponse.ok) {
-          const reviewedContent = extractReviewedContent(await reviewResponse.json());
+          const reviewData = await reviewResponse.json();
+          const reviewedContent = extractReviewedContent(reviewData);
+
+          /**
+           * 自审是一次**独立的上游调用**，要单独记一行（v0.8.0，§10.12）——
+           * 原先它完全不在账上，是一笔真花了钱却看不见的开销。`kind` 仍是
+           * `chat`，配额与成本自然合计正确；口径与 rooms.ts 一致：一次调用一行。
+           * 记账放在解析结果之前，是因为**钱在响应回来时就已经花掉了**，
+           * 哪怕修订结果没用上。
+           */
+          const reviewUsage = resolveUsage(extractUsageReceipt(reviewData), {
+            promptTokens: estimateMessagesTokens(reviewRequestBody.messages),
+            completionTokens: estimateTokens(reviewedContent ?? ''),
+            totalTokens: 0, // 用不到：resolveUsage 缺 total 时按定稿后两项求和
+          });
+          logApiUsage({
+            userId: req.user?.id || conv.user_id || null,
+            username: req.user?.username || null,
+            role: req.user?.role || null,
+            kind: 'chat',
+            modelNormalized: modelNormalizedName,
+            modelUsed: usedStation,
+            stationId: winningStation.station.id,
+            stationName: winningStation.station.name,
+            conversationId,
+            status: 'ok',
+            promptTokens: reviewUsage.promptTokens,
+            completionTokens: reviewUsage.completionTokens,
+            totalTokens: reviewUsage.totalTokens,
+            latencyMs: Date.now() - reviewStarted,
+          });
+
           if (reviewedContent) {
             console.log(`[chat] Self-review complete. Original: ${assistantContent.length} chars, Reviewed: ${reviewedContent.length} chars`);
             assistantContent = reviewedContent;
@@ -760,9 +830,13 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
       'INSERT INTO messages (id, conversation_id, role, content, model_used, created_at) VALUES (?, ?, ?, ?, ?, ?)'
     ).run(assistantMsgId, conversationId, 'assistant', assistantContent, usedStation, assistantTime);
 
-    // Approximate tokens when provider usage missing
-    const approxPrompt = Math.ceil(String(message).length / 4);
-    const approxCompletion = Math.ceil(String(assistantContent).length / 4);
+    // 用量记账（v0.8.0，§10.12）：真实回执优先、逐字段取，缺的用估算补。
+    // 估算口径已从「只数用户那一句」改成「每轮实际发出的 messages 之和」。
+    const usage = resolveUsage(usageReceipt, {
+      promptTokens: estimatedPrompt,
+      completionTokens: estimateTokens(assistantContent),
+      totalTokens: 0, // 用不到：resolveUsage 在 total 缺失时按定稿后两项求和
+    });
     logApiUsage({
       userId: req.user?.id || conv.user_id || null,
       username: req.user?.username || null,
@@ -770,11 +844,13 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
       kind: 'chat',
       modelNormalized: modelNormalizedName,
       modelUsed: usedStation,
+      stationId: winningStation?.station.id ?? null,
+      stationName: winningStation?.station.name ?? null,
       conversationId,
       status: 'ok',
-      promptTokens: approxPrompt,
-      completionTokens: approxCompletion,
-      totalTokens: approxPrompt + approxCompletion,
+      promptTokens: usage.promptTokens,
+      completionTokens: usage.completionTokens,
+      totalTokens: usage.totalTokens,
       latencyMs: Date.now() - chatStarted,
     });
 
