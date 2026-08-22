@@ -32,6 +32,13 @@ import { searchWeb, buildWebSearchContext } from '../services/webSearch';
 import { buildMessageContent, type ChatContentPart, type AttachmentPiece } from '../services/chatContent';
 // 流式 tool_calls 的累加与排序（同样是从这个处理函数里抽出来的纯逻辑）。
 import { accumulateToolCalls, orderedToolCalls, type AccumulatedToolCall } from '../services/toolCallStream';
+// system 上下文的格式化与**顺序**（顺序此前只靠一句注释维系，现在有测试盯着）。
+import {
+  orderSystemContext,
+  formatFileContext,
+  formatMemoryContext,
+  type SystemContextParts,
+} from '../services/chatContext';
 
 type ChatApiMessage =
   | { role: string; content: string | ChatContentPart[] | null; tool_calls?: unknown }
@@ -358,7 +365,13 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
       res.write(`data: ${JSON.stringify({ attachments: attachmentMeta })}\n\n`);
     }
 
-    // Inject relevant file library chunks as system context (RAG).
+    // ── system 上下文：先各自检索，最后按一个写明的顺序统一前置 ──
+    // 顺序与格式化规则在 services/chatContext.ts（v0.7.99 抽出，含顺序测试）。
+    // 原先这里是五次 apiMessages.unshift()，最终顺序靠调用次序**倒着**决定，
+    // 而这个约定只写在一句注释里、没有任何测试盯着。
+    const systemContext: SystemContextParts = {};
+
+    // 文件库 RAG。
     // Gate the client-supplied fileIds through the visibility filter so the
     // sender can never pull another member's private file into context by
     // forging its id (default-private file library — §10.8 Phase 4).
@@ -373,37 +386,18 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
     if (visibleFileIds.length > 0) {
       try {
         sharedQueryEmbedding = await generateEmbedding(message);
-        const relevantChunks = searchFileChunks(sharedQueryEmbedding, visibleFileIds, 5);
-        if (relevantChunks.length > 0) {
-          const fileContext = relevantChunks
-            .map((c: { fileName: string; content: string }) => `[${c.fileName}] ${c.content}`)
-            .join('\n\n');
-          apiMessages.unshift({
-            role: 'system',
-            content: `以下是从文件库中检索到的相关内容：\n${fileContext}\n\n请基于这些文件内容回答用户的问题。`,
-          });
-        }
+        systemContext.fileRag = formatFileContext(
+          searchFileChunks(sharedQueryEmbedding, visibleFileIds, 5)
+        );
       } catch (fileErr: unknown) {
         console.warn('[chat] File RAG injection failed:', getErrorMessage(fileErr));
       }
     }
 
-    // Inject relevant memories as system context (vector search)
-    // Scoped to the conversation owner so members never see each other's memories.
-    const relevantMemories = await retrieveRelevantMemories(db, message, 5, conv.user_id, sharedQueryEmbedding);
-    if (relevantMemories.length > 0) {
-      const memoryContext = relevantMemories
-        .filter((m) => m.summary)
-        .map((m) => `- ${m.summary}`)
-        .join('\n');
-
-      if (memoryContext) {
-        apiMessages.unshift({
-          role: 'system',
-          content: `以下是从记忆库中检索到的相关记忆，可能对回答用户问题有帮助：\n${memoryContext}\n\n请根据这些记忆信息来更好地回答用户的问题。如果记忆中没有相关信息，请正常回答。`,
-        });
-      }
-    }
+    // 记忆库（向量检索）。按会话归属人隔离，成员之间看不到彼此的记忆。
+    systemContext.memory = formatMemoryContext(
+      await retrieveRelevantMemories(db, message, 5, conv.user_id, sharedQueryEmbedding)
+    );
 
     // Inject triggered project-lorebook entries (世界书, v0.7.72). Keyword scan
     // covers the new message plus the last few turns so follow-up questions keep
@@ -434,7 +428,7 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
         );
         const loreContext = buildLorebookContext(matched);
         if (loreContext) {
-          apiMessages.unshift({ role: 'system', content: loreContext });
+          systemContext.lorebook = loreContext;
         }
       }
     } catch (loreErr: unknown) {
@@ -447,19 +441,20 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
     if (webSearch === true) {
       const search = await searchWeb(String(message), db);
       if (search.ok) {
-        const searchContext = buildWebSearchContext(String(message), search.results);
-        if (searchContext) apiMessages.unshift({ role: 'system', content: searchContext });
+        systemContext.webSearch = buildWebSearchContext(String(message), search.results);
       } else {
         console.warn('[chat] web search unavailable:', search.reason);
       }
     }
 
-    // Inject this conversation's custom system prompt (persona) as the LEADING system message.
-    // Unshifted last so it lands before file/memory context — the persona should frame the
-    // whole exchange, with retrieval context following it. Empty/whitespace-only = no injection.
-    if (conv.system_prompt && conv.system_prompt.trim()) {
-      apiMessages.unshift({ role: 'system', content: conv.system_prompt });
-    }
+    // 会话自带的人设。空 / 纯空白由 orderSystemContext 过滤掉。
+    systemContext.persona = conv.system_prompt;
+
+    // 统一前置。`unshift(...items)` 会按给定顺序插到最前面，
+    // 所以 orderSystemContext 返回的顺序就是模型看到的顺序。
+    apiMessages.unshift(
+      ...orderSystemContext(systemContext).map((content) => ({ role: 'system' as const, content }))
+    );
 
     // Try stations with failover (pool computed once above — no re-scan).
     let assistantContent = '';

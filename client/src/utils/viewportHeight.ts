@@ -33,7 +33,34 @@ export function trackViewportHeight(): () => void {
     document.documentElement.style.setProperty('--app-height', `${vv.height}px`);
   };
 
+  /**
+   * 每帧最多写一次（v0.7.99）。
+   *
+   * owner 真机反馈：iOS 输入法弹出时输入框「向上会卡一下」。原因是输入法
+   * 弹出是一段动画，这期间 `visualViewport` 会连续触发 resize，而每次回调
+   * 都直接写一遍 `--app-height` —— 同一帧内多次改样式就是重排抖动的经典成因。
+   * 用 rAF 把一帧内的多次 resize 合并成一次写入；中间那些注定要被覆盖的
+   * 高度值根本不落到样式上。
+   *
+   * 没有 rAF 的环境（很老的浏览器）直接同步执行，行为退回改造前。
+   */
+  let frame = 0;
+  const raf = typeof window.requestAnimationFrame === 'function' ? window.requestAnimationFrame : null;
+  const schedule = raf
+    ? () => {
+        if (frame) return; // 本帧已排过，丢掉重复的 resize
+        frame = raf(() => {
+          frame = 0;
+          apply();
+        });
+      }
+    : apply;
+
+  // 首次同步写入：等一帧会让首屏闪一下。
   apply();
-  vv.addEventListener('resize', apply);
-  return () => vv.removeEventListener('resize', apply);
+  vv.addEventListener('resize', schedule);
+  return () => {
+    vv.removeEventListener('resize', schedule);
+    if (frame && typeof window.cancelAnimationFrame === 'function') window.cancelAnimationFrame(frame);
+  };
 }
