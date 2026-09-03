@@ -21,3 +21,9 @@ dev-logs/
 
 # 软著登记材料 — 归档件，不属于仓库内容，也绝不参与部署
 软著申请/
+
+# Claude Code workspace
+.claude/
+
+# Papers and docs (not part of the project)
+*.pdf
