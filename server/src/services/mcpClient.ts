@@ -9,6 +9,7 @@ import type { McpServerRow, McpToolRow } from '../dbRows';
 import { getDb } from '../database';
 import { v4 as uuidv4 } from 'uuid';
 import type Database from 'better-sqlite3';
+import { parseSseChunk } from './sseStream';
 
 interface JsonRpcRequest {
   jsonrpc: '2.0';
@@ -85,7 +86,7 @@ async function sendJsonRpc(
 /**
  * Parse an SSE response to extract the JSON-RPC result.
  */
-async function parseSSEResponse(response: Response): Promise<unknown> {
+export async function parseSSEResponse(response: Response): Promise<unknown> {
   const reader = response.body?.getReader();
   if (!reader) throw new Error('No response body');
 
@@ -96,25 +97,37 @@ async function parseSSEResponse(response: Response): Promise<unknown> {
     const { done, value } = await reader.read();
     if (done) break;
 
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
+    // 与聊天流共用 services/sseStream.ts（v0.8.0）：跨 chunk 截断、CRLF、
+    // `data:` 后无空格、`[DONE]` 收口都在那边测住了。原先这里是第二份手写解析，
+    // 同样写死了 `'data: '` 带空格的前缀。
+    const chunk = parseSseChunk(buffer, decoder.decode(value, { stream: true }));
+    buffer = chunk.rest;
 
-    for (const line of lines) {
-      if (line.startsWith('data: ')) {
-        try {
-          const data = JSON.parse(line.slice(6)) as JsonRpcResponse;
-          if (data.error) {
-            throw new Error(`MCP error ${data.error.code}: ${data.error.message}`);
-          }
-          if (data.result !== undefined) {
-            return data.result;
-          }
-        } catch (e) {
-          // Skip invalid JSON lines
-        }
+    for (const frame of chunk.frames) {
+      let data: JsonRpcResponse;
+      try {
+        data = JSON.parse(frame) as JsonRpcResponse;
+      } catch {
+        continue; // 真的不是 JSON —— 跳过这一帧
+      }
+
+      /**
+       * ⚠️ 这个 throw 必须落在 try 外面。
+       *
+       * 原先它写在 `try { JSON.parse(...); if (data.error) throw ... }` 里面，
+       * 于是自己抛的 `MCP error` 被同一个 catch 当成「无效 JSON」吞掉，
+       * 循环继续跑到流结束，最后统一报 `No result received from SSE stream`——
+       * 服务器明确说出的原因（认证失败、工具不存在、参数不对）永远看不到。
+       */
+      if (data.error) {
+        throw new Error(`MCP error ${data.error.code}: ${data.error.message}`);
+      }
+      if (data.result !== undefined) {
+        return data.result;
       }
     }
+
+    if (chunk.done) break;
   }
 
   throw new Error('No result received from SSE stream');

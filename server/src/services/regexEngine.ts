@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
 import type { RegexScriptRow, RegexPresetRow, ConversationPresetRow } from '../dbRows';
 import { getErrorMessage } from '../utils/errors';
+import { runRegexWithTimeout, RegexTimeoutError } from './regexSafety';
 
 // ============================================================
 // Regex Engine — applies regex scripts to message text
@@ -38,16 +39,22 @@ function rowToRegexScript(row: RegexScriptRow): RegexScript {
 
 /**
  * Apply all enabled regex scripts to text.
+ *
+ * 每个脚本都在 worker 线程里限时执行（v0.8.1）。这些 pattern 是用户自己存的，
+ * 一个 `(a+)+b` 会让**每一次聊天**都把事件循环焊死 —— 全站瘫掉且不自愈。
+ * 单个脚本超时就跳过它、保留上一步的结果，继续跑后面的：聊天不该因为一条坏
+ * 脚本整个失败。
+ *
  * @param scripts - Array of enabled, ordered scripts
  * @param text - The text to transform
  * @param placement - Which placement context: 'input' or 'output'
  * @returns Transformed text
  */
-export function applyRegexScripts(
+export async function applyRegexScripts(
   scripts: RegexScript[],
   text: string,
   placement: 'input' | 'output'
-): string {
+): Promise<string> {
   let result = text;
   const applicable = scripts
     .filter(s => s.enabled && (s.placement === 'both' || s.placement === placement))
@@ -55,10 +62,23 @@ export function applyRegexScripts(
 
   for (const script of applicable) {
     try {
-      const regex = new RegExp(script.findPattern, script.flags);
-      result = result.replace(regex, script.replacement);
+      const run = await runRegexWithTimeout(
+        script.findPattern,
+        script.flags,
+        script.replacement,
+        result
+      );
+      if (run.error) {
+        console.warn(`[regex] Invalid regex in script "${script.name}": ${script.findPattern} — ${run.error}`);
+        continue;
+      }
+      result = run.result;
     } catch (err) {
-      console.warn(`[regex] Invalid regex in script "${script.name}": ${script.findPattern}`, err);
+      if (err instanceof RegexTimeoutError) {
+        console.warn(`[regex] Script "${script.name}" timed out and was skipped: ${script.findPattern}`);
+      } else {
+        console.warn(`[regex] Script "${script.name}" failed: ${getErrorMessage(err)}`);
+      }
     }
   }
   return result;
@@ -121,30 +141,4 @@ export function getActiveScripts(
   }
 
   return [];
-}
-
-/**
- * Test regex on sample text (dry run).
- */
-export function testRegex(
-  pattern: string,
-  flags: string,
-  replacement: string,
-  testText: string
-): { result: string; matches: number; error?: string } {
-  try {
-    const regex = new RegExp(pattern, flags);
-    let matchCount = 0;
-    const result = testText.replace(regex, (...args) => {
-      matchCount++;
-      // Support $1, $2, etc. in replacement
-      return replacement.replace(/\$(\d+)/g, (_, idx) => {
-        const groupIdx = parseInt(idx, 10);
-        return args[groupIdx] ?? '';
-      });
-    });
-    return { result, matches: matchCount };
-  } catch (err: unknown) {
-    return { result: testText, matches: 0, error: getErrorMessage(err) };
-  }
 }

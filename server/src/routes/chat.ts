@@ -48,6 +48,7 @@ import {
   resolveUsage,
   type UsageReceipt,
 } from '../services/usageAccounting';
+import { parseSseChunk } from '../services/sseStream';
 
 type ChatApiMessage =
   | { role: string; content: string | ChatContentPart[] | null; tool_calls?: unknown }
@@ -218,7 +219,7 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
 
     // Apply input regex transformation for API consumption
     const transformedInput = activeRegexScripts.length > 0
-      ? applyRegexScripts(activeRegexScripts, message, 'input')
+      ? await applyRegexScripts(activeRegexScripts, message, 'input')
       : message;
 
     // Save attachments if any
@@ -583,43 +584,42 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
             const { done, value } = await reader.read();
             if (done) break;
 
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
+            // 「字节流 → 一帧帧 JSON」在 services/sseStream.ts（v0.8.0 抽出 + 单测）：
+            // 跨 chunk 截断、CRLF、`data:` 后无空格、`[DONE]` 收口都在那边测住了。
+            const chunk = parseSseChunk(buffer, decoder.decode(value, { stream: true }));
+            buffer = chunk.rest;
 
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const data = line.slice(6).trim();
-                if (data === '[DONE]') {
-                  break;
+            for (const frame of chunk.frames) {
+              try {
+                const parsed = JSON.parse(frame);
+                const delta = parsed.choices?.[0]?.delta;
+
+                // 上游若在某个 chunk 里带了真实用量就收下（通常是最后一个）。
+                // 多轮工具调用时逐轮累加。
+                const receipt = extractUsageReceipt(parsed);
+                if (receipt) usageReceipt = addReceipts(usageReceipt, receipt);
+
+                if (delta?.content) {
+                  roundContent += delta.content;
+                  assistantContent += delta.content;
+                  res.write(`data: ${JSON.stringify({ content: delta.content })}\n\n`);
                 }
-                try {
-                  const parsed = JSON.parse(data);
-                  const delta = parsed.choices?.[0]?.delta;
 
-                  // 上游若在某个 chunk 里带了真实用量就收下（通常是最后一个）。
-                  // 多轮工具调用时逐轮累加。
-                  const receipt = extractUsageReceipt(parsed);
-                  if (receipt) usageReceipt = addReceipts(usageReceipt, receipt);
-
-                  if (delta?.content) {
-                    roundContent += delta.content;
-                    assistantContent += delta.content;
-                    res.write(`data: ${JSON.stringify({ content: delta.content })}\n\n`);
-                  }
-
-                  // Handle tool_calls streaming deltas.
-                  // 累加规则在 services/toolCallStream.ts（v0.7.98 抽出 + 单测）：
-                  // 按 index 认领、跨 chunk 拼接、容忍字段缺失。
-                  if (delta?.tool_calls) {
-                    hasToolCalls = true;
-                    accumulateToolCalls(toolCallsMap, delta.tool_calls);
-                  }
-                } catch {
-                  // Skip invalid JSON chunks
+                // Handle tool_calls streaming deltas.
+                // 累加规则在 services/toolCallStream.ts（v0.7.98 抽出 + 单测）：
+                // 按 index 认领、跨 chunk 拼接、容忍字段缺失。
+                if (delta?.tool_calls) {
+                  hasToolCalls = true;
+                  accumulateToolCalls(toolCallsMap, delta.tool_calls);
                 }
+              } catch {
+                // Skip invalid JSON chunks
               }
             }
+
+            // 收到 [DONE] 就停止读取本轮 —— 原先只跳出内层循环，
+            // 靠上游发完即关连接才没出事。
+            if (chunk.done) break;
           }
 
           // If no tool calls, we're done
@@ -813,7 +813,7 @@ router.post('/', optionalAuth, async (req: AuthRequest, res: Response) => {
 
     // Apply output regex transformation for display
     if (activeRegexScripts.length > 0) {
-      const displayContent = applyRegexScripts(activeRegexScripts, assistantContent, 'output');
+      const displayContent = await applyRegexScripts(activeRegexScripts, assistantContent, 'output');
       if (displayContent !== assistantContent) {
         console.log(`[regex] Output regex applied. Original: ${assistantContent.length} chars, Transformed: ${displayContent.length} chars`);
         assistantContent = displayContent;

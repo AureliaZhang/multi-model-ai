@@ -2,9 +2,9 @@ import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../database';
 import { requireAuth, optionalAuth } from '../middleware/auth';
+import { runRegexWithTimeout, RegexInputError, RegexTimeoutError } from '../services/regexSafety';
 import type { AuthRequest } from '../types';
 import type { RegexScriptRow, RegexPresetRow } from '../dbRows';
-import { testRegex } from '../services/regexEngine';
 import { getErrorMessage } from '../utils/errors';
 
 const router = Router();
@@ -537,8 +537,15 @@ router.post('/import', requireAuth, (req: AuthRequest, res: Response) => {
   }
 });
 
-// GET /api/regex/test — Test regex on sample text
-router.get('/test', (req: Request, res: Response) => {
+/**
+ * GET /api/regex/test — Test regex on sample text
+ *
+ * requireAuth（v0.8.1）：原先这条是整个文件里唯一没有守卫的路由，而它会拿
+ * **调用方给的 pattern** 跑 replace —— 未登录就能用 `(a+)+b` 这类嵌套量词把
+ * 事件循环焊死（实测 40 个 a 即可，进程不会自己恢复）。现在既要登录，也在
+ * worker 线程里限时执行。
+ */
+router.get('/test', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { pattern, flags = 'g', replacement = '', text = '' } = req.query;
 
@@ -546,7 +553,7 @@ router.get('/test', (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'pattern is required' });
     }
 
-    const result = testRegex(
+    const result = await runRegexWithTimeout(
       pattern as string,
       flags as string,
       replacement as string,
@@ -555,6 +562,10 @@ router.get('/test', (req: Request, res: Response) => {
 
     res.json({ success: true, data: result });
   } catch (err: unknown) {
+    // 输入超限和执行超时都是调用方的问题（400），不是服务器故障（500）。
+    if (err instanceof RegexInputError || err instanceof RegexTimeoutError) {
+      return res.status(400).json({ success: false, error: err.message });
+    }
     res.status(500).json({ success: false, error: getErrorMessage(err) });
   }
 });

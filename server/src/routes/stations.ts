@@ -37,7 +37,7 @@ function mapStationModel(row: StationModelRow) {
 }
 
 // GET /api/stations - List all stations
-router.get('/', (_req: Request, res: Response) => {
+router.get('/', requireAuth, requireRole('admin'), (_req: AuthRequest, res: Response) => {
   try {
     const db = getDb();
     const rows = db.prepare('SELECT * FROM stations ORDER BY created_at DESC').all() as StationRow[];
@@ -49,7 +49,7 @@ router.get('/', (_req: Request, res: Response) => {
 });
 
 // POST /api/stations - Create a station
-router.post('/', (req: Request, res: Response) => {
+router.post('/', requireAuth, requireRole('admin'), (req: AuthRequest, res: Response) => {
   try {
     const { name, baseUrl, apiKey } = req.body as CreateStationRequest;
     if (!name || !baseUrl || !apiKey) {
@@ -70,7 +70,7 @@ router.post('/', (req: Request, res: Response) => {
 });
 
 // PUT /api/stations/:id - Update a station
-router.put('/:id', (req: Request, res: Response) => {
+router.put('/:id', requireAuth, requireRole('admin'), (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const updates = req.body as UpdateStationRequest;
@@ -100,7 +100,7 @@ router.put('/:id', (req: Request, res: Response) => {
 });
 
 // DELETE /api/stations/:id - Delete a station
-router.delete('/:id', (req: Request, res: Response) => {
+router.delete('/:id', requireAuth, requireRole('admin'), (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const db = getDb();
@@ -240,7 +240,7 @@ router.put('/:id/models-bulk', requireAuth, requireRole('admin'), (req: AuthRequ
 });
 
 // POST /api/stations/:id/pull-models - Fetch models from station
-router.post('/:id/pull-models', async (req: Request, res: Response) => {
+router.post('/:id/pull-models', requireAuth, requireRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const db = getDb();
@@ -357,7 +357,7 @@ router.post('/:id/pull-models', async (req: Request, res: Response) => {
 });
 
 // POST /api/stations/:id/health-check
-router.post('/:id/health-check', async (req: Request, res: Response) => {
+router.post('/:id/health-check', requireAuth, requireRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const db = getDb();
